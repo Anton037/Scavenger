@@ -1,12 +1,9 @@
 import * as THREE from 'three';
 import { LIFT_WAIT } from './game.js';
 import {
-  BLOCKS, DEPTH, FIXTURES, LIFT, POOLS, RECORDS, ROOMS, VALVES, VENDING, WIDTH, cell, clearPath,
-} from './level.js';
-import {
-  PALETTE, TAU, band, batchScenery, brassMaterial, color, crownMesh, diver, doenerModel,
-  dredged, emissive, greedyTom, haukeBoss, haukeSnack, material, octa, orb, piece,
-  randomFrom, round, rubberDuck, solid, speziModel, surfaceTexture, tapered,
+  PALETTE, TAU, band, batchScenery, barrelMesh, brassMaterial, color, crateMesh, crownMesh,
+  diver, doenerModel, dredged, emissive, greedyTom, haukeBoss, haukeSnack, material, octa, orb,
+  piece, randomFrom, round, rubberDuck, skewerModel, solid, speziModel, surfaceTexture, tapered,
 } from './art.js';
 
 const brass = brassMaterial(PALETTE.brass);
@@ -22,7 +19,7 @@ const markPlane = new THREE.RingGeometry(0.93, 1, 32).rotateX(-Math.PI / 2);
 const thinRingPlane = new THREE.RingGeometry(0.965, 1, 32).rotateX(-Math.PI / 2);
 const floorY = 0.013;
 
-// Dead-Cells Pixel-Art Auflösung (knackiges Nearest-Neighbor Pixel-Grid)
+// Dead-Cells Pixel-Art Auflösung
 const PIXEL_SCALE = 2.4;
 
 function placeInlayRing(parent, tint, x, z, radius, opacity = 0.42) {
@@ -32,9 +29,15 @@ function placeInlayRing(parent, tint, x, z, radius, opacity = 0.42) {
   return mark;
 }
 
-function installFloor(scene) {
-  const random = randomFrom(91);
-  const texture = surfaceTexture();
+function placeRing(parent, tint, x, z, radius) {
+  const finish = new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.82, depthWrite: false });
+  const mark = piece(parent, markPlane, finish, x, floorY + 0.024, z, radius, 1, radius);
+  mark.renderOrder = 2;
+  return mark;
+}
+
+function installFloor(world, map, texture) {
+  const random = randomFrom(map.seed + map.floor * 91);
   const floorFinish = new THREE.MeshStandardMaterial({
     map: texture,
     roughness: 0.62,
@@ -43,13 +46,13 @@ function installFloor(scene) {
   const floor = [];
   const perimeter = [];
   const sides = [[1, 0], [0, -1], [-1, 0], [0, 1]];
-  for (let z = 0; z < DEPTH; z++) {
-    for (let x = 0; x < WIDTH; x++) {
-      const style = cell(x, z);
+  for (let z = 0; z < map.depth; z++) {
+    for (let x = 0; x < map.width; x++) {
+      const style = map.cell(x, z);
       if (!style) continue;
       floor.push({ x, z, style });
       for (const [dx, dz] of sides) {
-        if (cell(x + dx, z + dz) === 0) perimeter.push({ x, z, dx, dz });
+        if (map.cell(x + dx, z + dz) === 0) perimeter.push({ x, z, dx, dz });
       }
     }
   }
@@ -60,22 +63,20 @@ function installFloor(scene) {
     transform.rotation.y = Math.floor(random() * 4) * Math.PI / 2;
     transform.updateMatrix();
     tiles.setMatrixAt(index, transform.matrix);
-    const baseHex = ROOMS[style - 2]?.glaze ?? 0x3b4666;
-    tiles.setColorAt(index, color(baseHex).multiplyScalar(1.05 + random() * 0.18));
+    const baseHex = map.rooms[style - 2]?.glaze ?? map.biome.floorGlazes[0];
+    tiles.setColorAt(index, color(baseHex).multiplyScalar(1.06 + random() * 0.18));
   }
   tiles.receiveShadow = true;
-  scene.add(tiles);
+  world.add(tiles);
 
-  for (const room of ROOMS) {
-    const cx = room.x + room.w * 0.5;
-    const cz = room.z + room.d * 0.5;
-    const r = Math.min(room.w, room.d) * 0.38;
-    placeInlayRing(scene, PALETTE.brass, cx, cz, r, 0.36);
-    placeInlayRing(scene, PALETTE.copper, cx, cz, r * 0.62, 0.26);
+  for (const room of map.rooms) {
+    const r = Math.min(room.w, room.d) * 0.36;
+    placeInlayRing(world, map.biome.accent, room.cx, room.cz, r, 0.32);
+    placeInlayRing(world, PALETTE.copper, room.cx, room.cz, r * 0.58, 0.22);
   }
 
   const sidesFinish = new THREE.MeshStandardMaterial({
-    color: 0x354063,
+    color: map.biome.wallHex,
     roughness: 0.58,
     metalness: 0.15,
     map: texture,
@@ -88,14 +89,14 @@ function installFloor(scene) {
   for (const [index, { x, z, dx, dz }] of perimeter.entries()) {
     const px = x + 0.5 + dx * 0.54;
     const pz = z + 0.5 + dz * 0.54;
-    const height = dz > 0 ? 0.42 : 0.95 + random() * 0.2;
+    const height = dz > 0 ? 0.42 : 0.96 + random() * 0.22;
     const width = dx ? 0.24 : 1.06;
     const depth = dz ? 0.24 : 1.06;
     transform.position.set(px, height / 2 - 0.15, pz);
     transform.scale.set(width, height + 0.3, depth);
     transform.updateMatrix();
     walls.setMatrixAt(index, transform.matrix);
-    walls.setColorAt(index, color(0x38456b).multiplyScalar(0.95 + random() * 0.2));
+    walls.setColorAt(index, color(map.biome.wallHex).multiplyScalar(0.95 + random() * 0.24));
     transform.position.y = height + 0.015;
     transform.scale.set(width + 0.04, 0.06, depth + 0.04);
     transform.updateMatrix();
@@ -106,25 +107,25 @@ function installFloor(scene) {
     feet.setMatrixAt(index, transform.matrix);
 
     if (index % 5 === 0 && dz <= 0) {
-      piece(profile, tapered, enamel, px, height * 0.72, pz, 0.25, height * 1.45, 0.25);
-      piece(profile, round, brass, px, height * 1.38, pz, 0.28, 0.075, 0.28);
-      piece(profile, orb, enamel, px, height * 1.48, pz, 0.23, 0.15, 0.23);
+      piece(profile, tapered, enamel, px, height * 0.72, pz, 0.24, height * 1.4, 0.24);
+      piece(profile, round, brass, px, height * 1.38, pz, 0.27, 0.075, 0.27);
+      piece(profile, orb, enamel, px, height * 1.48, pz, 0.22, 0.15, 0.22);
     }
   }
   for (const mesh of [walls, rims, feet]) {
     mesh.castShadow = mesh !== feet;
     mesh.receiveShadow = true;
-    scene.add(mesh);
+    world.add(mesh);
   }
-  batchScenery(scene, profile);
+  batchScenery(world, profile);
 }
 
-function installWater(scene) {
+function installWater(world, map) {
   const clock = { value: 0 };
   const water = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    uniforms: { uTime: clock, uColor: { value: color(0x1f6e7a) } },
+    uniforms: { uTime: clock, uColor: { value: color(map.biome.waterHex) } },
     vertexShader: `varying vec2 waterUv;
 void main() {
   waterUv = uv * 2.0 - 1.0;
@@ -140,24 +141,20 @@ void main() {
   float surface = step(border, 0.95);
   float ring = step(0.65, sin(border * 18.0 - uTime * 2.2));
   float rim = step(0.86, border) * step(border, 0.95);
-  vec3 tint = uColor * 0.55 + vec3(0.22, 0.95, 0.68) * (ring * 0.18 + rim * 0.45);
+  vec3 tint = uColor * 0.55 + vec3(0.22, 0.95, 0.78) * (ring * 0.18 + rim * 0.45);
   gl_FragColor = vec4(tint, surface * 0.72);
 }`,
   });
-  for (const { x, z, w, d } of POOLS) {
-    const patch = piece(scene, tilePlane, water, x, floorY + 0.009, z, w, 1, d);
+  for (const { x, z, w, d } of map.pools) {
+    const patch = piece(world, tilePlane, water, x, floorY + 0.009, z, w, 1, d);
     patch.renderOrder = 1;
   }
   return clock;
 }
 
-function installMachinery(scene) {
+function installMachinery(world, map) {
   const group = new THREE.Group();
-  for (const offset of [-1.32, 1.32]) {
-    piece(group, solid, brass, 18.5 + offset, 0.017, 23.8, 0.045, 0.018, 4.25);
-    piece(group, solid, brass, 18.5 + offset, 0.017, 10.1, 0.045, 0.018, 3.64);
-  }
-  for (const { x, z, w, d, kind } of BLOCKS) {
+  for (const { x, z, w, d, kind } of map.blocks) {
     const detail = new THREE.Group();
     detail.position.set(x, 0, z);
     group.add(detail);
@@ -192,7 +189,7 @@ function installMachinery(scene) {
 
   // Späti-Automat
   const vend = new THREE.Group();
-  vend.position.set(VENDING.x, 0, VENDING.z);
+  vend.position.set(map.vending.x, 0, map.vending.z);
   piece(vend, tapered, enamel, 0, 0.64, 0, 0.44, 1.22, 0.44);
   band(vend, brass, 0, 1.18, 0, 0.42);
   piece(vend, orb, ivoryMat, 0, 1.26, 0, 0.36, 0.18, 0.36);
@@ -200,11 +197,11 @@ function installMachinery(scene) {
   piece(vend, octa, emissive(PALETTE.vermilion), 0, 1.48, 0, 0.13, 0.19, 0.13);
   group.add(vend);
 
-  batchScenery(scene, group);
+  batchScenery(world, group);
 }
 
-function installValves(scene) {
-  return VALVES.map((valve) => {
+function installValves(world, map) {
+  return map.valves.map((valve) => {
     const root = new THREE.Group();
     root.position.set(valve.x, 0, valve.z);
     piece(root, round, brass, 0, 0.04, 0, 0.52, 0.08, 0.52);
@@ -217,41 +214,41 @@ function installValves(scene) {
       piece(wheel, octa, emissive(PALETTE.vermilion), Math.cos(a) * 0.24, 0.04, Math.sin(a) * 0.24, 0.07, 0.1, 0.07);
     }
     root.add(wheel);
-    const steam = placeRing(scene, PALETTE.vermilion, valve.x, valve.z, 1.8);
+    const steam = placeRing(world, PALETTE.vermilion, valve.x, valve.z, 1.8);
     steam.visible = false;
-    scene.add(root);
+    world.add(root);
     return { wheel, steam };
   });
 }
 
-function fixtureLights(scene) {
+function fixtureLights(world, map) {
   const torches = [];
-  for (const [i, { x, z, color: tint, strength }] of FIXTURES.entries()) {
+  for (const [i, { x, z, color: tint, strength }] of map.fixtures.entries()) {
     const shape = new THREE.Group();
     piece(shape, tapered, enamel, x, 0.38, z, 0.18, 0.72, 0.18);
     piece(shape, round, brass, x, 0.74, z, 0.21, 0.08, 0.21);
     const orbFlame = piece(shape, orb, emissive(tint), x, 0.89, z, 0.17, 0.21, 0.17);
     piece(shape, tapered, brass, x, 1.03, z, 0.22, 0.08, 0.22);
-    scene.add(shape);
+    world.add(shape);
     const lantern = new THREE.PointLight(tint, strength * 0.42, 5.4, 2.0);
     lantern.position.set(x, 1.12, z);
-    scene.add(lantern);
+    world.add(lantern);
     torches.push({ light: lantern, flame: orbFlame, base: strength * 0.42, seed: i * 1.93 });
   }
   return torches;
 }
 
-function installRecords(scene) {
+function installRecords(world, map) {
   const plinths = new THREE.Group();
   const items = [];
-  for (const record of RECORDS) {
+  for (const record of map.records) {
     const { x, z, color: tint, id } = record;
     piece(plinths, round, clay, x, 0.25, z, 0.38, 0.46, 0.38);
     piece(plinths, tapered, enamel, x, 0.5, z, 0.45, 0.11, 0.45);
     band(plinths, brass, x, 0.56, z, 0.4);
     const root = new THREE.Group();
     root.position.set(x, 0.66, z);
-    scene.add(root);
+    world.add(root);
 
     if (id === 'log') {
       const crown = crownMesh(1.42);
@@ -259,31 +256,26 @@ function installRecords(scene) {
       root.add(crown);
     } else if (id === 'cylinder') {
       root.add(speziModel());
-    } else {
+    } else if (id === 'spool') {
       root.add(doenerModel());
+    } else {
+      root.add(skewerModel());
     }
     const orbit = band(root, emissive(tint), 0, 0.22, 0, 0.38);
     orbit.rotation.x = 0.55;
 
-    const ring = placeRing(scene, tint, x, z, 0.92);
+    const ring = placeRing(world, tint, x, z, 0.92);
     const glow = new THREE.PointLight(tint, 5.2, 3.8, 2);
     glow.position.set(x, 0.85, z);
-    scene.add(glow);
+    world.add(glow);
     items.push({ record, root, ring, glow });
   }
-  batchScenery(scene, plinths);
+  batchScenery(world, plinths);
   return items;
 }
 
-function placeRing(parent, tint, x, z, radius) {
-  const finish = new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.82, depthWrite: false });
-  const mark = piece(parent, markPlane, finish, x, floorY + 0.024, z, radius, 1, radius);
-  mark.renderOrder = 2;
-  return mark;
-}
-
-function installLift(scene) {
-  const { x, z } = LIFT;
+function installLift(world, map) {
+  const { x, z } = map.lift;
   const root = new THREE.Group();
   root.position.set(x, 0, z);
   piece(root, round, brass, 0, 0.035, 0, 1.54, 0.07, 1.54);
@@ -305,30 +297,29 @@ function installLift(scene) {
     piece(root, tapered, enamel, side * 1.34, 0.68, 0.33, 0.16, 1.32, 0.18);
     piece(root, round, brass, side * 1.34, 1.36, 0.33, 0.21, 0.07, 0.21);
   }
-  scene.add(root);
-  const ring = placeRing(scene, PALETTE.brass, x, z, 1.58);
+  world.add(root);
+  const ring = placeRing(world, PALETTE.brass, x, z, 1.58);
   ring.position.y = 0.113;
   return { ring, segments };
 }
 
-function diffuseAir(scene) {
-  const rng = randomFrom(128);
+function diffuseAir(world, map) {
+  const rng = randomFrom(128 + map.floor * 31);
   const points = new Float32Array(210 * 3);
   for (let index = 0; index < points.length; index += 3) {
-    points[index] = rng() * WIDTH;
+    points[index] = rng() * map.width;
     points[index + 1] = 0.28 + rng() * 2.4;
-    points[index + 2] = rng() * DEPTH;
+    points[index + 2] = rng() * map.depth;
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(points, 3));
   const motes = new THREE.Points(geo, new THREE.PointsMaterial({
-    size: 0.065, color: PALETTE.brass, transparent: true, opacity: 0.58, depthWrite: false,
+    size: 0.065, color: map.biome.accent, transparent: true, opacity: 0.56, depthWrite: false,
   }));
-  scene.add(motes);
+  world.add(motes);
   return motes;
 }
 
-// Exakter Sektor-Lichtkegel ohne rechteckige Kantenartefakte
 function createFlashlightConeMesh(scene) {
   const geo = new THREE.PlaneGeometry(11.0, 9.6);
   geo.translate(5.5, 0, 0);
@@ -365,7 +356,6 @@ function createFlashlightConeMesh(scene) {
   return mesh;
 }
 
-// Haukes Telegraph-Warnschneise vor der Bauch-Ramme
 function createChargeLaneMesh(scene) {
   const geo = new THREE.PlaneGeometry(6.8, 1.18);
   geo.translate(3.4, 0, 0);
@@ -403,7 +393,6 @@ function createChargeLaneMesh(scene) {
   return mesh;
 }
 
-// Dead-Cells-artiger goldener Sichelschwung bei Chef-Schelle
 function createSlashArcMesh(scene) {
   const geo = new THREE.RingGeometry(0.65, 1.15, 22, 1, -Math.PI * 0.62, Math.PI * 1.24).rotateX(-Math.PI / 2);
   const mat = new THREE.MeshBasicMaterial({
@@ -421,9 +410,8 @@ function createSlashArcMesh(scene) {
   return mesh;
 }
 
-// Gepooltes Instanced Pixel-Art Partikel-System (1 Draw-Call für Funken, Staub, Wasser, Münzen & Crates)
 class ParticlePool {
-  constructor(scene, capacity = 160) {
+  constructor(scene, capacity = 180) {
     this.capacity = capacity;
     this.mesh = new THREE.InstancedMesh(solid, new THREE.MeshBasicMaterial(), capacity);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -510,7 +498,6 @@ class ParticlePool {
   }
 }
 
-// Custom WebGL Dead-Cells Pixel-Art & Dynamic Flashlight Cone Shader
 function createPixelPostPass() {
   const postScene = new THREE.Scene();
   const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -525,10 +512,11 @@ function createPixelPostPass() {
     uDanger: { value: 0.0 },
     uHitFlash: { value: 0.0 },
     uLampOn: { value: 1.0 },
+    uWideBeam: { value: 0.0 },
     uTitleMode: { value: 0.0 },
   };
 
-  const material = new THREE.ShaderMaterial({
+  const mat = new THREE.ShaderMaterial({
     uniforms,
     depthWrite: false,
     depthTest: false,
@@ -550,6 +538,7 @@ function createPixelPostPass() {
       uniform float uDanger;
       uniform float uHitFlash;
       uniform float uLampOn;
+      uniform float uWideBeam;
       uniform float uTitleMode;
       varying vec2 vUv;
 
@@ -567,7 +556,6 @@ function createPixelPostPass() {
         vec3 col = vec3(rC, gC, bC);
         float depth = texture2D(tDepth, vUv).r;
 
-        // 1. 1px Pixel-Art Depth- & Kontrast-Outlines (Dead-Cells Silhouette)
         float dL = texture2D(tDepth, vUv - vec2(texel.x, 0.0)).r;
         float dR = texture2D(tDepth, vUv + vec2(texel.x, 0.0)).r;
         float dU = texture2D(tDepth, vUv + vec2(0.0, texel.y)).r;
@@ -579,15 +567,14 @@ function createPixelPostPass() {
         float colorEdge = length(col - cL) + length(col - cU);
         float isOutline = clamp(step(0.0018, depthEdge) + step(0.38, colorEdge) * 0.45, 0.0, 1.0);
 
-        // 2. Exakter Taschenlampen-Lichtkegel von Chef Torge in Blickrichtung
         vec2 delta = (vUv - uPlayerUv) * vec2(uAspect, 1.0);
         float dist = length(delta);
         vec2 dir = dist > 0.0001 ? delta / dist : uAimDirUv;
         float cosA = dot(dir, normalize(uAimDirUv));
 
-        float coneOuter = smoothstep(0.56, 0.87, cosA);
-        float coneCore = smoothstep(0.84, 0.98, cosA);
-        float coneReach = (1.0 - smoothstep(0.28, 0.84, dist)) * smoothstep(0.01, 0.06, dist);
+        float coneOuter = smoothstep(0.56 - uWideBeam * 0.14, 0.87 - uWideBeam * 0.08, cosA);
+        float coneCore = smoothstep(0.84 - uWideBeam * 0.08, 0.98, cosA);
+        float coneReach = (1.0 - smoothstep(0.28, 0.84 + uWideBeam * 0.16, dist)) * smoothstep(0.01, 0.06, dist);
         float coneLight = (coneOuter * 0.95 + coneCore * 0.45) * coneReach * uLampOn;
 
         float auraRadius = uLampOn > 0.5 ? 0.23 : 0.16;
@@ -595,7 +582,6 @@ function createPixelPostPass() {
 
         float titleLight = uTitleMode * (1.0 - smoothstep(0.28, 0.98, length((vUv - vec2(0.55, 0.52)) * vec2(uAspect, 1.0)))) * 1.1;
 
-        // 3. Bayer-geditherte Dead-Cells Cel-Shading-Bänder
         float rawLight = max(max(coneLight, personalAura), titleLight);
         float dither = bayer2x2(vUv * uResolution) * 0.075;
         float lit = rawLight + dither;
@@ -610,24 +596,20 @@ function createPixelPostPass() {
         vec3 warmBeamTint = vec3(1.12, 1.01, 0.86);
         vec3 lightTint = mix(darkIndigoTint, warmBeamTint, clamp(rawLight * 1.25, 0.0, 1.0));
 
-        // 4. Farb-Quantisierung & Volumetrischer Lichtkegel-Schimmer
         vec3 quantAlbedo = floor(col * 13.0 + 0.5) / 13.0;
         vec3 shaded = quantAlbedo * celBand * lightTint;
 
         float beamGlow = coneOuter * coneReach * uLampOn * 0.14;
         shaded += vec3(1.0, 0.88, 0.54) * beamGlow;
 
-        // 5. Emissive Highlights (Leuchtende Augen, Schätze, Gold-Fragezeichen, Slash)
         float maxC = max(col.r, max(col.g, col.b));
         float minC = min(col.r, min(col.g, col.b));
         float isNeon = smoothstep(0.60, 0.88, maxC) * smoothstep(0.20, 0.42, maxC - minC);
         shaded = max(shaded, col * isNeon * 1.22);
 
-        // 6. Dunkle 1px Dead-Cells Pixel-Outlines
         vec3 outlineColor = vec3(0.02, 0.02, 0.06);
         vec3 finalCol = mix(shaded, outlineColor, isOutline * clamp(celBand * 0.85 + isNeon, 0.28, 0.88));
 
-        // 7. Rotes Horror-Pulsieren + Hit-Flash
         float vigDist = length(vUv - 0.5) * 1.42;
         float pulse = (0.5 + 0.5 * sin(uTime * 8.0)) * uDanger;
         finalCol += vec3(0.55, 0.05, 0.12) * smoothstep(0.52, 1.05, vigDist) * pulse * 0.42;
@@ -638,7 +620,7 @@ function createPixelPostPass() {
     `,
   });
 
-  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
   postScene.add(quad);
   return { postScene, postCam, uniforms };
 }
@@ -663,22 +645,25 @@ export class SceneView {
     this.projTempA = new THREE.Vector3();
     this.projTempB = new THREE.Vector3();
 
-    // Sauberes 3D-Basislicht für klare Texturen & Normalen im Offscreen-Buffer
-    // (Die echte Dunkelheit außerhalb des Kegels & der helle Taschenlampen-Kegel werden im WebGL-Shader berechnet!)
     this.ambient = new THREE.HemisphereLight(0xdce6ff, 0x262f4d, 1.25);
     this.scene.add(this.ambient);
     const key = new THREE.DirectionalLight(0xfff0d4, 0.95);
     key.position.set(14, 22, 14);
     this.scene.add(key);
 
-    installFloor(this.scene);
-    this.water = installWater(this.scene);
-    installMachinery(this.scene);
-    this.valves = installValves(this.scene);
-    this.torches = fixtureLights(this.scene);
-    this.records = installRecords(this.scene);
-    this.lift = installLift(this.scene);
-    this.air = diffuseAir(this.scene);
+    this.texture = surfaceTexture();
+    this.worldGroup = new THREE.Group();
+    this.scene.add(this.worldGroup);
+    this.loadedMap = null;
+    this.torches = [];
+    this.records = [];
+    this.valves = [];
+    this.crates = [];
+    this.barrels = [];
+    this.cans = [];
+    this.lift = null;
+    this.air = null;
+    this.water = null;
 
     this.actor = diver();
     this.monster = dredged();
@@ -686,14 +671,12 @@ export class SceneView {
     this.tom = greedyTom();
     this.scene.add(this.actor.root, this.monster.root, this.hauke.root, this.tom.root);
 
-    // Verloren gegangene Chef-Krone am Boden
     this.droppedCrown = crownMesh(1.35);
     this.droppedCrown.visible = false;
     this.scene.add(this.droppedCrown);
     this.droppedCrownRing = placeRing(this.scene, PALETTE.brass, 0, 0, 0.72);
     this.droppedCrownRing.visible = false;
 
-    // 3 echte Snacks (Burger, Döner, Spezi) im Gravitationsfeld um Hauke
     this.haukeSnacks = Array.from({ length: 3 }, (_, i) => {
       const s = haukeSnack(i);
       this.scene.add(s);
@@ -704,17 +687,8 @@ export class SceneView {
     this.novaRing = placeRing(this.scene, PALETTE.brass, 0, 0, 1);
     this.novaRing.visible = false;
     this.slashArc = createSlashArcMesh(this.scene);
-    this.particles = new ParticlePool(this.scene, 160);
+    this.particles = new ParticlePool(this.scene, 180);
 
-    this.cans = Array.from({ length: 10 }, () => {
-      const canGroup = new THREE.Group();
-      piece(canGroup, round, brass, 0, 0.11, 0, 0.11, 0.2, 0.11);
-      piece(canGroup, round, emissive(PALETTE.jade), 0, 0.11, 0, 0.114, 0.08, 0.114);
-      this.scene.add(canGroup);
-      return canGroup;
-    });
-
-    // 3D-Taschenlampen-SpotLight für plastische Glanzlichter & Schattenwurf im Kegel
     this.lamp = new THREE.SpotLight(0xffe29e, 68, 14.5, 0.65, 0.45, 1.2);
     this.lamp.castShadow = true;
     this.lamp.shadow.mapSize.set(512, 512);
@@ -727,7 +701,7 @@ export class SceneView {
     this.scene.add(this.island);
 
     this.ripples = Array.from({ length: 14 }, () => placeRing(this.scene, PALETTE.brass, 0, 0, 1));
-    this.clappers = Array.from({ length: 4 }, () => rubberDuck(this.scene));
+    this.clappers = Array.from({ length: 5 }, () => rubberDuck(this.scene));
 
     this.pixelTarget = new THREE.WebGLRenderTarget(480, 300, {
       minFilter: THREE.NearestFilter,
@@ -747,6 +721,44 @@ export class SceneView {
     this.post.uniforms.tDepth.value = this.pixelTarget.depthTexture;
 
     this.resize();
+  }
+
+  ensureMap(map) {
+    if (!map || this.loadedMap === map) return;
+    this.loadedMap = map;
+    this.worldGroup.clear();
+    this.scene.background = color(map.biome.fogHex);
+
+    installFloor(this.worldGroup, map, this.texture);
+    this.water = installWater(this.worldGroup, map);
+    installMachinery(this.worldGroup, map);
+    this.valves = installValves(this.worldGroup, map);
+    this.torches = fixtureLights(this.worldGroup, map);
+    this.records = installRecords(this.worldGroup, map);
+    this.lift = installLift(this.worldGroup, map);
+    this.air = diffuseAir(this.worldGroup, map);
+
+    this.crates = map.crates.map((c) => {
+      const m = crateMesh();
+      m.position.set(c.x, 0, c.z);
+      this.worldGroup.add(m);
+      return m;
+    });
+
+    this.barrels = map.barrels.map((b) => {
+      const m = barrelMesh();
+      m.root.position.set(b.x, 0, b.z);
+      this.worldGroup.add(m.root);
+      return m;
+    });
+
+    this.cans = map.cans.map(() => {
+      const canGroup = new THREE.Group();
+      piece(canGroup, round, brass, 0, 0.11, 0, 0.11, 0.2, 0.11);
+      piece(canGroup, round, emissive(PALETTE.jade), 0, 0.11, 0, 0.114, 0.08, 0.114);
+      this.worldGroup.add(canGroup);
+      return canGroup;
+    });
   }
 
   resize() {
@@ -788,10 +800,13 @@ export class SceneView {
 
   setCamera(run, dt, snap) {
     const { player, cameraShake, time } = run;
+    const lead = 0.55;
+    const tx = player.x + Math.cos(player.angle) * lead;
+    const tz = player.z + Math.sin(player.angle) * lead;
     const near = this.follow;
     const easing = snap ? 1 : 1 - Math.exp(-6.5 * dt);
-    near.x += (player.x - near.x) * easing;
-    near.z += (player.z - near.z) * easing;
+    near.x += (tx - near.x) * easing;
+    near.z += (tz - near.z) * easing;
     const mobileLift = Math.max(0, 1.33 - this.camera.aspect) * 3.9;
     const shakeX = cameraShake > 0 ? Math.sin(time * 58) * cameraShake * 0.36 : 0;
     const shakeZ = cameraShake > 0 ? Math.cos(time * 51) * cameraShake * 0.36 : 0;
@@ -800,7 +815,8 @@ export class SceneView {
     this.camera.updateMatrixWorld();
   }
 
-  updateHero(player, time) {
+  updateHero(run, time) {
+    const { player, mods } = run;
     const { root, body, legs, bulb, wrench, helmet } = this.actor;
     root.position.set(player.x, 0.012, player.z);
     root.rotation.y = Math.PI / 2 - player.angle;
@@ -809,7 +825,6 @@ export class SceneView {
     legs[1].rotation.x = -gait;
     body.position.y = (player.moving ? Math.abs(gait) * 0.07 : 0) + Math.sin(time * 3.1) * 0.009;
     body.rotation.x = player.sliding > 0 ? 1.1 : player.dash > 0 ? 0.38 : 0;
-    // Blink-Effekt bei Invuln nach Treffer
     root.visible = player.invuln > 0 ? Math.floor(time * 18) % 2 === 0 : true;
     if (helmet) helmet.visible = player.helmet !== false;
     if (wrench) {
@@ -817,6 +832,7 @@ export class SceneView {
       wrench.rotation.z = player.swing > 0 ? -0.45 : 0;
     }
 
+    const firePan = mods?.has('fire_pan');
     if (this.novaRing) {
       this.novaRing.visible = player.swing > 0;
       if (player.swing > 0) {
@@ -824,6 +840,7 @@ export class SceneView {
         const radius = 0.4 + progress * (player.novaRadius || 2.25);
         this.novaRing.position.set(player.x, floorY + 0.03, player.z);
         this.novaRing.scale.set(radius, 1, radius);
+        this.novaRing.material.color.setHex(firePan ? 0xff5744 : PALETTE.brass);
         this.novaRing.material.opacity = (1 - progress) * 0.92;
       }
     }
@@ -836,6 +853,7 @@ export class SceneView {
         this.slashArc.position.set(player.x, 0.56, player.z);
         this.slashArc.rotation.y = -player.angle + (progress - 0.5) * 2.1;
         this.slashArc.scale.setScalar(radiusScale);
+        this.slashArc.material.color.setHex(firePan ? 0xff6b44 : 0xffe082);
         this.slashArc.material.opacity = (1 - progress) * 0.95;
       }
     }
@@ -872,14 +890,14 @@ export class SceneView {
     this.island.intensity = player.lamp ? 3.5 : 1.9;
   }
 
-  updateActor(model, agent, player, time, alwaysShow) {
-    if (!agent) {
+  updateActor(model, agent, map, player, time, alwaysShow) {
+    if (!agent || !map) {
       model.root.visible = false;
       return;
     }
     const { root, core, arms, legs, mask, stars, eyes, belly, lostMark } = model;
     const gap = Math.hypot(agent.x - player.x, agent.z - player.z);
-    const hasLOS = alwaysShow || (gap < 15.5 && clearPath(player, agent));
+    const hasLOS = alwaysShow || (gap < 15.5 && map.clearPath(player, agent));
 
     root.visible = hasLOS;
     const isKO = (agent.koTimer ?? 0) > 0;
@@ -936,12 +954,11 @@ export class SceneView {
   }
 
   updateThreat(run, forceVisible = false) {
-    const { player, listener, hauke, tom, time } = run;
-    this.updateActor(this.monster, listener, player, time, forceVisible || run.state === 'caught');
-    this.updateActor(this.hauke, hauke, player, time, forceVisible || run.state === 'caught');
-    this.updateActor(this.tom, tom, player, time, forceVisible);
+    const { player, listener, hauke, tom, time, map } = run;
+    this.updateActor(this.monster, listener, map, player, time, forceVisible || run.state === 'caught');
+    this.updateActor(this.hauke, hauke, map, player, time, forceVisible || run.state === 'caught');
+    this.updateActor(this.tom, tom, map, player, time, forceVisible);
 
-    // Haukes Gravitationsring, Bauch-Ramme Telegraph & Snacks im Orbit
     const showHauke = this.hauke.root.visible && hauke;
     this.haukeRing.visible = Boolean(showHauke);
     if (showHauke) {
@@ -979,6 +996,9 @@ export class SceneView {
         this.particles.burst(fx.x, 0.65, fx.z, 10, PALETTE.brass, 4.4, 0.09, 0.28, 3.0);
       } else if (fx.kind === 'bonk_hit') {
         this.particles.burst(fx.x, 0.85, fx.z, 18, fx.color ?? PALETTE.brass, 5.4, 0.12, 0.42, 8.5);
+      } else if (fx.kind === 'crate_smash') {
+        this.particles.burst(fx.x, 0.42, fx.z, 16, 0xa86c3a, 4.6, 0.12, 0.46, 10.5);
+        this.particles.burst(fx.x, 0.55, fx.z, 8, PALETTE.brass, 3.6, 0.09, 0.44, 7.5);
       } else if (fx.kind === 'dash') {
         this.particles.burst(fx.x, 0.22, fx.z, 9, PALETTE.glacier, 3.0, 0.11, 0.34, 4.0);
       } else if (fx.kind === 'water_slip') {
@@ -1004,6 +1024,24 @@ export class SceneView {
       torch.flame.scale.setScalar(0.17 * (0.9 + flick * 0.12));
     }
 
+    if (run.crates) {
+      for (const [i, mesh] of this.crates.entries()) {
+        const c = run.crates[i];
+        mesh.visible = Boolean(c && !c.broken);
+      }
+    }
+    if (run.barrels) {
+      for (const [i, mesh] of this.barrels.entries()) {
+        const b = run.barrels[i];
+        mesh.root.visible = Boolean(b && !b.exploded);
+        if (b && !b.exploded) {
+          const pulse = b.fuse > 0 ? Math.floor(run.time * 32) % 2 === 0 : Math.sin(run.time * 3.5 + i) > 0.7;
+          mesh.glowBand.material.color.setHex(pulse ? 0xffffff : 0xffc94d);
+          mesh.cap.rotation.y = run.time * 3.0;
+        }
+      }
+    }
+
     const drop = run.droppedHelmet;
     this.droppedCrown.visible = Boolean(drop);
     this.droppedCrownRing.visible = Boolean(drop);
@@ -1021,7 +1059,7 @@ export class SceneView {
       root.rotation.y = 0.3 + run.time * 0.95;
       root.position.y = 0.66 + Math.sin(run.time * 2.8) * 0.05;
       const gap = Math.hypot(run.player.x - record.x, run.player.z - record.z);
-      ring.material.opacity = gap < 1.42 ? 0.95 : 0.48 + 0.14 * Math.sin(run.time * 2.4);
+      ring.material.opacity = gap < 1.45 ? 0.95 : 0.48 + 0.14 * Math.sin(run.time * 2.4);
     }
     if (run.cans) {
       for (const [index, mesh] of this.cans.entries()) {
@@ -1045,15 +1083,21 @@ export class SceneView {
         }
       }
     }
-    const called = run.lift.state !== 'idle';
-    this.lift.ring.material.color.setHex(called ? PALETTE.vermilion : run.records.size === RECORDS.length ? PALETTE.jade : PALETTE.brass);
-    this.lift.ring.material.opacity = called ? 0.95 : 0.58;
-    const progress = 1 - run.lift.remaining / LIFT_WAIT;
-    const filled = called ? Math.ceil(this.lift.segments.length * progress) : 0;
-    for (const [index, marker] of this.lift.segments.entries()) marker.visible = index < filled;
-    this.air.position.x = Math.sin(run.time * 0.24) * 0.85;
-    this.air.position.z = Math.sin(run.time * 0.15) * 0.6;
-    this.water.value = run.time;
+    if (this.lift) {
+      const called = run.lift.state !== 'idle';
+      this.lift.ring.material.color.setHex(
+        called ? PALETTE.vermilion : run.records.size === run.map.records.length ? PALETTE.jade : PALETTE.brass,
+      );
+      this.lift.ring.material.opacity = called ? 0.95 : 0.58;
+      const progress = 1 - run.lift.remaining / LIFT_WAIT;
+      const filled = called ? Math.ceil(this.lift.segments.length * progress) : 0;
+      for (const [index, marker] of this.lift.segments.entries()) marker.visible = index < filled;
+    }
+    if (this.air) {
+      this.air.position.x = Math.sin(run.time * 0.24) * 0.85;
+      this.air.position.z = Math.sin(run.time * 0.15) * 0.6;
+    }
+    if (this.water) this.water.value = run.time;
     const pulses = run.pulses.filter((entry) => entry.kind !== 'step' && entry.age < 0.63);
     for (const [index, ring] of this.ripples.entries()) {
       const pulse = pulses[index];
@@ -1084,10 +1128,11 @@ export class SceneView {
   }
 
   renderPixelPipeline(run, isTitle = false) {
-    const { player, listener, hauke, time, hitFlash } = run;
+    const { player, listener, hauke, time, hitFlash, mods } = run;
     const u = this.post.uniforms;
     u.uTime.value = time;
     u.uLampOn.value = player.lamp ? 1.0 : 0.0;
+    u.uWideBeam.value = mods?.has('searchlight') ? 1.0 : 0.0;
     u.uTitleMode.value = isTitle ? 1.0 : 0.0;
     u.uHitFlash.value = isTitle ? 0.0 : Math.min(1, (hitFlash || 0) * 2.4);
 
@@ -1120,37 +1165,43 @@ export class SceneView {
   }
 
   drawTitle(run, time) {
+    this.ensureMap(run.map);
+    const hall = run.map.rooms[1] ?? run.map.rooms[0];
+    const cx = hall.cx;
+    const cz = hall.cz;
+
     run.time = time;
-    run.player.x = 18.4;
-    run.player.z = 16.4;
-    run.player.angle = -0.3;
+    run.player.x = cx - 0.5;
+    run.player.z = cz + 0.35;
+    run.player.angle = -0.35;
     run.player.lamp = true;
-    run.hauke.x = 20.6;
-    run.hauke.z = 15.1;
+    run.hauke.x = cx + 1.5;
+    run.hauke.z = cz - 0.8;
     run.hauke.angle = Math.PI + 0.4;
-    run.listener.x = 16.3;
-    run.listener.z = 13.8;
+    run.listener.x = cx - 2.2;
+    run.listener.z = cz - 1.9;
     run.listener.angle = 0.5;
-    run.tom.x = 19.8;
-    run.tom.z = 18.0;
+    run.tom.x = cx + 0.7;
+    run.tom.z = cz + 1.8;
     run.tom.angle = -1.2;
 
     const orbit = time * 0.2;
-    const cx = 17.8 + Math.sin(orbit) * 1.1;
-    const cz = 15.8 + Math.cos(orbit) * 0.8;
-    this.camera.position.set(cx + 1.4, 7.6, cz + 6.4);
-    this.camera.lookAt(18.0, 0.55, 15.4);
+    const ox = cx + Math.sin(orbit) * 1.1;
+    const oz = cz + Math.cos(orbit) * 0.8;
+    this.camera.position.set(ox + 1.4, 7.6, oz + 6.4);
+    this.camera.lookAt(cx - 0.4, 0.55, cz - 0.3);
     this.camera.updateMatrixWorld();
 
-    this.updateHero(run.player, time);
+    this.updateHero(run, time);
     this.updateThreat(run, true);
     this.updateProps(run, 0.016);
     this.renderPixelPipeline(run, true);
   }
 
   draw(run, dt = 0, snap = false) {
+    this.ensureMap(run.map);
     this.setCamera(run, dt, snap);
-    this.updateHero(run.player, run.time);
+    this.updateHero(run, run.time);
     this.updateThreat(run, false);
     this.updateProps(run, dt);
     this.renderPixelPipeline(run, false);

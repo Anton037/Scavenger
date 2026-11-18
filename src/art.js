@@ -509,6 +509,53 @@ export function doenerModel() {
   return g;
 }
 
+export function skewerModel() {
+  // 4. Relikt (ab Etage 3): Goldener Grillspieß mit neon-grüner Aura
+  const g = new THREE.Group();
+  const brass = brassMaterial(PALETTE.brass);
+  const meat = material(0x733224, 0.5, 0.08);
+  const sear = material(0xa84d2a, 0.45, 0.1);
+  const jadeGlow = emissive(PALETTE.jade);
+  piece(g, round, brass, 0, 0.04, 0, 0.28, 0.04, 0.28);
+  piece(g, round, brass, 0, 0.34, 0, 0.035, 0.56, 0.035);
+  for (let i = 0; i < 4; i++) {
+    const r = 0.09 + i * 0.035;
+    piece(g, tapered, i % 2 === 0 ? meat : sear, 0, 0.18 + i * 0.1, 0, r, 0.09, r);
+  }
+  piece(g, octa, jadeGlow, 0, 0.65, 0, 0.085, 0.1, 0.085);
+  return g;
+}
+
+export function crateMesh() {
+  // Zerstörbare Holz-Beutekiste mit Eisenbeschlägen & Goldband
+  const g = new THREE.Group();
+  const wood = material(0x7c4f2b, 0.72, 0.06);
+  const trim = material(0x283044, 0.45, 0.25);
+  const gold = emissive(PALETTE.brass);
+  piece(g, solid, wood, 0, 0.32, 0, 0.62, 0.62, 0.62);
+  piece(g, solid, trim, 0, 0.32, 0, 0.66, 0.09, 0.66);
+  piece(g, solid, trim, 0, 0.61, 0, 0.65, 0.07, 0.65);
+  piece(g, solid, trim, 0, 0.04, 0, 0.65, 0.07, 0.65);
+  piece(g, solid, gold, 0, 0.32, 0.325, 0.16, 0.14, 0.04);
+  piece(g, solid, gold, 0, 0.32, -0.325, 0.16, 0.14, 0.04);
+  return g;
+}
+
+export function barrelMesh() {
+  // Explosives Druckfass mit rotem Warnring
+  const g = new THREE.Group();
+  const shell = material(0xb32436, 0.42, 0.22);
+  const iron = material(0x1f2536, 0.5, 0.3);
+  const warn = emissive(0xffc94d);
+  const danger = emissive(0xff3b56);
+  piece(g, round, shell, 0, 0.37, 0, 0.3, 0.72, 0.3);
+  piece(g, round, iron, 0, 0.08, 0, 0.315, 0.07, 0.315);
+  piece(g, round, iron, 0, 0.68, 0, 0.315, 0.07, 0.315);
+  const glowBand = piece(g, round, warn, 0, 0.38, 0, 0.318, 0.13, 0.318);
+  const cap = piece(g, octa, danger, 0, 0.8, 0, 0.1, 0.1, 0.1);
+  return { root: g, glowBand, cap };
+}
+
 export function rubberDuck(parent) {
   // Goldene Pfand-Dose zum Ablenken von Anton & Hauke
   const can = new THREE.Group();
@@ -519,3 +566,4 @@ export function rubberDuck(parent) {
   parent.add(can);
   return can;
 }
+

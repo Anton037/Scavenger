@@ -1,30 +1,58 @@
 import './style.css';
 import { Soundscape } from './audio.js';
 import { Controls } from './controls.js';
-import { newRun, advance, STEP } from './game.js';
+import { advance, descendNextFloor, finishRunCashOut, newRun, STEP } from './game.js';
 import { get, Hud, write } from './hud.js';
 
 const canvas = get('arena');
 const title = get('title-screen');
 const startButton = get('start');
 const overlay = get('overlay');
+const liftScreen = get('lift-screen');
 const hud = new Hud();
 const sound = new Soundscape();
 const controls = new Controls(canvas, get('stick'), get('stick-thumb'), { chart: toggleChart, pause: togglePause });
-let run = newRun();
-let titlePreviewRun = newRun();
+
+const freshSeed = () => (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0;
+let previewSeed = freshSeed();
+let selectedLoadout = 'classic';
+let titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
+let run = titlePreviewRun;
 let view;
 let stage = 'title';
 let last = 0;
 let lag = 0;
 
-// Starte Live-Pixel-Art-WebGL-Szene direkt für das Hauptmenü (einheitlicher Stil vom Start bis ins Spiel)
+function updateSeedBadge() {
+  const el = get('seed-label');
+  if (el) write(el, String(previewSeed % 10000).padStart(4, '0'));
+}
+updateSeedBadge();
+
 import('./scene.js').then(({ SceneView }) => {
   view = new SceneView(canvas);
   view.resize();
   view.drawTitle(titlePreviewRun, 0);
 }).catch((err) => {
   console.warn('3D preview init warning:', err.message);
+});
+
+for (const btn of document.querySelectorAll('.loadout-btn')) {
+  btn.addEventListener('click', () => {
+    selectedLoadout = btn.dataset.loadout || 'classic';
+    for (const item of document.querySelectorAll('.loadout-btn')) {
+      const on = item === btn;
+      item.classList.toggle('active', on);
+      item.setAttribute('aria-pressed', String(on));
+    }
+  });
+}
+
+get('shuffle-seed')?.addEventListener('click', () => {
+  previewSeed = freshSeed();
+  updateSeedBadge();
+  titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
+  if (view && stage === 'title') view.drawTitle(titlePreviewRun, performance.now() / 1000);
 });
 
 function toggleChart() {
@@ -55,8 +83,13 @@ function changeSound() {
   paintSound();
 }
 
-function restart() {
-  run = newRun();
+function restart(useFreshSeed = true) {
+  const seed = useFreshSeed ? freshSeed() : previewSeed;
+  run = newRun({ seed, floor: 1, loadout: selectedLoadout });
+  previewSeed = freshSeed();
+  updateSeedBadge();
+  titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
+  if (liftScreen) liftScreen.hidden = true;
   hud.clearFloating();
   title.hidden = true;
   canvas.hidden = false;
@@ -75,7 +108,7 @@ async function begin() {
   stage = 'loading';
   startButton.disabled = true;
   const label = startButton.querySelector('span');
-  write(label, 'LÄDT…');
+  write(label, 'GENERIERT…');
   get('launch-error').hidden = true;
   sound.open();
   try {
@@ -84,7 +117,7 @@ async function begin() {
       const { SceneView } = await import('./scene.js');
       view = new SceneView(canvas);
     }
-    restart();
+    restart(false);
   } catch (error) {
     console.warn('Scavenger could not start', error.message);
     stage = 'title';
@@ -94,12 +127,13 @@ async function begin() {
     message.hidden = false;
   } finally {
     startButton.disabled = false;
-    write(label, 'IN DEN KELLER');
+    write(label, 'ETAGE 1 BETRETEN');
   }
 }
 
 function resume() {
   overlay.hidden = true;
+  if (liftScreen) liftScreen.hidden = true;
   get('hud').inert = false;
   stage = 'play';
   lag = 0;
@@ -110,15 +144,32 @@ function resume() {
   canvas.focus({ preventScroll: true });
 }
 
+function showFloorChoices() {
+  stage = 'lift';
+  controls.enable(false);
+  sound.setActivity('pause');
+  hud.toggleChart(run, false);
+  hud.clearFloating();
+  get('hud').inert = true;
+  hud.showLiftChoices(run, (modId) => {
+    descendNextFloor(run, modId);
+    view.resize();
+    view.draw(run, 0, true);
+    hud.paint(run, view);
+    resume();
+  });
+}
+
 function showOverlay(kind) {
   const caughtTitle = run?.caughtBy === 'hauke' ? 'Von Hauke überrollt!' : 'Von Anton gecatcht!';
+  const mutLabel = run?.map?.mutator?.id && run.map.mutator.id !== 'classic' ? ` · ${run.map.mutator.name}` : '';
   const details = {
-    pause: ['Pause', 'Kurze Verschnaufpause im Keller.', 'Weiter'],
-    caught: [caughtTitle, run?.deathReason ?? 'Du wurdest im Dunkeln erwischt.', 'Nochmal'],
+    pause: ['Pause', `Etage ${run?.floor ?? 1} · ${run?.map?.biome?.name ?? 'Keller'}${mutLabel}`, 'Weitermachen'],
+    caught: [caughtTitle, run?.deathReason ?? 'Du wurdest im Dunkeln erwischt.', 'Neuer Keller'],
     escaped: [
-      'Keller bezwungen!',
-      'Chef Torge hat alle 3 Relikte gesichert. Hauke diskutiert noch im Aufzugsschacht.',
-      'Nächster Run',
+      `Etage ${run?.floor ?? 1} gesichert!`,
+      'Chef Torge verlässt den Keller ungeschlagen mit voller Beute.',
+      'Neuer Run',
     ],
   }[kind];
   stage = kind;
@@ -126,6 +177,7 @@ function showOverlay(kind) {
   sound.setActivity('pause');
   hud.toggleChart(run, false);
   hud.clearFloating();
+  if (liftScreen) liftScreen.hidden = true;
   get('hud').inert = true;
   write(get('overlay-title'), details[0]);
   write(get('overlay-copy'), details[1]);
@@ -145,12 +197,19 @@ function showTitle() {
   controls.enable(false);
   sound.setActivity('title');
   overlay.hidden = true;
+  if (liftScreen) liftScreen.hidden = true;
   hud.clearFloating();
   get('hud').hidden = true;
   get('vignette').hidden = true;
   title.hidden = false;
+  if (view) view.drawTitle(titlePreviewRun, performance.now() / 1000);
   startButton.focus({ preventScroll: true });
 }
+
+get('lift-cashout')?.addEventListener('click', () => {
+  finishRunCashOut(run);
+  showOverlay('escaped');
+});
 
 get('title-audio').addEventListener('click', changeSound);
 get('pause-audio').addEventListener('click', changeSound);
@@ -161,7 +220,7 @@ get('chart-toggle').addEventListener('click', toggleChart);
 get('menu').addEventListener('click', showTitle);
 get('overlay-primary').addEventListener('click', () => {
   if (stage === 'pause') resume();
-  else restart();
+  else restart(true);
 });
 for (const [id, action] of [
   ['touch-shutter', 'lamp'], ['touch-dash', 'dash'], ['touch-lure', 'lure'], ['touch-use', 'use'],
@@ -202,7 +261,8 @@ function tick(now) {
   sound.background(run);
   view.draw(run, dt);
   hud.paint(run, view);
-  if (run.state !== 'playing') showOverlay(run.state);
+  if (run.state === 'floor_clear') showFloorChoices();
+  else if (run.state !== 'playing') showOverlay(run.state);
 }
 requestAnimationFrame(tick);
 

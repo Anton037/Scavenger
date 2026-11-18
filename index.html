@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b0c16">
-  <meta name="description" content="Scavenger — Chef Torge Edition: Dead-Cells Pixel-Art Keller-Action mit Massiv-Rund Hauke, Lost Anton & Schnorrer Tom!">
+  <meta name="theme-color" content="#090a12">
+  <meta name="description" content="Scavenger — Chef Torge Edition: Prozeduraler Dead-Cells Pixel-Art Keller-Roguelite mit Massiv-Rund Hauke, Lost Anton & Schnorrer Tom!">
   <title>Scavenger — Chef Torge Edition</title>
   <link rel="icon" type="image/png" href="/gate.png">
   <link rel="stylesheet" href="/src/style.css">
@@ -17,22 +17,36 @@
 
     <section id="title-screen" class="screen" aria-labelledby="title">
       <div class="title-topbar">
-        <div class="highscore-pill">🏆 REKORD <span id="menu-aura">1.000</span> ⚡</div>
-        <button id="title-audio" class="btn-pixel" type="button" aria-pressed="true">Ton an</button>
+        <div class="highscore-pill">
+          <span class="ico-slot gold" data-ico="crown"></span>
+          <span>REKORD</span>
+          <strong id="menu-best">E1 · 1.000</strong>
+          <span class="ico-slot gold" data-ico="bolt"></span>
+        </div>
+        <div class="title-top-actions">
+          <button id="shuffle-seed" class="btn-glass" type="button" title="Neuen Zufalls-Keller würfeln">Seed #<span id="seed-label">2026</span> ↻</button>
+          <button id="title-audio" class="btn-glass" type="button" aria-pressed="true">Ton an</button>
+        </div>
       </div>
 
       <div class="arcade-panel">
-        <span class="arcade-kicker">KELLER-FLUCHT · CHEF TORGE '26</span>
+        <span class="arcade-kicker">KELLER-ROGUELITE · CHEF TORGE '26</span>
         <h1 id="title">SCAVENGER</h1>
-        <p class="arcade-sub">Hol <strong>Krone</strong>, <strong>Spezi</strong> &amp; <strong>Döner</strong> aus dem dunklen Keller. Deine Taschenlampe zeigt Gefahr — aber verrät dich auch.</p>
+        <p class="arcade-sub">Jeder Keller entsteht neu. Plündere Relikte, sprenge Druckfässer und überlebe <strong>Etage um Etage</strong>.</p>
 
-        <div class="crew-roster">
-          <div class="crew-chip"><span class="chip-dot dot-red"></span><div><b>Hauke</b><small>Massiv rund · Rammt</small></div></div>
-          <div class="crew-chip"><span class="chip-dot dot-cyan"></span><div><b>Anton</b><small>Lost · Hört Schritte</small></div></div>
-          <div class="crew-chip"><span class="chip-dot dot-jade"></span><div><b>Tom</b><small>Klaut Aura &amp; flieht</small></div></div>
+        <div id="loadout-picker" class="loadout-picker" role="radiogroup" aria-label="Chef-Stil wählen">
+          <button class="loadout-btn active" type="button" data-loadout="classic" aria-pressed="true">
+            <b>Klassik</b><small>Krone · 2 Dosen</small>
+          </button>
+          <button class="loadout-btn" type="button" data-loadout="runner" aria-pressed="false">
+            <b>Pfand-Jäger</b><small>+Tempo · 4 Dosen</small>
+          </button>
+          <button class="loadout-btn" type="button" data-loadout="brawler" aria-pressed="false">
+            <b>Schwergewicht</b><small>+38% Pfanne</small>
+          </button>
         </div>
 
-        <button id="start" class="btn-start" type="button"><span>IN DEN KELLER</span><span class="btn-arrow" aria-hidden="true">▶</span></button>
+        <button id="start" class="btn-start" type="button"><span>ETAGE 1 BETRETEN</span><span class="btn-arrow" aria-hidden="true">▶</span></button>
         <p id="launch-error" class="launch-error" role="status" hidden></p>
       </div>
 
@@ -52,20 +66,20 @@
       <div class="hud-top">
         <div class="zone-panel">
           <div class="zone-row">
+            <span id="floor-badge" class="floor-pill">E1</span>
             <h2 id="location">Aufzugsschacht</h2>
-            <span id="crown-badge" class="crown-badge on">👑 Schild</span>
+            <span id="crown-badge" class="crown-badge on"></span>
           </div>
-          <div class="relic-rack" id="relic-rack" aria-label="Relikte">
-            <span class="relic-slot" data-relic="log" title="Chef-Krone (+Schelle)">👑</span>
-            <span class="relic-slot" data-relic="cylinder" title="Paulaner Spezi (+Tempo)">🍺</span>
-            <span class="relic-slot" data-relic="spool" title="Mitternachts-Döner (+Dosen)">🥙</span>
-            <span id="objective" class="obj-hint">3 Relikte</span>
+          <div class="zone-meta">
+            <div class="relic-rack" id="relic-rack" aria-label="Relikte"></div>
+            <span id="objective" class="obj-hint">3 offen</span>
+            <span id="mutator-pill" class="mutator-pill" hidden></span>
           </div>
         </div>
 
         <div id="boss-bar" class="boss-gauge">
           <div class="boss-head">
-            <span id="boss-name">💀 HAUKE</span>
+            <span id="boss-name"><span class="ico-slot red" data-ico="skull"></span> HAUKE</span>
             <span id="boss-status">LAUERT</span>
           </div>
           <div class="boss-track"><div id="boss-bar-fill" class="boss-fill"></div></div>
@@ -73,23 +87,28 @@
 
         <div class="hud-right">
           <div class="aura-chip" aria-label="Aura">
-            <span id="pfand-counter">1.000 ⚡</span>
+            <span id="pfand-counter">1.000</span>
+            <span class="ico-slot gold" data-ico="bolt"></span>
           </div>
           <div class="count-chip" aria-label="Relikte">
             <span id="record-counter">0/3</span>
           </div>
-          <button id="chart-toggle" class="btn-pixel" type="button" aria-controls="chart" aria-expanded="false" title="Radar (M)">Radar</button>
-          <button id="pause" class="btn-pixel pause" type="button" aria-label="Pause" title="Pause (Escape)"><span aria-hidden="true"></span></button>
+          <button id="chart-toggle" class="btn-glass" type="button" aria-controls="chart" aria-expanded="false" title="Radar (M)">Radar</button>
+          <button id="pause" class="btn-glass pause" type="button" aria-label="Pause" title="Pause (Escape)"><span aria-hidden="true"></span></button>
         </div>
       </div>
 
       <aside id="chart" class="chart" aria-labelledby="chart-title" hidden>
-        <h3 id="chart-title">Keller-Radar</h3>
-        <canvas id="chart-map" width="312" height="264" aria-label="Karte mit Chef Torge, Relikten und Gegnern"></canvas>
+        <div class="chart-head">
+          <h3 id="chart-title">Keller-Radar</h3>
+          <span id="chart-seed" class="chart-seed">#2026</span>
+        </div>
+        <canvas id="chart-map" width="312" height="280" aria-label="Karte mit Chef Torge, Relikten und Gegnern"></canvas>
         <p>
           <span class="chart-dot" aria-hidden="true"></span> Relikt
           <span class="chart-lift" aria-hidden="true"></span> Lift
           <span class="chart-enemy" aria-hidden="true"></span> Gegner
+          <span class="chart-barrel" aria-hidden="true"></span> Fass
         </p>
       </aside>
 
@@ -102,27 +121,34 @@
         <div class="meters">
           <div class="meter-line">
             <span id="noise-label">Leise</span>
-            <span id="lamp-state" class="lamp-pill on">🔦 AN</span>
+            <span id="lamp-state" class="lamp-pill on"></span>
           </div>
           <div id="noise-meter" class="noise-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
         </div>
 
         <div class="skill-rack">
           <button id="slot-lamp" class="skill-slot compact" type="button" title="Taschenlampe (Q)">
-            <kbd>Q</kbd><span class="slot-name">LICHT</span>
+            <kbd>Q</kbd>
+            <span class="ico-slot" data-ico="lamp"></span>
+            <span class="slot-name">LICHT</span>
           </button>
           <button id="slot-lure" class="skill-slot compact" type="button" title="Pfand-Dose werfen (F)">
-            <kbd>F</kbd><span class="slot-name">DOSE</span><em id="clapper-count">2</em>
+            <kbd>F</kbd>
+            <span class="ico-slot" data-ico="can"></span>
+            <span class="slot-name">DOSE</span>
+            <em id="clapper-count">2</em>
           </button>
           <button id="orb-bonk" class="skill-slot accent" type="button" title="Chef-Schelle (Linksklick / C)">
             <div class="slot-fill" id="bonk-fill"></div>
-            <kbd>C / 🖱️</kbd>
+            <kbd>C · LMB</kbd>
+            <span class="ico-slot gold" data-ico="pan"></span>
             <span class="slot-name">SCHELLE</span>
             <small id="bonk-state">BEREIT</small>
           </button>
           <button id="orb-dash" class="skill-slot primary-slot" type="button" title="Dash (Rechtsklick / Space)">
             <div class="slot-fill" id="dash-fill"></div>
-            <kbd>␣</kbd>
+            <kbd>␣ · RMB</kbd>
+            <span class="ico-slot cyan" data-ico="dash"></span>
             <span class="slot-name">DASH</span>
             <small id="dash-state">BEREIT</small>
           </button>
@@ -132,11 +158,23 @@
       <div id="touch-ui" aria-label="Touch-Steuerung">
         <div id="stick" class="stick" role="img" aria-label="Bewegungs-Stick"><span id="stick-thumb"></span></div>
         <div class="touch-actions">
-          <button id="touch-bonk" class="btn-pixel touch-bonk" type="button">SCHELLE</button>
-          <button id="touch-shutter" class="btn-pixel" type="button" aria-pressed="true">Licht</button>
-          <button id="touch-lure" class="btn-pixel" type="button">Dose</button>
-          <button id="touch-dash" class="btn-pixel" type="button">Dash</button>
-          <button id="touch-use" class="btn-pixel touch-use" type="button">Greifen</button>
+          <button id="touch-bonk" class="btn-glass touch-bonk" type="button">SCHELLE</button>
+          <button id="touch-shutter" class="btn-glass" type="button" aria-pressed="true">Licht</button>
+          <button id="touch-lure" class="btn-glass" type="button">Dose</button>
+          <button id="touch-dash" class="btn-glass" type="button">Dash</button>
+          <button id="touch-use" class="btn-glass touch-use" type="button">Greifen</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="lift-screen" class="screen overlay" aria-labelledby="lift-title" tabindex="-1" hidden>
+      <div class="overlay-card lift-panel">
+        <p id="lift-eyebrow" class="arcade-kicker">LASTENAUFZUG · ETAGE 1 BEZWUNGEN</p>
+        <h2 id="lift-title">Chef-Mod für tieferen Keller</h2>
+        <p id="lift-copy" class="lift-preview"></p>
+        <div id="mod-list" class="mod-list"></div>
+        <div class="lift-footer">
+          <button id="lift-cashout" class="btn-glass" type="button">Run beenden &amp; Score sichern</button>
         </div>
       </div>
     </section>
@@ -148,7 +186,7 @@
         <p id="overlay-copy"></p>
         <div id="overlay-receipt" class="receipt" hidden></div>
         <button id="overlay-primary" class="btn-start" type="button"><span id="overlay-action">Weitermachen</span><span class="btn-arrow" aria-hidden="true">▶</span></button>
-        <div class="overlay-secondary"><button id="menu" class="btn-pixel" type="button">Hauptmenü</button><button id="pause-audio" class="btn-pixel" type="button" aria-pressed="true">Ton an</button></div>
+        <div class="overlay-secondary"><button id="menu" class="btn-glass" type="button">Hauptmenü</button><button id="pause-audio" class="btn-glass" type="button" aria-pressed="true">Ton an</button></div>
       </div>
     </section>
   </main>
