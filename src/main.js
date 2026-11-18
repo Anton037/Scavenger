@@ -59,7 +59,7 @@ function changeSound() {
 function restart() {
   run = newRun();
   run.notices.push({
-    message: 'Du bist Chef Torge! Hol die 3 Relikte. Mit [C] oder Klick zündest du deinen Nova-Bonk gegen Massiv-Rund Hauke, Lost Anton & Tom!',
+    message: 'Du bist Chef Torge! Dein Lichtkegel leuchtet durch die Dunkelheit ([Q] an/aus). [Klick]/[C] = Chef-Schelle, [Rechtsklick]/[Space] = Dash!',
     until: 8.5,
   });
   if (upgradeModal) upgradeModal.hidden = true;
@@ -191,7 +191,7 @@ get('overlay-primary').addEventListener('click', () => {
 });
 for (const [id, action] of [
   ['touch-shutter', 'lamp'], ['touch-dash', 'dash'], ['touch-lure', 'lure'], ['touch-use', 'use'],
-  ['touch-bonk', 'bonk'], ['orb-bonk', 'bonk'], ['orb-dash', 'dash'],
+  ['touch-bonk', 'bonk'], ['orb-bonk', 'bonk'], ['orb-dash', 'dash'], ['interact', 'use'],
 ]) get(id)?.addEventListener('click', () => controls.queue(action));
 
 window.addEventListener('resize', () => {

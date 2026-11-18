@@ -32,6 +32,7 @@ export class Controls {
     window.addEventListener('keyup', (event) => this.keys.delete(event.code));
     window.addEventListener('blur', () => this.reset());
 
+    canvas.addEventListener('contextmenu', (event) => event.preventDefault());
     canvas.addEventListener('pointerdown', (event) => {
       if (!this.active) return;
       if (event.pointerType === 'touch' && this.aimId === null) {
@@ -39,9 +40,10 @@ export class Controls {
         this.aimId = event.pointerId;
         canvas.setPointerCapture(event.pointerId);
         this.aimPoint = { x: event.clientX, y: event.clientY };
-      } else if (event.pointerType !== 'touch' && event.button === 0) {
+      } else if (event.pointerType !== 'touch') {
         this.aimPoint = { x: event.clientX, y: event.clientY };
-        this.queue('bonk');
+        if (event.button === 0) this.queue('bonk');
+        else if (event.button === 2) this.queue('dash');
       }
     });
     canvas.addEventListener('pointermove', (event) => {
@@ -52,7 +54,11 @@ export class Controls {
       }
     });
     const releaseAim = (event) => {
-      if (event.pointerId === this.aimId) this.aimId = null;
+      if (event.pointerId === this.aimId) {
+        this.aimId = null;
+        this.aimPoint = null;
+        this.aimAngle = undefined;
+      }
     };
     for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(name, releaseAim);
 
@@ -69,6 +75,7 @@ export class Controls {
     stick.addEventListener('pointerdown', (event) => {
       if (!this.active || this.stickId !== null) return;
       event.preventDefault();
+      this.useTouch(true);
       this.stickId = event.pointerId;
       stick.setPointerCapture(event.pointerId);
       aimStick(event);

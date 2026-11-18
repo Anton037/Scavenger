@@ -6,11 +6,11 @@ import {
 export const STEP = 1 / 60;
 export const TOTAL_RECORDS = RECORDS.length;
 export const LIFT_WAIT = 5;
-const WALK = 2.85;
+const WALK = 2.95;
 const DASH_TIME = 0.28;
-const DASH_COOLDOWN = 2.2;
-const BONK_COOLDOWN = 2.2;
-const USE_RANGE = 1.35;
+const DASH_COOLDOWN = 2.1;
+const BONK_COOLDOWN = 2.0;
+const USE_RANGE = 1.38;
 const START_LISTENER = { x: 18.4, z: 9.25 };
 const START_HAUKE = { x: 28.0, z: 25.3 };
 const START_TOM = { x: 20.45, z: 16.0 };
@@ -21,14 +21,26 @@ const location = (point) => ({ x: point.x, z: point.z });
 
 const DEATH_QUOTES_ANTON = [
   'Anton war eigentlich komplett lost, ist aber im Dunkeln aus Versehen in dich reingelaufen (-10.000 Aura).',
-  'Anton wusste selbst nicht wo er hinwill, hat dich aber trotzdem mit seiner langen Reichweite gegriffen.',
-  'Lost Anton hat dich mit dem Kühlschrank verwechselt. Selbst Chef Torge war kurz sprachlos.',
+  'Anton wusste selbst nicht wo er hinwill, hat dich aber trotzdem mit seinen Slenderman-Armen gegriffen.',
+  'Lost Anton hat dich im Dunkeln mit dem Kühlschrank verwechselt. Selbst Chef Torge war kurz sprachlos.',
 ];
 
 const DEATH_QUOTES_HAUKE = [
   'Hauke (Massiv Rund) hat dich einfach überrollt. Gegen 360° pure Masse und eigene Schwerkraft hilft nichts!',
-  'Du bist zu nah an Haukes Ereignishorizont geraten und wurdest in seine Umlaufbahn gezogen!',
-  'Hauke hat einen Bauchplatscher gemacht — das Druckwellen-Beben hat die halbe Arena plattgewalzt!',
+  'Du bist zu nah an Haukes Ereignishorizont geraten und wurdest in seine Bauch-Umlaufbahn gezogen!',
+  'Hauke hat einen Bauchplatscher gemacht — das Druckwellen-Beben hat die halbe Halle plattgewalzt!',
+];
+
+const ANTON_QUOTES = [
+  'Anton murmelt im Dunkeln: „Hä, war ich in dem Gang nicht schon dreimal?“',
+  'Anton ruft: „Torge, warte mal kurz, wo ist hier Norden?!“',
+  'Anton starrt eine Wand an: „Sieht aus wie der Ausgang… glaube ich.“',
+];
+
+const HAUKE_QUOTES = [
+  'Hauke brüllt: „Massephase seit 2019 — ich hab ein eigenes Gravitationsfeld!“',
+  'Hauke schnauft: „Ich rieche Mitternachts-Döner und eiskalte Spezi!“',
+  'Hauke ruft: „Wer stehen bleibt, wird überrollt!“',
 ];
 
 export function newRun() {
@@ -53,8 +65,11 @@ export function newRun() {
       clinkIn: 5.0,
       helmet: true,
       invuln: 0,
-      pfand: 1000, // Aura score (starts at 1,000 Chef-Aura!)
-      novaRadius: 2.15,
+      pfand: 1000,
+      combo: 1,
+      comboTimer: 0,
+      maxCombo: 1,
+      novaRadius: 2.2,
       speedMult: 1.0,
       dx: 0,
       dz: 0,
@@ -81,7 +96,7 @@ export function newRun() {
       stunned: 0,
       slipCooldown: 4,
       wasWet: false,
-      lostChatIn: 7.5,
+      lostChatIn: 6.5,
     },
     hauke: {
       ...START_HAUKE,
@@ -94,6 +109,12 @@ export function newRun() {
       moving: false,
       stunned: 0,
       stompIn: 0.72,
+      hp: 100,
+      maxHp: 100,
+      koTimer: 0,
+      hitFlash: 0,
+      knockouts: 0,
+      quoteIn: 9.0,
     },
     tom: {
       ...START_TOM,
@@ -127,8 +148,22 @@ export function newRun() {
       toots: 0,
       valves: 0,
       upgrades: 0,
+      haukeKos: 0,
     },
   };
+}
+
+function addAura(run, baseAmount, bumpCombo = true) {
+  const { player } = run;
+  if (bumpCombo) {
+    player.combo = Math.min(8, (player.combo || 1) + (player.comboTimer > 0 ? 1 : 0));
+    player.comboTimer = 6.5;
+    player.maxCombo = Math.max(player.maxCombo || 1, player.combo);
+  }
+  const mult = 1 + (player.combo - 1) * 0.25;
+  const gained = Math.round(baseAmount * mult);
+  player.pfand += gained;
+  return gained;
 }
 
 export function applyUpgrade(run, kind) {
@@ -137,14 +172,14 @@ export function applyUpgrade(run, kind) {
   run.stats.upgrades++;
   if (kind === 'nova') {
     run.player.novaRadius += 0.85;
-    run.player.pfand += 1000;
+    addAura(run, 1000, true);
     popup(run, '❖ UPGRADE: ÜBERLEGENE CHEF-SCHELLE (+45% RADIUS)');
   } else if (kind === 'speed') {
     run.player.speedMult += 0.24;
-    run.player.pfand += 1000;
+    addAura(run, 1000, true);
     popup(run, '⚡ UPGRADE: CREATIN-OVERDRIVE (+25% TEMPO)');
   } else {
-    run.player.pfand += 2500;
+    addAura(run, 2500, true);
     run.player.clappers = Math.min(5, run.player.clappers + 2);
     popup(run, '✦ UPGRADE: +2.500 AURA & +2 PFAND-DOSEN');
   }
@@ -166,8 +201,29 @@ function tell(run, message, duration = 5.4) {
 }
 
 function popup(run, text) {
-  run.popups.push({ id: ++run.pulseSerial, text, until: run.time + 2.2 });
+  run.popups.push({ id: ++run.pulseSerial, text, until: run.time + 2.3 });
   if (run.popups.length > 3) run.popups.shift();
+}
+
+function damageHauke(run, dmg, sourceLabel) {
+  const { hauke, player } = run;
+  if (hauke.koTimer > 0) return;
+  hauke.hp = Math.max(0, hauke.hp - dmg);
+  hauke.hitFlash = 0.28;
+  if (hauke.hp <= 0) {
+    hauke.koTimer = 14.0;
+    hauke.stunned = 14.0;
+    hauke.knockouts = (hauke.knockouts || 0) + 1;
+    run.stats.haukeKos = (run.stats.haukeKos || 0) + 1;
+    run.cameraShake = Math.max(run.cameraShake, 0.75);
+    player.clappers = Math.min(5, player.clappers + 1);
+    const bonus = addAura(run, 4000, true);
+    popup(run, `👑 HAUKE IM FRESSKOMA! (+${bonus} BOSS-AURA)`);
+    tell(run, 'MASSIV-RUND HAUKE GEHT INS FRESSKOMA (14s K.O.)! Er hat eine goldene Pfand-Dose gedroppt!');
+  } else {
+    const gained = addAura(run, 1500, true);
+    popup(run, `⚡ ${sourceLabel} (-${dmg}% HP · +${gained} AURA)`);
+  }
 }
 
 export function interaction(run) {
@@ -207,30 +263,31 @@ function use(run) {
 
   if (action.record) {
     run.records.add(action.record.id);
-    player.pfand += 2000;
+    const gained = addAura(run, 2000, true);
     run.pendingUpgrade = true;
     makeNoise(run, 'record', player, 4.2);
     tell(run, action.record.discovery);
-    popup(run, `✦ ${action.record.name}`);
+    popup(run, `✦ ${action.record.name} (+${gained} AURA)`);
   } else if (action.helmet) {
     player.helmet = true;
     run.droppedHelmet = null;
     run.events.push({ kind: 'record', ...location(player) });
-    popup(run, '👑 CHEF-KRONE SITZT WIEDER (+500 AURA)');
-    player.pfand += 500;
+    const gained = addAura(run, 500, true);
+    popup(run, `👑 CHEF-KRONE SITZT WIEDER (+${gained} AURA)`);
   } else if (action.valve) {
     action.valve.cooldown = 9;
     action.valve.active = 1.6;
     run.stats.valves++;
     run.cameraShake = Math.max(run.cameraShake, 0.45);
     makeNoise(run, 'valve', action.valve, 16);
-    popup(run, '💥 DAMPF-VENTIL GEZÜNDET! (+800 AURA)');
-    player.pfand += 800;
+    const gained = addAura(run, 800, true);
+    popup(run, `💥 DAMPF-VENTIL GEZÜNDET! (+${gained} AURA)`);
     for (const enemy of [run.listener, run.hauke, run.tom]) {
       if (distance(enemy, action.valve) < 5.4) {
-        enemy.stunned = 3.6;
+        enemy.stunned = Math.max(enemy.stunned, 3.6);
         const pushAngle = Math.atan2(enemy.z - action.valve.z, enemy.x - action.valve.x);
         shiftBody(enemy, Math.cos(pushAngle) * 1.5, Math.sin(pushAngle) * 1.5, 0.25);
+        if (enemy === run.hauke) damageHauke(run, 50, 'HAUKE VOM VENTIL GEDÜNSTET!');
       }
     }
   } else if (action.vending) {
@@ -238,10 +295,10 @@ function use(run) {
     player.clappers = Math.min(5, player.clappers + 1);
     player.beanBoost = 6.0;
     player.nextToot = 1.5;
-    player.pfand += 500;
+    const gained = addAura(run, 500, true);
     makeNoise(run, 'can', player, 6.0);
     tell(run, 'Dry-Scoop Pre-Workout gezündet! 6s Chef-Overdrive (+1 Pfand-Dose)!');
-    popup(run, '⚡ PRE-WORKOUT OVERDRIVE (+500 AURA)');
+    popup(run, `⚡ PRE-WORKOUT OVERDRIVE (+${gained} AURA)`);
   } else {
     run.lift.state = 'calling';
     makeNoise(run, 'lift', LIFT, 38);
@@ -274,36 +331,48 @@ function swingWrench(run) {
   player.bonkCooldown = BONK_COOLDOWN;
   player.swing = 0.36;
   makeNoise(run, 'bonk', player, 9.5);
-  run.cameraShake = Math.max(run.cameraShake, 0.3);
+  run.cameraShake = Math.max(run.cameraShake, 0.32);
 
-  const reach = player.novaRadius || 2.15;
+  const reach = player.novaRadius || 2.2;
   let hitAny = false;
-  const targets = [
-    { enemy: run.listener, label: 'LOST ANTON WEGGEBONKT! (+1.000 AURA)', reward: 1000, stun: 3.1 },
-    { enemy: run.hauke, label: 'MASSIV-RUND HAUKE GEBONKT! (+1.500 AURA)', reward: 1500, stun: 2.6 },
-    { enemy: run.tom, label: 'CHEF-SCHELLE FÜR TOM! (+1.200 AURA)', reward: 1200, stun: 3.8, isTom: true },
-  ];
 
-  for (const { enemy, label, reward, stun, isTom } of targets) {
-    if (distance(player, enemy) < reach) {
-      hitAny = true;
-      enemy.stunned = stun;
-      run.stats.bonks++;
-      player.pfand += reward;
-      const push = Math.atan2(enemy.z - player.z, enemy.x - player.x);
-      shiftBody(enemy, Math.cos(push) * 1.25, Math.sin(push) * 1.25, 0.24);
-      if (isTom) player.clappers = Math.min(5, player.clappers + 1);
-      popup(run, `⚡ ${label}`);
-    }
+  if (distance(player, run.listener) < reach) {
+    hitAny = true;
+    run.listener.stunned = 3.2;
+    run.stats.bonks++;
+    const push = Math.atan2(run.listener.z - player.z, run.listener.x - player.x);
+    shiftBody(run.listener, Math.cos(push) * 1.35, Math.sin(push) * 1.35, 0.24);
+    const gained = addAura(run, 1000, true);
+    popup(run, `⚡ LOST ANTON WEGGEBONKT! (+${gained} AURA)`);
+  }
+
+  if (distance(player, run.hauke) < reach) {
+    hitAny = true;
+    run.hauke.stunned = Math.max(run.hauke.stunned, 2.6);
+    run.stats.bonks++;
+    const push = Math.atan2(run.hauke.z - player.z, run.hauke.x - player.x);
+    shiftBody(run.hauke, Math.cos(push) * 1.15, Math.sin(push) * 1.15, 0.24);
+    damageHauke(run, 35, 'MASSIV-RUND HAUKE GEBONKT!');
+  }
+
+  if (distance(player, run.tom) < reach) {
+    hitAny = true;
+    run.tom.stunned = 3.8;
+    run.stats.bonks++;
+    player.clappers = Math.min(5, player.clappers + 1);
+    const push = Math.atan2(run.tom.z - player.z, run.tom.x - player.x);
+    shiftBody(run.tom, Math.cos(push) * 1.45, Math.sin(push) * 1.45, 0.24);
+    const gained = addAura(run, 1200, true);
+    popup(run, `⚡ CHEF-SCHELLE FÜR TOM! (+${gained} AURA & DOSE)`);
   }
 
   if (!hitAny && distance(player, VENDING) < 1.8 && run.vendingCooldown <= 0) {
     run.vendingCooldown = 8.5;
     player.clappers = Math.min(5, player.clappers + 1);
-    player.pfand += 500;
-    popup(run, '⚡ SPÄTI-TERMINAL GEBONKT! (+500 AURA & SIEGEL)');
+    const gained = addAura(run, 500, true);
+    popup(run, `⚡ SPÄTI-AUTOMAT GEBONKT! (+${gained} AURA & DOSE)`);
   } else if (!hitAny) {
-    popup(run, '❖ NOVA-IMPULS GEZÜNDET');
+    popup(run, '❖ CHEF-SCHELLE GEZÜNDET');
   }
 }
 
@@ -312,6 +381,12 @@ function movePlayer(run, input, dt) {
   if (input.lamp) {
     player.lamp = !player.lamp;
     run.events.push({ kind: 'shutter', ...location(player) });
+    popup(run, player.lamp ? '🔦 TASCHENLAMPE AN (LICHTKEGEL AKTIV)' : '🌑 TASCHENLAMPE AUS (TARN-MODUS IM DUNKELN)');
+  }
+
+  if (player.comboTimer > 0) {
+    player.comboTimer = Math.max(0, player.comboTimer - dt);
+    if (player.comboTimer === 0) player.combo = 1;
   }
 
   const x = input.x || 0;
@@ -337,8 +412,8 @@ function movePlayer(run, input, dt) {
       player.nextToot = 1.8;
       run.stats.toots++;
       makeNoise(run, 'toot', player, 8.5);
-      popup(run, '💨 CHEF-SCHUB (+250 AURA)');
-      player.pfand += 250;
+      const gained = addAura(run, 250, false);
+      popup(run, `💨 CHEF-SCHUB (+${gained} AURA)`);
     }
   }
 
@@ -353,8 +428,8 @@ function movePlayer(run, input, dt) {
     if (player.wet) {
       player.sliding = 0.44;
       run.events.push({ kind: 'slip', ...location(player) });
-      popup(run, '🌊 HYDRO-GLIDE (+300 AURA)');
-      player.pfand += 300;
+      const gained = addAura(run, 300, true);
+      popup(run, `🌊 HYDRO-GLIDE (+${gained} AURA)`);
     }
   }
 
@@ -363,13 +438,14 @@ function movePlayer(run, input, dt) {
   if (player.dash > 0 || player.sliding > 0) {
     dx = player.dx;
     dz = player.dz;
-    speed = player.sliding > 0 ? 9.5 : 8.2;
+    speed = player.sliding > 0 ? 9.6 : 8.3;
     for (const enemy of [run.listener, run.hauke, run.tom]) {
       if (distance(player, enemy) < 1.15 && enemy.stunned <= 0) {
         enemy.stunned = 2.2;
         run.stats.bonks++;
-        player.pfand += 600;
-        popup(run, '🎳 CHEF-BODYCHECK! (+600 AURA)');
+        const gained = addAura(run, 600, true);
+        popup(run, `🎳 CHEF-BODYCHECK! (+${gained} AURA)`);
+        if (enemy === run.hauke) damageHauke(run, 20, 'BODYCHECK GEGEN HAUKE!');
       }
     }
   }
@@ -397,14 +473,13 @@ function movePlayer(run, input, dt) {
     }
   }
 
-  // Collectible Jade Aura-Shards on the floor
   for (const can of run.cans) {
-    if (!can.collected && distance(player, can) < 0.65) {
+    if (!can.collected && distance(player, can) < 0.72) {
       can.collected = true;
       run.stats.cans++;
-      player.pfand += 250;
+      const gained = addAura(run, 250, true);
       makeNoise(run, 'can', can, 3.8);
-      popup(run, '✦ +250 AURA-SHARD');
+      popup(run, `🥫 +${gained} PFAND-AURA`);
     }
   }
 
@@ -479,6 +554,8 @@ function moveListener(run, dt) {
   const listener = run.listener;
   const player = run.player;
   listener.slipCooldown = Math.max(0, listener.slipCooldown - dt);
+  listener.lostChatIn = Math.max(0, (listener.lostChatIn ?? 8) - dt);
+
   if (listener.stunned > 0) {
     listener.stunned = Math.max(0, listener.stunned - dt);
     listener.moving = false;
@@ -487,6 +564,13 @@ function moveListener(run, dt) {
   }
 
   const gap = distance(listener, player);
+  if (listener.lostChatIn <= 0 && gap < 11.5 && listener.mode !== 'hunt') {
+    listener.lostChatIn = 14.0;
+    if (run.notices.length === 0) {
+      tell(run, ANTON_QUOTES[Math.floor(run.time * 3) % ANTON_QUOTES.length], 4.0);
+    }
+  }
+
   const visible = gap < (player.lamp ? 6.0 : 1.9) && clearPath(listener, player);
   const sound = hear(run);
 
@@ -529,23 +613,40 @@ function moveListener(run, dt) {
   const speed = listener.mode === 'hunt' ? 3.25 : listener.mode === 'investigate' ? 2.36 : 1.49;
   listener.moving = followWaypoints(listener, listener.target, speed, dt, run);
 
-  // Anton's puddle wipeout when he is lost & sprinting
   const nowWet = wetAt(listener.x, listener.z);
   if (
     nowWet && !listener.wasWet && listener.mode === 'hunt' &&
     listener.slipCooldown <= 0 && gap > 1.35 && (run.stats.bonks > 0 || player.clappers < 2 || player.beanBoost > 0)
   ) {
-    listener.stunned = 2.2;
+    listener.stunned = 2.4;
     listener.slipCooldown = 10;
     run.stats.slips++;
     run.events.push({ kind: 'slip', ...location(listener) });
-    popup(run, '🍌 ANTON KOMPLETT LOST & AUSGERUTSCHT! (-500 AURA FÜR IHN)');
+    const gained = addAura(run, 500, true);
+    popup(run, `🍌 ANTON AUSGERUTSCHT! (+${gained} AURA)`);
   }
   listener.wasWet = nowWet;
 }
 
 function moveHauke(run, dt) {
   const { hauke, player } = run;
+  hauke.hitFlash = Math.max(0, (hauke.hitFlash || 0) - dt);
+  hauke.quoteIn = Math.max(0, (hauke.quoteIn ?? 9) - dt);
+
+  if (hauke.koTimer > 0) {
+    hauke.koTimer = Math.max(0, hauke.koTimer - dt);
+    hauke.stunned = hauke.koTimer;
+    hauke.moving = false;
+    if (hauke.koTimer === 0) {
+      hauke.hp = hauke.maxHp;
+      hauke.mode = 'hunt';
+      hauke.target = location(player);
+      popup(run, '🔥 HAUKE IST WIEDER WACH & UNTERZUCKERT!');
+      tell(run, 'Hauke ist aus dem Fresskoma erwacht und hat jetzt doppelten Hunger!');
+    }
+    return;
+  }
+
   if (hauke.stunned > 0) {
     hauke.stunned = Math.max(0, hauke.stunned - dt);
     hauke.moving = false;
@@ -554,6 +655,11 @@ function moveHauke(run, dt) {
   }
 
   const gap = distance(hauke, player);
+  if (hauke.quoteIn <= 0 && gap < 12.0 && run.notices.length === 0) {
+    hauke.quoteIn = 15.0;
+    tell(run, HAUKE_QUOTES[Math.floor(run.time * 5) % HAUKE_QUOTES.length], 4.0);
+  }
+
   const loudPulse = run.pulses.find((p) => (p.kind === 'lift' || p.kind === 'bonk' || p.kind === 'clapper' || p.kind === 'toot') && distance(p, hauke) < p.reach * 0.75);
   const canSee = player.lamp && gap < 5.5 && clearPath(hauke, player);
 
@@ -571,7 +677,8 @@ function moveHauke(run, dt) {
     hauke.replanAt = run.time;
   }
 
-  const speed = hauke.mode === 'hunt' ? 2.48 : 1.25;
+  const rageSpeed = (hauke.knockouts || 0) > 0 ? 0.25 : 0;
+  const speed = (hauke.mode === 'hunt' ? 2.48 : 1.25) + rageSpeed;
   hauke.moving = followWaypoints(hauke, hauke.target, speed, dt, run);
 
   if (hauke.moving) {
@@ -623,8 +730,10 @@ function moveTom(run, dt) {
     run.stats.stolen++;
     run.events.push({ kind: 'steal', ...location(tom) });
     player.pfand = Math.max(0, player.pfand - 400);
+    player.combo = 1;
+    player.comboTimer = 0;
     popup(run, '🦝 TOM MACHT TOM-SACHEN (-400 AURA GESCHNORRT)');
-    tell(run, 'Tom war wieder einfach Tom und hat dir 400 Aura geschnorrt! Gib ihm mit [C] eine Chef-Schelle!');
+    tell(run, 'Tom ruft: „Ich geb dir morgen zurück, schwöre!“ — Gib ihm mit [C] oder Klick eine Chef-Schelle!');
   }
 }
 
@@ -640,7 +749,7 @@ export function advance(run, input = {}, dt = STEP) {
   if (run.notices.length && run.notices[0].until < run.time) run.notices.length = 0;
 
   const caughtByAnton = run.listener.stunned <= 0 && distance(run.listener, run.player) < 0.53;
-  const caughtByHauke = run.hauke.stunned <= 0 && (run.player.lamp || run.hauke.mode === 'hunt') && distance(run.hauke, run.player) < 0.65;
+  const caughtByHauke = run.hauke.stunned <= 0 && !(run.hauke.koTimer > 0) && (run.player.lamp || run.hauke.mode === 'hunt') && distance(run.hauke, run.player) < 0.65;
 
   if ((caughtByAnton || caughtByHauke) && run.player.invuln <= 0) {
     run.caughtBy = caughtByHauke ? 'hauke' : 'anton';
