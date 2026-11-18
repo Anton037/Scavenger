@@ -218,6 +218,36 @@ export class Soundscape {
         this.tone(95, 43, 0.78, 0.24, pan, 0, 'triangle');
         this.rustle(530, 2.3, 0.53, 0.12, pan);
         break;
+      case 'crown_drop':
+        // Chef-Krone fliegt klirrend weg!
+        this.tone(860, 320, 0.28, 0.22, pan, 0, 'triangle');
+        this.tone(1420, 980, 0.14, 0.14, pan, 0.12, 'sine');
+        this.rustle(1650, 1.5, 0.22, 0.14, pan);
+        break;
+      case 'crown_pickup':
+        this.tone(523, 784, 0.16, 0.16, pan, 0, 'triangle');
+        this.tone(784, 1046, 0.24, 0.14, pan, 0.08, 'sine');
+        break;
+      case 'charge_windup':
+        // Bedrohliches Aufheulen vor Haukes Bauch-Ramme
+        this.tone(75, 220, 0.55, 0.22, pan, 0, 'sawtooth');
+        this.rustle(280, 1.8, 0.45, 0.12, pan);
+        break;
+      case 'wall_slam':
+        // MASSIVER Wand-Einschlag + K.O.-Glocke!
+        this.tone(95, 26, 0.48, 0.28, pan, 0, 'triangle');
+        this.tone(1120, 880, 0.32, 0.12, pan, 0.06, 'sine');
+        this.rustle(920, 0.7, 0.4, 0.22, pan);
+        break;
+      case 'dodge':
+        this.tone(360, 740, 0.11, 0.12, pan, 0, 'sine');
+        this.rustle(1900, 1.2, 0.1, 0.08, pan);
+        break;
+      case 'ko':
+        // Dramatischer K.O.-Bass + Fresskoma-Posaune
+        this.tone(180, 42, 0.65, 0.26, pan, 0, 'sawtooth');
+        this.tone(520, 260, 0.28, 0.16, pan, 0.05, 'triangle');
+        break;
       case 'caught':
         this.tone(126, 29, 0.93, 0.27, 0, 0, 'triangle');
         this.rustle(550, 0.85, 0.89, 0.14);

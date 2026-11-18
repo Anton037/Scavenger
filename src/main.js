@@ -1,14 +1,13 @@
 import './style.css';
 import { Soundscape } from './audio.js';
 import { Controls } from './controls.js';
-import { applyUpgrade, newRun, advance, STEP } from './game.js';
+import { newRun, advance, STEP } from './game.js';
 import { get, Hud, write } from './hud.js';
 
 const canvas = get('arena');
 const title = get('title-screen');
 const startButton = get('start');
 const overlay = get('overlay');
-const upgradeModal = get('upgrade-modal');
 const hud = new Hud();
 const sound = new Soundscape();
 const controls = new Controls(canvas, get('stick'), get('stick-thumb'), { chart: toggleChart, pause: togglePause });
@@ -19,7 +18,7 @@ let stage = 'title';
 let last = 0;
 let lag = 0;
 
-// Initialize 3D Riftline Arena immediately so the Main Menu & In-Game graphics share the exact same 3D scene!
+// Starte Live-Pixel-Art-WebGL-Szene direkt für das Hauptmenü (einheitlicher Stil vom Start bis ins Spiel)
 import('./scene.js').then(({ SceneView }) => {
   view = new SceneView(canvas);
   view.resize();
@@ -58,11 +57,7 @@ function changeSound() {
 
 function restart() {
   run = newRun();
-  run.notices.push({
-    message: 'Du bist Chef Torge! Dein Lichtkegel leuchtet durch die Dunkelheit ([Q] an/aus). [Klick]/[C] = Chef-Schelle, [Rechtsklick]/[Space] = Dash!',
-    until: 8.5,
-  });
-  if (upgradeModal) upgradeModal.hidden = true;
+  hud.clearFloating();
   title.hidden = true;
   canvas.hidden = false;
   get('hud').hidden = false;
@@ -71,7 +66,7 @@ function restart() {
   sound.reset();
   view.resize();
   view.draw(run, 0, true);
-  hud.paint(run);
+  hud.paint(run, view);
   resume();
 }
 
@@ -80,7 +75,7 @@ async function begin() {
   stage = 'loading';
   startButton.disabled = true;
   const label = startButton.querySelector('span');
-  write(label, 'ARENA LÄDT…');
+  write(label, 'LÄDT…');
   get('launch-error').hidden = true;
   sound.open();
   try {
@@ -99,7 +94,7 @@ async function begin() {
     message.hidden = false;
   } finally {
     startButton.disabled = false;
-    write(label, 'RUN STARTEN');
+    write(label, 'IN DEN KELLER');
   }
 }
 
@@ -116,13 +111,13 @@ function resume() {
 }
 
 function showOverlay(kind) {
-  const caughtTitle = run?.caughtBy === 'hauke' ? 'Von Hauke überrollt!' : 'Von Lost Anton gecatcht!';
+  const caughtTitle = run?.caughtBy === 'hauke' ? 'Von Hauke überrollt!' : 'Von Anton gecatcht!';
   const details = {
-    pause: ['Kurze Pause', 'Chef Torge gönnt sich kurz Ruhe. Hauke rollt weiter.', 'Weitermachen'],
-    caught: [caughtTitle, run?.deathReason ?? 'Du wurdest in der Arena erwischt.', 'Neuer Run'],
+    pause: ['Pause', 'Kurze Verschnaufpause im Keller.', 'Weiter'],
+    caught: [caughtTitle, run?.deathReason ?? 'Du wurdest im Dunkeln erwischt.', 'Nochmal'],
     escaped: [
-      'Dominanz bewiesen!',
-      'Chef Torge hat alle 3 Relikte extrahiert! Unten diskutieren Hauke, Anton und Tom, wer schuld war.',
+      'Keller bezwungen!',
+      'Chef Torge hat alle 3 Relikte gesichert. Hauke diskutiert noch im Aufzugsschacht.',
       'Nächster Run',
     ],
   }[kind];
@@ -130,9 +125,7 @@ function showOverlay(kind) {
   controls.enable(false);
   sound.setActivity('pause');
   hud.toggleChart(run, false);
-  if (upgradeModal) upgradeModal.hidden = true;
-  if (run?.popups) run.popups.length = 0;
-  if (get('popups')) get('popups').innerHTML = '';
+  hud.clearFloating();
   get('hud').inert = true;
   write(get('overlay-title'), details[0]);
   write(get('overlay-copy'), details[1]);
@@ -152,31 +145,12 @@ function showTitle() {
   controls.enable(false);
   sound.setActivity('title');
   overlay.hidden = true;
-  if (upgradeModal) upgradeModal.hidden = true;
+  hud.clearFloating();
   get('hud').hidden = true;
   get('vignette').hidden = true;
   title.hidden = false;
   startButton.focus({ preventScroll: true });
 }
-
-function pickUpgrade(kind) {
-  if (!run) return;
-  applyUpgrade(run, kind);
-  if (upgradeModal) upgradeModal.hidden = true;
-  hud.paint(run);
-  canvas.focus({ preventScroll: true });
-}
-
-for (const card of document.querySelectorAll('.upgrade-card')) {
-  card.addEventListener('click', () => pickUpgrade(card.dataset.upgrade));
-}
-window.addEventListener('keydown', (e) => {
-  if (upgradeModal && !upgradeModal.hidden) {
-    if (e.code === 'Digit1') pickUpgrade('nova');
-    if (e.code === 'Digit2') pickUpgrade('speed');
-    if (e.code === 'Digit3') pickUpgrade('aura');
-  }
-});
 
 get('title-audio').addEventListener('click', changeSound);
 get('pause-audio').addEventListener('click', changeSound);
@@ -191,7 +165,8 @@ get('overlay-primary').addEventListener('click', () => {
 });
 for (const [id, action] of [
   ['touch-shutter', 'lamp'], ['touch-dash', 'dash'], ['touch-lure', 'lure'], ['touch-use', 'use'],
-  ['touch-bonk', 'bonk'], ['orb-bonk', 'bonk'], ['orb-dash', 'dash'], ['interact', 'use'],
+  ['touch-bonk', 'bonk'], ['orb-bonk', 'bonk'], ['orb-dash', 'dash'],
+  ['slot-lamp', 'lamp'], ['slot-lure', 'lure'], ['interact', 'use'],
 ]) get(id)?.addEventListener('click', () => controls.queue(action));
 
 window.addEventListener('resize', () => {
@@ -218,28 +193,19 @@ function tick(now) {
   }
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
-  if (upgradeModal && !upgradeModal.hidden) {
-    view.draw(run, dt);
-    return;
-  }
   lag += dt;
   while (lag >= STEP && run.state === 'playing') {
     advance(run, controls.read(view, run.player));
     for (const event of run.events) sound.play(event, run.player);
     lag -= STEP;
-    if (run.pendingUpgrade && upgradeModal) {
-      run.pendingUpgrade = false;
-      upgradeModal.hidden = false;
-      break;
-    }
   }
   sound.background(run);
   view.draw(run, dt);
-  hud.paint(run);
+  hud.paint(run, view);
   if (run.state !== 'playing') showOverlay(run.state);
 }
 requestAnimationFrame(tick);
 
 if (import.meta.env.DEV) {
-  Object.defineProperty(window, '__scavenger', { get: () => ({ run, view, stage, hud, pickUpgrade }) });
+  Object.defineProperty(window, '__scavenger', { get: () => ({ run, view, stage, hud }) });
 }

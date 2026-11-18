@@ -4,9 +4,9 @@ import {
   BLOCKS, DEPTH, FIXTURES, LIFT, POOLS, RECORDS, ROOMS, VALVES, VENDING, WIDTH, cell, clearPath,
 } from './level.js';
 import {
-  PALETTE, TAU, band, batchScenery, brassMaterial, color, diver, dredged, emissive,
-  greedyTom, haukeBoss, material, octa, orb, piece, randomFrom, round, rubberDuck,
-  solid, surfaceTexture, tapered,
+  PALETTE, TAU, band, batchScenery, brassMaterial, color, crownMesh, diver, doenerModel,
+  dredged, emissive, greedyTom, haukeBoss, haukeSnack, material, octa, orb, piece,
+  randomFrom, round, rubberDuck, solid, speziModel, surfaceTexture, tapered,
 } from './art.js';
 
 const brass = brassMaterial(PALETTE.brass);
@@ -225,18 +225,20 @@ function installValves(scene) {
 }
 
 function fixtureLights(scene) {
-  for (const { x, z, color: tint, strength } of FIXTURES) {
+  const torches = [];
+  for (const [i, { x, z, color: tint, strength }] of FIXTURES.entries()) {
     const shape = new THREE.Group();
     piece(shape, tapered, enamel, x, 0.38, z, 0.18, 0.72, 0.18);
     piece(shape, round, brass, x, 0.74, z, 0.21, 0.08, 0.21);
-    piece(shape, orb, emissive(tint), x, 0.88, z, 0.16, 0.19, 0.16);
-    piece(shape, tapered, brass, x, 1.02, z, 0.22, 0.08, 0.22);
+    const orbFlame = piece(shape, orb, emissive(tint), x, 0.89, z, 0.17, 0.21, 0.17);
+    piece(shape, tapered, brass, x, 1.03, z, 0.22, 0.08, 0.22);
     scene.add(shape);
-    // Dezente Wand-Fackeln an den Rändern (lassen die Raummitte atmosphärisch dunkel)
-    const lantern = new THREE.PointLight(tint, strength * 0.36, 4.8, 2.0);
-    lantern.position.set(x, 1.08, z);
+    const lantern = new THREE.PointLight(tint, strength * 0.42, 5.4, 2.0);
+    lantern.position.set(x, 1.12, z);
     scene.add(lantern);
+    torches.push({ light: lantern, flame: orbFlame, base: strength * 0.42, seed: i * 1.93 });
   }
+  return torches;
 }
 
 function installRecords(scene) {
@@ -248,24 +250,24 @@ function installRecords(scene) {
     piece(plinths, tapered, enamel, x, 0.5, z, 0.45, 0.11, 0.45);
     band(plinths, brass, x, 0.56, z, 0.4);
     const root = new THREE.Group();
-    root.position.set(x, 0.68, z);
+    root.position.set(x, 0.66, z);
     scene.add(root);
-    const label = emissive(tint);
+
     if (id === 'log') {
-      piece(root, octa, brass, 0, 0.16, 0, 0.24, 0.3, 0.24);
-      band(root, label, 0, 0.16, 0, 0.36);
+      const crown = crownMesh(1.42);
+      crown.position.y = 0.14;
+      root.add(crown);
     } else if (id === 'cylinder') {
-      piece(root, round, enamel, 0, 0.16, 0, 0.17, 0.34, 0.17);
-      band(root, brass, 0, 0.28, 0, 0.18);
-      band(root, label, 0, 0.16, 0, 0.19);
+      root.add(speziModel());
     } else {
-      piece(root, octa, label, 0, 0.18, 0, 0.22, 0.36, 0.22);
-      const orbit = band(root, brass, 0, 0.18, 0, 0.34);
-      orbit.rotation.x = 0.6;
+      root.add(doenerModel());
     }
-    const ring = placeRing(scene, tint, x, z, 0.88);
-    const glow = new THREE.PointLight(tint, 4.5, 3.4, 2);
-    glow.position.set(x, 0.75, z);
+    const orbit = band(root, emissive(tint), 0, 0.22, 0, 0.38);
+    orbit.rotation.x = 0.55;
+
+    const ring = placeRing(scene, tint, x, z, 0.92);
+    const glow = new THREE.PointLight(tint, 5.2, 3.8, 2);
+    glow.position.set(x, 0.85, z);
     scene.add(glow);
     items.push({ record, root, ring, glow });
   }
@@ -311,25 +313,25 @@ function installLift(scene) {
 
 function diffuseAir(scene) {
   const rng = randomFrom(128);
-  const points = new Float32Array(180 * 3);
+  const points = new Float32Array(210 * 3);
   for (let index = 0; index < points.length; index += 3) {
     points[index] = rng() * WIDTH;
-    points[index + 1] = 0.32 + rng() * 2.45;
+    points[index + 1] = 0.28 + rng() * 2.4;
     points[index + 2] = rng() * DEPTH;
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(points, 3));
   const motes = new THREE.Points(geo, new THREE.PointsMaterial({
-    size: 0.055, color: PALETTE.brass, transparent: true, opacity: 0.55, depthWrite: false,
+    size: 0.065, color: PALETTE.brass, transparent: true, opacity: 0.58, depthWrite: false,
   }));
   scene.add(motes);
   return motes;
 }
 
-// Volumetrischer Taschenlampen-Lichtkegel auf dem Boden (zeigt exakt die Reichweite & Richtung der Lampe)
+// Exakter Sektor-Lichtkegel ohne rechteckige Kantenartefakte
 function createFlashlightConeMesh(scene) {
-  const geo = new THREE.PlaneGeometry(10.5, 9.0);
-  geo.translate(5.0, 0, 0);
+  const geo = new THREE.PlaneGeometry(11.0, 9.6);
+  geo.translate(5.5, 0, 0);
   geo.rotateX(-Math.PI / 2);
   const mat = new THREE.ShaderMaterial({
     transparent: true,
@@ -345,17 +347,14 @@ function createFlashlightConeMesh(scene) {
     fragmentShader: `
       varying vec2 vLocal;
       void main() {
-        // vLocal.x: 0 (Spieler) -> 1 (Spitze), vLocal.y: 0..1 (Breite)
-        float dist = vLocal.x;
-        float side = (vLocal.y - 0.5) * 2.0;
-        float radial = length(vec2(dist, side * 0.65));
-        float coneWidth = max(0.06, dist * 0.92);
-        float inCone = 1.0 - smoothstep(coneWidth * 0.52, coneWidth, abs(side));
-        float fadeOut = (1.0 - smoothstep(0.22, 0.96, radial)) * smoothstep(0.0, 0.08, dist);
-        // Pixel-Art Stufen im Lichtkegel
-        float intensity = floor(inCone * fadeOut * 6.0) / 6.0;
-        vec3 beamColor = vec3(1.0, 0.88, 0.55);
-        gl_FragColor = vec4(beamColor, intensity * 0.22);
+        float x = vLocal.x;
+        float y = (vLocal.y - 0.5) * 2.0;
+        float r = length(vec2(x, y * 0.88));
+        float angleRatio = abs(y) / max(0.05, x * 0.85);
+        float inSector = 1.0 - smoothstep(0.55, 0.92, angleRatio);
+        float radialFade = (1.0 - smoothstep(0.18, 0.88, r)) * smoothstep(0.01, 0.07, x);
+        float intensity = floor(inSector * radialFade * 5.0) / 5.0;
+        gl_FragColor = vec4(vec3(1.0, 0.88, 0.52), intensity * 0.14);
       }
     `,
   });
@@ -364,6 +363,151 @@ function createFlashlightConeMesh(scene) {
   mesh.renderOrder = 1;
   scene.add(mesh);
   return mesh;
+}
+
+// Haukes Telegraph-Warnschneise vor der Bauch-Ramme
+function createChargeLaneMesh(scene) {
+  const geo = new THREE.PlaneGeometry(6.8, 1.18);
+  geo.translate(3.4, 0, 0);
+  geo.rotateX(-Math.PI / 2);
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: { uTime: { value: 0 }, uRush: { value: 0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform float uRush;
+      varying vec2 vUv;
+      void main() {
+        float edge = smoothstep(0.42, 0.5, abs(vUv.y - 0.5));
+        float scroll = fract(vUv.x * 5.0 - uTime * 3.8);
+        float chevron = step(0.55, scroll);
+        float alpha = (0.28 + chevron * 0.35 + edge * 0.3 + uRush * 0.25) * (1.0 - smoothstep(0.82, 1.0, vUv.x));
+        vec3 col = mix(vec3(1.0, 0.22, 0.32), vec3(1.0, 0.82, 0.3), edge + uRush * 0.4);
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = floorY + 0.028;
+  mesh.visible = false;
+  mesh.renderOrder = 2;
+  scene.add(mesh);
+  return mesh;
+}
+
+// Dead-Cells-artiger goldener Sichelschwung bei Chef-Schelle
+function createSlashArcMesh(scene) {
+  const geo = new THREE.RingGeometry(0.65, 1.15, 22, 1, -Math.PI * 0.62, Math.PI * 1.24).rotateX(-Math.PI / 2);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xffe082,
+    transparent: true,
+    opacity: 0.9,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = 0.52;
+  mesh.visible = false;
+  mesh.renderOrder = 3;
+  scene.add(mesh);
+  return mesh;
+}
+
+// Gepooltes Instanced Pixel-Art Partikel-System (1 Draw-Call für Funken, Staub, Wasser, Münzen & Crates)
+class ParticlePool {
+  constructor(scene, capacity = 160) {
+    this.capacity = capacity;
+    this.mesh = new THREE.InstancedMesh(solid, new THREE.MeshBasicMaterial(), capacity);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 4;
+    this.dummy = new THREE.Object3D();
+    this.items = Array.from({ length: capacity }, () => ({
+      active: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, maxLife: 1, size: 0.1, gravity: 9.5, color: color(PALETTE.brass),
+    }));
+    const blank = color(0xffffff);
+    for (let i = 0; i < capacity; i++) {
+      this.dummy.scale.set(0, 0, 0);
+      this.dummy.updateMatrix();
+      this.mesh.setMatrixAt(i, this.dummy.matrix);
+      this.mesh.setColorAt(i, blank);
+    }
+    this.cursor = 0;
+    scene.add(this.mesh);
+  }
+
+  emit(x, y, z, vx, vy, vz, hex, size = 0.1, life = 0.45, gravity = 8.5) {
+    const p = this.items[this.cursor];
+    this.cursor = (this.cursor + 1) % this.capacity;
+    p.active = true;
+    p.x = x;
+    p.y = y;
+    p.z = z;
+    p.vx = vx;
+    p.vy = vy;
+    p.vz = vz;
+    p.life = life;
+    p.maxLife = life;
+    p.size = size;
+    p.gravity = gravity;
+    p.color.setHex(hex);
+  }
+
+  burst(x, y, z, count, hex, speed = 3.8, size = 0.11, life = 0.42, gravity = 9.0) {
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * TAU + Math.random() * 0.5;
+      const spd = speed * (0.45 + Math.random() * 0.75);
+      this.emit(x, y, z, Math.cos(a) * spd, 1.4 + Math.random() * speed * 0.65, Math.sin(a) * spd, hex, size * (0.75 + Math.random() * 0.5), life, gravity);
+    }
+  }
+
+  step(dt) {
+    const safeDt = Math.min(0.05, Math.max(0, dt));
+    for (let i = 0; i < this.capacity; i++) {
+      const p = this.items[i];
+      if (!p.active) {
+        this.dummy.scale.set(0, 0, 0);
+        this.dummy.updateMatrix();
+        this.mesh.setMatrixAt(i, this.dummy.matrix);
+        continue;
+      }
+      p.life -= safeDt;
+      if (p.life <= 0) {
+        p.active = false;
+        this.dummy.scale.set(0, 0, 0);
+        this.dummy.updateMatrix();
+        this.mesh.setMatrixAt(i, this.dummy.matrix);
+        continue;
+      }
+      p.vy -= p.gravity * safeDt;
+      p.x += p.vx * safeDt;
+      p.y += p.vy * safeDt;
+      p.z += p.vz * safeDt;
+      if (p.y < 0.04) {
+        p.y = 0.04;
+        p.vy = Math.abs(p.vy) * 0.35;
+        p.vx *= 0.72;
+        p.vz *= 0.72;
+      }
+      const scale = p.size * Math.min(1, (p.life / p.maxLife) * 1.4);
+      this.dummy.position.set(p.x, p.y, p.z);
+      this.dummy.rotation.set(p.life * 8, p.life * 6, 0);
+      this.dummy.scale.setScalar(scale);
+      this.dummy.updateMatrix();
+      this.mesh.setMatrixAt(i, this.dummy.matrix);
+      this.mesh.setColorAt(i, p.color);
+    }
+    this.mesh.instanceMatrix.needsUpdate = true;
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+  }
 }
 
 // Custom WebGL Dead-Cells Pixel-Art & Dynamic Flashlight Cone Shader
@@ -379,6 +523,7 @@ function createPixelPostPass() {
     uAspect: { value: 1.6 },
     uTime: { value: 0.0 },
     uDanger: { value: 0.0 },
+    uHitFlash: { value: 0.0 },
     uLampOn: { value: 1.0 },
     uTitleMode: { value: 0.0 },
   };
@@ -403,11 +548,11 @@ function createPixelPostPass() {
       uniform float uAspect;
       uniform float uTime;
       uniform float uDanger;
+      uniform float uHitFlash;
       uniform float uLampOn;
       uniform float uTitleMode;
       varying vec2 vUv;
 
-      // 2x2 Bayer Dither Matrix für echten Dead-Cells Pixel-Art Look
       float bayer2x2(vec2 pixel) {
         vec2 p = mod(floor(pixel), 2.0);
         return (p.x + p.y * 2.0) * 0.25 - 0.375;
@@ -415,7 +560,11 @@ function createPixelPostPass() {
 
       void main() {
         vec2 texel = 1.0 / uResolution;
-        vec3 col = texture2D(tDiffuse, vUv).rgb;
+        vec2 chroma = vec2(texel.x * (uHitFlash * 3.5), 0.0);
+        float rC = texture2D(tDiffuse, vUv + chroma).r;
+        float gC = texture2D(tDiffuse, vUv).g;
+        float bC = texture2D(tDiffuse, vUv - chroma).b;
+        vec3 col = vec3(rC, gC, bC);
         float depth = texture2D(tDepth, vUv).r;
 
         // 1. 1px Pixel-Art Depth- & Kontrast-Outlines (Dead-Cells Silhouette)
@@ -436,33 +585,28 @@ function createPixelPostPass() {
         vec2 dir = dist > 0.0001 ? delta / dist : uAimDirUv;
         float cosA = dot(dir, normalize(uAimDirUv));
 
-        // Breiter, klar erkennbarer Taschenlampen-Kegel + heller Kernstrahl
-        float coneOuter = smoothstep(0.55, 0.86, cosA);
+        float coneOuter = smoothstep(0.56, 0.87, cosA);
         float coneCore = smoothstep(0.84, 0.98, cosA);
-        float coneReach = (1.0 - smoothstep(0.26, 0.82, dist)) * smoothstep(0.01, 0.06, dist);
-        float coneLight = (coneOuter * 0.92 + coneCore * 0.45) * coneReach * uLampOn;
+        float coneReach = (1.0 - smoothstep(0.28, 0.84, dist)) * smoothstep(0.01, 0.06, dist);
+        float coneLight = (coneOuter * 0.95 + coneCore * 0.45) * coneReach * uLampOn;
 
-        // Kleiner persönlicher Nahbereichs-Schein direkt um Chef Torge
-        float auraRadius = uLampOn > 0.5 ? 0.22 : 0.15;
-        float personalAura = (1.0 - smoothstep(0.04, auraRadius, dist)) * (uLampOn > 0.5 ? 0.82 : 0.54);
+        float auraRadius = uLampOn > 0.5 ? 0.23 : 0.16;
+        float personalAura = (1.0 - smoothstep(0.04, auraRadius, dist)) * (uLampOn > 0.5 ? 0.85 : 0.58);
 
-        // Im Hauptmenü beleuchten wir die Arena-Bühne breit
-        float titleLight = uTitleMode * (1.0 - smoothstep(0.25, 0.95, length((vUv - vec2(0.48, 0.52)) * vec2(uAspect, 1.0)))) * 1.05;
+        float titleLight = uTitleMode * (1.0 - smoothstep(0.28, 0.98, length((vUv - vec2(0.55, 0.52)) * vec2(uAspect, 1.0)))) * 1.1;
 
-        // 3. Gesamt-Lichtstufe & Bayer-geditherte Dead-Cells Cel-Shading-Bänder
+        // 3. Bayer-geditherte Dead-Cells Cel-Shading-Bänder
         float rawLight = max(max(coneLight, personalAura), titleLight);
         float dither = bayer2x2(vUv * uResolution) * 0.075;
         float lit = rawLight + dither;
 
-        // Außerhalb des Taschenlampen-Kegels ist es ECHT DUNKEL (Dead-Cells Indigo-Schatten ~0.22),
-        // aber Wände, Fliesen & Gegner-Silhouetten bleiben schemenhaft sichtbar!
         float celBand;
-        if (lit > 0.82) celBand = 1.32;
-        else if (lit > 0.46) celBand = 1.02;
-        else if (lit > 0.18) celBand = 0.58;
-        else celBand = 0.22;
+        if (lit > 0.82) celBand = 1.34;
+        else if (lit > 0.46) celBand = 1.04;
+        else if (lit > 0.18) celBand = 0.62;
+        else celBand = 0.25;
 
-        vec3 darkIndigoTint = vec3(0.48, 0.58, 1.16);
+        vec3 darkIndigoTint = vec3(0.48, 0.58, 1.18);
         vec3 warmBeamTint = vec3(1.12, 1.01, 0.86);
         vec3 lightTint = mix(darkIndigoTint, warmBeamTint, clamp(rawLight * 1.25, 0.0, 1.0));
 
@@ -470,24 +614,24 @@ function createPixelPostPass() {
         vec3 quantAlbedo = floor(col * 13.0 + 0.5) / 13.0;
         vec3 shaded = quantAlbedo * celBand * lightTint;
 
-        // Goldener volumetrischer Lichtstrahl-Schimmer im Kegel
         float beamGlow = coneOuter * coneReach * uLampOn * 0.14;
         shaded += vec3(1.0, 0.88, 0.54) * beamGlow;
 
-        // 5. Emissive Highlights (Leuchtende Augen von Anton/Hauke/Tom im Dunkeln, Schätze, Schallringe)
+        // 5. Emissive Highlights (Leuchtende Augen, Schätze, Gold-Fragezeichen, Slash)
         float maxC = max(col.r, max(col.g, col.b));
         float minC = min(col.r, min(col.g, col.b));
-        float isNeon = smoothstep(0.62, 0.88, maxC) * smoothstep(0.22, 0.45, maxC - minC);
-        shaded = max(shaded, col * isNeon * 1.18);
+        float isNeon = smoothstep(0.60, 0.88, maxC) * smoothstep(0.20, 0.42, maxC - minC);
+        shaded = max(shaded, col * isNeon * 1.22);
 
         // 6. Dunkle 1px Dead-Cells Pixel-Outlines
         vec3 outlineColor = vec3(0.02, 0.02, 0.06);
-        vec3 finalCol = mix(shaded, outlineColor, isOutline * clamp(celBand * 0.85 + isNeon, 0.25, 0.88));
+        vec3 finalCol = mix(shaded, outlineColor, isOutline * clamp(celBand * 0.85 + isNeon, 0.28, 0.88));
 
-        // 7. Rotes Horror-Pulsieren am Bildschirmrand bei Gefahr
+        // 7. Rotes Horror-Pulsieren + Hit-Flash
         float vigDist = length(vUv - 0.5) * 1.42;
         float pulse = (0.5 + 0.5 * sin(uTime * 8.0)) * uDanger;
         finalCol += vec3(0.55, 0.05, 0.12) * smoothstep(0.52, 1.05, vigDist) * pulse * 0.42;
+        finalCol += vec3(0.6, 0.18, 0.14) * uHitFlash * 0.35;
 
         gl_FragColor = vec4(finalCol, 1.0);
       }
@@ -531,7 +675,7 @@ export class SceneView {
     this.water = installWater(this.scene);
     installMachinery(this.scene);
     this.valves = installValves(this.scene);
-    fixtureLights(this.scene);
+    this.torches = fixtureLights(this.scene);
     this.records = installRecords(this.scene);
     this.lift = installLift(this.scene);
     this.air = diffuseAir(this.scene);
@@ -542,17 +686,25 @@ export class SceneView {
     this.tom = greedyTom();
     this.scene.add(this.actor.root, this.monster.root, this.hauke.root, this.tom.root);
 
-    // 3 Snacks im eigenen Gravitationsfeld um Haukes Bauch
-    this.haukeSnacks = Array.from({ length: 3 }, () => {
-      const s = new THREE.Group();
-      piece(s, round, brass, 0, 0.72, 0, 0.11, 0.18, 0.11);
-      piece(s, orb, emissive(PALETTE.vermilion), 0, 0.84, 0, 0.08, 0.06, 0.08);
+    // Verloren gegangene Chef-Krone am Boden
+    this.droppedCrown = crownMesh(1.35);
+    this.droppedCrown.visible = false;
+    this.scene.add(this.droppedCrown);
+    this.droppedCrownRing = placeRing(this.scene, PALETTE.brass, 0, 0, 0.72);
+    this.droppedCrownRing.visible = false;
+
+    // 3 echte Snacks (Burger, Döner, Spezi) im Gravitationsfeld um Hauke
+    this.haukeSnacks = Array.from({ length: 3 }, (_, i) => {
+      const s = haukeSnack(i);
       this.scene.add(s);
       return s;
     });
     this.haukeRing = placeRing(this.scene, PALETTE.copper, 0, 0, 2.05);
+    this.chargeLane = createChargeLaneMesh(this.scene);
     this.novaRing = placeRing(this.scene, PALETTE.brass, 0, 0, 1);
     this.novaRing.visible = false;
+    this.slashArc = createSlashArcMesh(this.scene);
+    this.particles = new ParticlePool(this.scene, 160);
 
     this.cans = Array.from({ length: 10 }, () => {
       const canGroup = new THREE.Group();
@@ -563,24 +715,20 @@ export class SceneView {
     });
 
     // 3D-Taschenlampen-SpotLight für plastische Glanzlichter & Schattenwurf im Kegel
-    this.lamp = new THREE.SpotLight(0xffe29e, 65, 14.0, 0.65, 0.45, 1.2);
+    this.lamp = new THREE.SpotLight(0xffe29e, 68, 14.5, 0.65, 0.45, 1.2);
     this.lamp.castShadow = true;
     this.lamp.shadow.mapSize.set(512, 512);
     this.lamp.shadow.camera.near = 0.3;
     this.lamp.shadow.camera.far = 14;
     this.scene.add(this.lamp, this.lamp.target);
 
-    // Sichtbarer volumetrischer Lichtkegel am Boden
     this.beamCone = createFlashlightConeMesh(this.scene);
-
-    // Kleines Nahbereichs-Licht direkt um Chef Torge
-    this.island = new THREE.PointLight(0x8aa8ff, 2.5, 3.4, 1.8);
+    this.island = new THREE.PointLight(0x8aa8ff, 2.6, 3.6, 1.8);
     this.scene.add(this.island);
 
     this.ripples = Array.from({ length: 14 }, () => placeRing(this.scene, PALETTE.brass, 0, 0, 1));
     this.clappers = Array.from({ length: 4 }, () => rubberDuck(this.scene));
 
-    // Pixel-Art Offscreen RenderTarget + DepthTexture
     this.pixelTarget = new THREE.WebGLRenderTarget(480, 300, {
       minFilter: THREE.NearestFilter,
       magFilter: THREE.NearestFilter,
@@ -616,6 +764,16 @@ export class SceneView {
     this.post.uniforms.uAspect.value = width / height;
   }
 
+  projectPoint(x, y, z) {
+    this.projTempA.set(x, y, z).project(this.camera);
+    if (this.projTempA.z > 1) return null;
+    const bounds = this.renderer.domElement.getBoundingClientRect();
+    return {
+      x: (this.projTempA.x * 0.5 + 0.5) * bounds.width + bounds.left,
+      y: (-this.projTempA.y * 0.5 + 0.5) * bounds.height + bounds.top,
+    };
+  }
+
   aimAt(screenPoint, player) {
     const bounds = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(
@@ -631,12 +789,12 @@ export class SceneView {
   setCamera(run, dt, snap) {
     const { player, cameraShake, time } = run;
     const near = this.follow;
-    const easing = snap ? 1 : 1 - Math.exp(-6 * dt);
+    const easing = snap ? 1 : 1 - Math.exp(-6.5 * dt);
     near.x += (player.x - near.x) * easing;
     near.z += (player.z - near.z) * easing;
     const mobileLift = Math.max(0, 1.33 - this.camera.aspect) * 3.9;
-    const shakeX = cameraShake > 0 ? Math.sin(time * 58) * cameraShake * 0.35 : 0;
-    const shakeZ = cameraShake > 0 ? Math.cos(time * 51) * cameraShake * 0.35 : 0;
+    const shakeX = cameraShake > 0 ? Math.sin(time * 58) * cameraShake * 0.36 : 0;
+    const shakeZ = cameraShake > 0 ? Math.cos(time * 51) * cameraShake * 0.36 : 0;
     this.camera.position.set(near.x + 0.82 + shakeX, 10.05 + mobileLift, near.z + 7.5 + mobileLift * 0.53 + shakeZ);
     this.camera.lookAt(near.x + shakeX * 0.5, 0, near.z - 1.03 + shakeZ * 0.5);
     this.camera.updateMatrixWorld();
@@ -646,23 +804,56 @@ export class SceneView {
     const { root, body, legs, bulb, wrench, helmet } = this.actor;
     root.position.set(player.x, 0.012, player.z);
     root.rotation.y = Math.PI / 2 - player.angle;
-    const gait = player.moving ? Math.sin(player.stride * 7.2) * 0.6 : 0;
+    const gait = player.moving ? Math.sin(player.stride * 7.2) * 0.62 : 0;
     legs[0].rotation.x = gait;
     legs[1].rotation.x = -gait;
     body.position.y = (player.moving ? Math.abs(gait) * 0.07 : 0) + Math.sin(time * 3.1) * 0.009;
-    body.rotation.x = player.sliding > 0 ? 1.15 : player.dash > 0 ? 0.35 : 0;
+    body.rotation.x = player.sliding > 0 ? 1.1 : player.dash > 0 ? 0.38 : 0;
+    // Blink-Effekt bei Invuln nach Treffer
+    root.visible = player.invuln > 0 ? Math.floor(time * 18) % 2 === 0 : true;
     if (helmet) helmet.visible = player.helmet !== false;
     if (wrench) {
-      wrench.rotation.x = player.swing > 0 ? Math.sin((player.swing / 0.36) * Math.PI) * 1.45 : 0;
+      wrench.rotation.x = player.swing > 0 ? Math.sin((player.swing / 0.36) * Math.PI) * 1.65 : 0;
+      wrench.rotation.z = player.swing > 0 ? -0.45 : 0;
     }
+
     if (this.novaRing) {
       this.novaRing.visible = player.swing > 0;
       if (player.swing > 0) {
         const progress = 1 - player.swing / 0.36;
-        const radius = 0.4 + progress * (player.novaRadius || 2.1);
+        const radius = 0.4 + progress * (player.novaRadius || 2.25);
         this.novaRing.position.set(player.x, floorY + 0.03, player.z);
         this.novaRing.scale.set(radius, 1, radius);
         this.novaRing.material.opacity = (1 - progress) * 0.92;
+      }
+    }
+
+    if (this.slashArc) {
+      this.slashArc.visible = player.swing > 0;
+      if (player.swing > 0) {
+        const progress = 1 - player.swing / 0.36;
+        const radiusScale = ((player.novaRadius || 2.25) * 0.85) * (0.65 + progress * 0.45);
+        this.slashArc.position.set(player.x, 0.56, player.z);
+        this.slashArc.rotation.y = -player.angle + (progress - 0.5) * 2.1;
+        this.slashArc.scale.setScalar(radiusScale);
+        this.slashArc.material.opacity = (1 - progress) * 0.95;
+      }
+    }
+
+    if (player.dash > 0 || player.sliding > 0) {
+      if (Math.random() < 0.7) {
+        this.particles.emit(
+          player.x + (Math.random() - 0.5) * 0.3,
+          0.24,
+          player.z + (Math.random() - 0.5) * 0.3,
+          (Math.random() - 0.5) * 0.8,
+          0.8,
+          (Math.random() - 0.5) * 0.8,
+          player.sliding > 0 ? PALETTE.glacier : PALETTE.ivory,
+          0.11,
+          0.26,
+          2.0,
+        );
       }
     }
 
@@ -678,7 +869,7 @@ export class SceneView {
     this.beamCone.rotation.y = -player.angle;
 
     this.island.position.set(player.x, 1.25, player.z);
-    this.island.intensity = player.lamp ? 3.5 : 1.8;
+    this.island.intensity = player.lamp ? 3.5 : 1.9;
   }
 
   updateActor(model, agent, player, time, alwaysShow) {
@@ -686,33 +877,60 @@ export class SceneView {
       model.root.visible = false;
       return;
     }
-    const { root, core, arms, mask, stars, eyes, belly } = model;
+    const { root, core, arms, legs, mask, stars, eyes, belly, lostMark } = model;
     const gap = Math.hypot(agent.x - player.x, agent.z - player.z);
     const hasLOS = alwaysShow || (gap < 15.5 && clearPath(player, agent));
 
-    // KEIN künstliches Ausblenden ohne Taschenlampe mehr!
-    // Sobald eine Sichtlinie besteht (keine Wand dazwischen), ist der Gegner physisch da:
-    // Im Lichtkegel voll ausgeleuchtet, im Dunkeln als dunkle Silhouette mit leuchtenden Augen!
     root.visible = hasLOS;
+    const isKO = (agent.koTimer ?? 0) > 0;
     if (eyes) {
-      eyes.visible = hasLOS && (agent.koTimer ?? 0) <= 0;
+      eyes.visible = hasLOS && !isKO;
+      if (agent.chargeState && eyes.children[0]?.material) {
+        const isAngry = agent.mode === 'hunt' || agent.chargeState !== 'none';
+        eyes.children[0].material.color.setHex(isAngry ? 0xff2233 : 0xffaa3b);
+      }
     }
     if (belly) {
-      belly.material.emissive?.setHex((agent.hitFlash ?? 0) > 0 ? 0xffffff : 0x000000);
+      const chargingFlash = agent.chargeState === 'windup' && Math.floor(time * 22) % 2 === 0;
+      belly.material.emissive?.setHex((agent.hitFlash ?? 0) > 0 ? 0xffffff : chargingFlash ? 0x991122 : 0x000000);
+    }
+    if (lostMark) {
+      const isLost = hasLOS && agent.mode !== 'hunt' && !isKO;
+      lostMark.visible = isLost;
+      if (isLost) {
+        lostMark.position.y = 2.38 + Math.sin(time * 3.4) * 0.08;
+        lostMark.rotation.y = time * 1.9;
+      }
     }
 
     root.position.set(agent.x, 0.011, agent.z);
     root.rotation.y = Math.PI / 2 - agent.angle;
-    const faster = agent.mode === 'hunt' || agent.mode === 'flee';
-    const pace = agent.moving ? Math.sin(time * (faster ? 11.8 : 6.3)) : 0;
-    const isKO = (agent.koTimer ?? 0) > 0;
-    core.position.y = isKO ? -0.18 : 0.02 + Math.abs(pace) * 0.081;
-    core.rotation.x = isKO ? -1.15 : agent.stunned > 0 ? -0.45 : faster ? 0.2 : 0.052;
-    arms[0].rotation.x = pace * 0.45;
-    arms[1].rotation.x = -pace * 0.45;
-    mask.rotation.z = Math.cos(time * 1.6) * 0.1;
+    const faster = agent.mode === 'hunt' || agent.mode === 'flee' || agent.chargeState === 'rush';
+    const pace = agent.moving ? Math.sin(time * (faster ? 13.0 : 6.8)) : 0;
+
+    core.position.y = isKO ? 0.56 : 0.02 + Math.abs(pace) * 0.08;
+    core.rotation.x = isKO
+      ? -1.42
+      : agent.stunned > 0
+        ? -0.45
+        : agent.chargeState === 'windup'
+          ? -0.22
+          : agent.chargeState === 'rush'
+            ? 0.34
+            : faster
+              ? 0.18
+              : 0.05;
+
+    arms[0].rotation.x = isKO ? -0.9 : pace * 0.52;
+    arms[1].rotation.x = isKO ? -0.9 : -pace * 0.52;
+    if (legs) {
+      legs[0].rotation.x = isKO ? 0.45 : -pace * 0.58;
+      legs[1].rotation.x = isKO ? 0.35 : pace * 0.58;
+    }
+    mask.rotation.z = isKO ? 0.3 : Math.cos(time * 1.8) * 0.1;
     if (stars) {
       stars.visible = (agent.stunned > 0 || isKO) && hasLOS;
+      stars.position.y = isKO ? 1.45 : stars.position.y;
       stars.rotation.y = time * 6.5;
     }
   }
@@ -723,39 +941,95 @@ export class SceneView {
     this.updateActor(this.hauke, hauke, player, time, forceVisible || run.state === 'caught');
     this.updateActor(this.tom, tom, player, time, forceVisible);
 
-    // Haukes Gravitationsring & Snacks im Orbit
+    // Haukes Gravitationsring, Bauch-Ramme Telegraph & Snacks im Orbit
     const showHauke = this.hauke.root.visible && hauke;
     this.haukeRing.visible = Boolean(showHauke);
     if (showHauke) {
       this.haukeRing.position.set(hauke.x, floorY + 0.02, hauke.z);
-      const pulse = 1.85 + Math.sin(time * 4.5) * 0.15;
+      const pulse = (hauke.chargeState !== 'none' ? 2.15 : 1.85) + Math.sin(time * 4.5) * 0.15;
       this.haukeRing.scale.set(pulse, 1, pulse);
+      this.haukeRing.material.color.setHex(hauke.chargeState !== 'none' ? PALETTE.vermilion : PALETTE.copper);
     }
+
+    if (this.chargeLane) {
+      const showLane = Boolean(showHauke && hauke.chargeState && hauke.chargeState !== 'none');
+      this.chargeLane.visible = showLane;
+      if (showLane) {
+        this.chargeLane.position.set(hauke.x, floorY + 0.028, hauke.z);
+        this.chargeLane.rotation.y = -hauke.angle;
+        this.chargeLane.material.uniforms.uTime.value = time;
+        this.chargeLane.material.uniforms.uRush.value = hauke.chargeState === 'rush' ? 1.0 : 0.0;
+      }
+    }
+
     for (const [i, snack] of this.haukeSnacks.entries()) {
       snack.visible = Boolean(showHauke && (hauke.koTimer ?? 0) <= 0);
       if (!snack.visible) continue;
-      const a = (i * TAU) / this.haukeSnacks.length + time * 1.8;
-      const r = 1.32 + Math.sin(time * 3 + i) * 0.08;
-      snack.position.set(hauke.x + Math.cos(a) * r, 0.05, hauke.z + Math.sin(a) * r);
+      const a = (i * TAU) / this.haukeSnacks.length + time * 1.9;
+      const r = 1.38 + Math.sin(time * 3 + i) * 0.08;
+      snack.position.set(hauke.x + Math.cos(a) * r, 0.05 + Math.sin(time * 4 + i) * 0.04, hauke.z + Math.sin(a) * r);
       snack.rotation.y = -a;
     }
   }
 
-  updateProps(run) {
+  consumeVfx(run) {
+    if (!run.vfx || run.vfx.length === 0) return;
+    for (const fx of run.vfx) {
+      if (fx.kind === 'bonk_swing') {
+        this.particles.burst(fx.x, 0.65, fx.z, 10, PALETTE.brass, 4.4, 0.09, 0.28, 3.0);
+      } else if (fx.kind === 'bonk_hit') {
+        this.particles.burst(fx.x, 0.85, fx.z, 18, fx.color ?? PALETTE.brass, 5.4, 0.12, 0.42, 8.5);
+      } else if (fx.kind === 'dash') {
+        this.particles.burst(fx.x, 0.22, fx.z, 9, PALETTE.glacier, 3.0, 0.11, 0.34, 4.0);
+      } else if (fx.kind === 'water_slip') {
+        this.particles.burst(fx.x, 0.2, fx.z, 16, PALETTE.glacier, 4.8, 0.11, 0.48, 10.5);
+      } else if (fx.kind === 'coin_burst') {
+        this.particles.burst(fx.x, 0.65, fx.z, 18, 0xffe082, 5.2, 0.12, 0.56, 9.5);
+      } else if (fx.kind === 'wall_slam' || fx.kind === 'ko_explosion') {
+        this.particles.burst(fx.x, 0.7, fx.z, 26, PALETTE.vermilion, 6.2, 0.14, 0.55, 8.5);
+        this.particles.burst(fx.x, 0.9, fx.z, 16, PALETTE.brass, 5.0, 0.12, 0.58, 7.0);
+      } else if (fx.kind === 'valve_blast') {
+        this.particles.burst(fx.x, 0.4, fx.z, 22, PALETTE.ivory, 5.6, 0.13, 0.46, 3.2);
+      } else if (fx.kind === 'can_pickup') {
+        this.particles.burst(fx.x, 0.4, fx.z, 12, fx.color ?? PALETTE.jade, 3.8, 0.1, 0.4, 6.0);
+      }
+    }
+    run.vfx.length = 0;
+  }
+
+  updateProps(run, dt) {
+    for (const torch of this.torches) {
+      const flick = 0.86 + Math.sin(run.time * 13.7 + torch.seed) * 0.1 + Math.cos(run.time * 21.3 + torch.seed) * 0.06;
+      torch.light.intensity = torch.base * flick;
+      torch.flame.scale.setScalar(0.17 * (0.9 + flick * 0.12));
+    }
+
+    const drop = run.droppedHelmet;
+    this.droppedCrown.visible = Boolean(drop);
+    this.droppedCrownRing.visible = Boolean(drop);
+    if (drop) {
+      this.droppedCrown.position.set(drop.x, 0.18 + Math.sin(run.time * 5.2) * 0.06, drop.z);
+      this.droppedCrown.rotation.y = run.time * 2.8;
+      this.droppedCrownRing.position.set(drop.x, floorY + 0.025, drop.z);
+      const pulse = 0.65 + Math.sin(run.time * 6.5) * 0.12;
+      this.droppedCrownRing.scale.set(pulse, 1, pulse);
+    }
+
     for (const { record, root, ring, glow } of this.records) {
       const present = !run.records.has(record.id);
       root.visible = ring.visible = glow.visible = present;
-      root.rotation.y = 0.3 + run.time * 0.85;
+      root.rotation.y = 0.3 + run.time * 0.95;
+      root.position.y = 0.66 + Math.sin(run.time * 2.8) * 0.05;
       const gap = Math.hypot(run.player.x - record.x, run.player.z - record.z);
-      ring.material.opacity = gap < 1.35 ? 0.94 : 0.48 + 0.14 * Math.sin(run.time * 2.4);
+      ring.material.opacity = gap < 1.42 ? 0.95 : 0.48 + 0.14 * Math.sin(run.time * 2.4);
     }
     if (run.cans) {
       for (const [index, mesh] of this.cans.entries()) {
         const can = run.cans[index];
         mesh.visible = Boolean(can && !can.collected);
         if (!can || can.collected) continue;
-        mesh.position.set(can.x, 0.02, can.z);
-        mesh.rotation.y = run.time * 1.8 + index;
+        mesh.position.set(can.x, 0.03 + Math.sin(run.time * 3.5 + index) * 0.02, can.z);
+        mesh.rotation.y = run.time * 2.2 + index;
       }
     }
     if (run.valves) {
@@ -773,7 +1047,7 @@ export class SceneView {
     }
     const called = run.lift.state !== 'idle';
     this.lift.ring.material.color.setHex(called ? PALETTE.vermilion : run.records.size === RECORDS.length ? PALETTE.jade : PALETTE.brass);
-    this.lift.ring.material.opacity = called ? 0.9 : 0.55;
+    this.lift.ring.material.opacity = called ? 0.95 : 0.58;
     const progress = 1 - run.lift.remaining / LIFT_WAIT;
     const filled = called ? Math.ceil(this.lift.segments.length * progress) : 0;
     for (const [index, marker] of this.lift.segments.entries()) marker.visible = index < filled;
@@ -804,16 +1078,19 @@ export class SceneView {
       );
       clapper.rotation.y = factor * 8;
     }
+
+    this.consumeVfx(run);
+    this.particles.step(dt || 0.016);
   }
 
   renderPixelPipeline(run, isTitle = false) {
-    const { player, listener, hauke, time } = run;
+    const { player, listener, hauke, time, hitFlash } = run;
     const u = this.post.uniforms;
     u.uTime.value = time;
     u.uLampOn.value = player.lamp ? 1.0 : 0.0;
     u.uTitleMode.value = isTitle ? 1.0 : 0.0;
+    u.uHitFlash.value = isTitle ? 0.0 : Math.min(1, (hitFlash || 0) * 2.4);
 
-    // Projektion von Chef Torges Weltposition & Blickrichtung in Screen-Space-UVs für den Taschenlampen-Shader
     this.projTempA.set(player.x, 0.35, player.z).project(this.camera);
     const px = this.projTempA.x * 0.5 + 0.5;
     const py = this.projTempA.y * 0.5 + 0.5;
@@ -844,30 +1121,30 @@ export class SceneView {
 
   drawTitle(run, time) {
     run.time = time;
-    run.player.x = 18.5;
+    run.player.x = 18.4;
     run.player.z = 16.4;
-    run.player.angle = -0.35;
+    run.player.angle = -0.3;
     run.player.lamp = true;
     run.hauke.x = 20.6;
-    run.hauke.z = 15.2;
+    run.hauke.z = 15.1;
     run.hauke.angle = Math.PI + 0.4;
-    run.listener.x = 16.2;
-    run.listener.z = 14.3;
+    run.listener.x = 16.3;
+    run.listener.z = 13.8;
     run.listener.angle = 0.5;
-    run.tom.x = 19.6;
-    run.tom.z = 18.2;
+    run.tom.x = 19.8;
+    run.tom.z = 18.0;
     run.tom.angle = -1.2;
 
-    const orbit = time * 0.18;
-    const cx = 19.2 + Math.sin(orbit) * 1.4;
-    const cz = 15.8 + Math.cos(orbit) * 0.9;
-    this.camera.position.set(cx + 1.8, 7.8, cz + 6.4);
-    this.camera.lookAt(19.4, 0.55, 15.4);
+    const orbit = time * 0.2;
+    const cx = 17.8 + Math.sin(orbit) * 1.1;
+    const cz = 15.8 + Math.cos(orbit) * 0.8;
+    this.camera.position.set(cx + 1.4, 7.6, cz + 6.4);
+    this.camera.lookAt(18.0, 0.55, 15.4);
     this.camera.updateMatrixWorld();
 
     this.updateHero(run.player, time);
     this.updateThreat(run, true);
-    this.updateProps(run);
+    this.updateProps(run, 0.016);
     this.renderPixelPipeline(run, true);
   }
 
@@ -875,7 +1152,7 @@ export class SceneView {
     this.setCamera(run, dt, snap);
     this.updateHero(run.player, run.time);
     this.updateThreat(run, false);
-    this.updateProps(run);
+    this.updateProps(run, dt);
     this.renderPixelPipeline(run, false);
   }
 }

@@ -3,149 +3,95 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#101c20">
-  <meta name="description" content="Scavenger – Chef Torge Edition: Spiel als Chef Torge gegen Massiv-Rund Hauke, Lost Anton und Tom!">
+  <meta name="theme-color" content="#0b0c16">
+  <meta name="description" content="Scavenger — Chef Torge Edition: Dead-Cells Pixel-Art Keller-Action mit Massiv-Rund Hauke, Lost Anton & Schnorrer Tom!">
   <title>Scavenger — Chef Torge Edition</title>
   <link rel="icon" type="image/png" href="/gate.png">
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
   <main id="app">
-    <canvas id="arena" aria-label="Der Schacht" tabindex="-1"></canvas>
+    <canvas id="arena" aria-label="Der Keller" tabindex="-1"></canvas>
     <div id="vignette" aria-hidden="true" hidden></div>
+    <div id="world-barks" class="world-barks" aria-hidden="true"></div>
 
     <section id="title-screen" class="screen" aria-labelledby="title">
-      <div class="title-aura-badge">⚡ <span id="menu-aura">1.000</span> AURA</div>
-      <button id="title-audio" class="quiet title-audio" type="button" aria-pressed="true">Ton an</button>
+      <div class="title-topbar">
+        <div class="highscore-pill">🏆 REKORD <span id="menu-aura">1.000</span> ⚡</div>
+        <button id="title-audio" class="btn-pixel" type="button" aria-pressed="true">Ton an</button>
+      </div>
 
-      <div class="riftline-title-layout">
-        <div class="riftline-emblem">
-          <div class="chart-ring ring-outer"></div>
-          <div class="chart-ring ring-mid"></div>
-          <div class="chart-ring ring-inner"></div>
-          <div class="chart-crosshair-h"></div>
-          <div class="chart-crosshair-v"></div>
-          <div class="emblem-text">
-            <h1 id="title">Scavenger</h1>
-            <p class="eyebrow">CHEF TORGE EDITION · 2026</p>
-          </div>
+      <div class="arcade-panel">
+        <span class="arcade-kicker">KELLER-FLUCHT · CHEF TORGE '26</span>
+        <h1 id="title">SCAVENGER</h1>
+        <p class="arcade-sub">Hol <strong>Krone</strong>, <strong>Spezi</strong> &amp; <strong>Döner</strong> aus dem dunklen Keller. Deine Taschenlampe zeigt Gefahr — aber verrät dich auch.</p>
+
+        <div class="crew-roster">
+          <div class="crew-chip"><span class="chip-dot dot-red"></span><div><b>Hauke</b><small>Massiv rund · Rammt</small></div></div>
+          <div class="crew-chip"><span class="chip-dot dot-cyan"></span><div><b>Anton</b><small>Lost · Hört Schritte</small></div></div>
+          <div class="crew-chip"><span class="chip-dot dot-jade"></span><div><b>Tom</b><small>Klaut Aura &amp; flieht</small></div></div>
         </div>
 
-        <div class="riftline-loadout-card">
-          <div class="loadout-header">
-            <span class="loadout-step">SPIELER 1/1</span>
-            <h2>Chef Torge</h2>
-            <p class="loadout-desc">Der überlegene Chef. Verteilt Schellen an Massiv-Rund Hauke, Lost Anton &amp; Tom.</p>
-          </div>
-          <div class="loadout-stats">
-            <div class="stat-col">
-              <span class="stat-label">CHEF-AURA</span>
-              <span class="stat-val">10.000</span>
-              <div class="stat-pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div>
-            </div>
-            <div class="stat-col">
-              <span class="stat-label">CHEF-SCHELLE</span>
-              <span class="stat-val">2,2 m</span>
-              <div class="stat-pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
-            </div>
-            <div class="stat-col">
-              <span class="stat-label">GEGNER-LOSTHEIT</span>
-              <span class="stat-val">MAX</span>
-              <div class="stat-pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div>
-            </div>
-          </div>
-          <div class="loadout-mode">
-            <div>
-              <strong>GEGNER IM KELLER</strong>
-              <small>Hauke (Massiv Rund) · Anton (Komplett Lost) · Tom (Einfach Tom)</small>
-            </div>
-          </div>
-          <button id="start" class="primary" type="button"><span>RUN STARTEN</span><span class="button-arrow" aria-hidden="true">→</span></button>
-          <p id="launch-error" class="launch-error" role="status" hidden></p>
-        </div>
+        <button id="start" class="btn-start" type="button"><span>IN DEN KELLER</span><span class="btn-arrow" aria-hidden="true">▶</span></button>
+        <p id="launch-error" class="launch-error" role="status" hidden></p>
       </div>
 
       <div class="title-controls" aria-label="Steuerung">
-        <span><kbd>WASD</kbd> Bewegen</span>
-        <span><kbd>Maus</kbd> Zielen</span>
-        <span><kbd>C</kbd> / <kbd>Klick</kbd> Chef-Schelle</span>
-        <span><kbd>Space</kbd> Dash</span>
-        <span><kbd>F</kbd> Pfand-Dose</span>
-        <span><kbd>Q</kbd> Taschenlampe</span>
-        <span><kbd>E</kbd> Interagieren</span>
+        <span><kbd>WASD</kbd> Laufen</span>
+        <span><kbd>Maus</kbd> Licht</span>
+        <span><kbd>L-Klick</kbd>/<kbd>C</kbd> Schelle</span>
+        <span><kbd>R-Klick</kbd>/<kbd>Space</kbd> Dash</span>
+        <span><kbd>Q</kbd> Lampe</span>
+        <span><kbd>F</kbd> Dose</span>
+        <span><kbd>E</kbd> Aktion</span>
       </div>
-      <p class="title-touch">Links bewegen, rechts Chef-Schelle &amp; Dash zünden.</p>
+      <p class="title-touch">Links Stick, rechts Schelle, Dash, Lampe &amp; Dose.</p>
     </section>
 
-    <section id="hud" aria-label="Run-Status" hidden>
+    <section id="hud" aria-label="Spiel-HUD" hidden>
       <div class="hud-top">
-        <div class="place">
-          <h2 id="location">Aufzugsschacht</h2>
-          <p id="objective">Hol Chef-Krone, Spezi &amp; Döner</p>
+        <div class="zone-panel">
+          <div class="zone-row">
+            <h2 id="location">Aufzugsschacht</h2>
+            <span id="crown-badge" class="crown-badge on">👑 Schild</span>
+          </div>
+          <div class="relic-rack" id="relic-rack" aria-label="Relikte">
+            <span class="relic-slot" data-relic="log" title="Chef-Krone (+Schelle)">👑</span>
+            <span class="relic-slot" data-relic="cylinder" title="Paulaner Spezi (+Tempo)">🍺</span>
+            <span class="relic-slot" data-relic="spool" title="Mitternachts-Döner (+Dosen)">🥙</span>
+            <span id="objective" class="obj-hint">3 Relikte</span>
+          </div>
         </div>
 
-        <div id="boss-bar" class="boss-bar">
-          <div class="boss-bar-label">
-            <span id="boss-name">HAUKE · MASSIV RUND (EIGENES GRAVITATIONSFELD)</span>
-            <span id="boss-status">ROLLT AN</span>
+        <div id="boss-bar" class="boss-gauge">
+          <div class="boss-head">
+            <span id="boss-name">💀 HAUKE</span>
+            <span id="boss-status">LAUERT</span>
           </div>
-          <div class="boss-bar-track"><div id="boss-bar-fill" class="boss-bar-fill"></div></div>
+          <div class="boss-track"><div id="boss-bar-fill" class="boss-fill"></div></div>
         </div>
 
         <div class="hud-right">
-          <div class="pfand-status" aria-label="Aura-Punkte">
-            <span id="pfand-counter">⚡ 1.000 Aura</span>
+          <div class="aura-chip" aria-label="Aura">
+            <span id="pfand-counter">1.000 ⚡</span>
           </div>
-          <div class="record-status" aria-label="Schätze geborgen">
-            <span id="record-counter">0 / 3</span>
-            <span id="record-pips" aria-hidden="true"><i></i><i></i><i></i></span>
+          <div class="count-chip" aria-label="Relikte">
+            <span id="record-counter">0/3</span>
           </div>
-          <button id="chart-toggle" class="quiet" type="button" aria-controls="chart" aria-expanded="false" title="Radar (M)">Radar</button>
-          <button id="pause" class="quiet pause" type="button" aria-label="Pause" title="Pause (Escape)"><span aria-hidden="true"></span></button>
+          <button id="chart-toggle" class="btn-pixel" type="button" aria-controls="chart" aria-expanded="false" title="Radar (M)">Radar</button>
+          <button id="pause" class="btn-pixel pause" type="button" aria-label="Pause" title="Pause (Escape)"><span aria-hidden="true"></span></button>
         </div>
       </div>
 
       <aside id="chart" class="chart" aria-labelledby="chart-title" hidden>
         <h3 id="chart-title">Keller-Radar</h3>
-        <canvas id="chart-map" width="312" height="264" aria-label="Grundriss mit Chef Torge, Schätzen, Hauke, Anton und Tom"></canvas>
+        <canvas id="chart-map" width="312" height="264" aria-label="Karte mit Chef Torge, Relikten und Gegnern"></canvas>
         <p>
-          <span class="chart-dot" aria-hidden="true"></span> Schatz
+          <span class="chart-dot" aria-hidden="true"></span> Relikt
           <span class="chart-lift" aria-hidden="true"></span> Lift
-          <span class="chart-enemy" aria-hidden="true"></span> Hauke / Anton / Tom
+          <span class="chart-enemy" aria-hidden="true"></span> Gegner
         </p>
       </aside>
-
-      <div id="popups" class="popups" aria-live="off"></div>
-
-      <div id="upgrade-modal" class="upgrade-modal" hidden>
-        <div class="upgrade-header">
-          <p class="eyebrow">SCHATZ GESICHERT · CHEF-PRIVILEG</p>
-          <h2>CHEF-UPGRADE WÄHLEN</h2>
-        </div>
-        <div class="upgrade-cards">
-          <button class="upgrade-card cat-jade" data-upgrade="nova" type="button">
-            <span class="up-icon">❖</span>
-            <span class="up-tier">CHEF-KLASSE</span>
-            <h3>Überlegene Chef-Schelle</h3>
-            <p>+45% Schellen-Radius &amp; stößt selbst den massiv runden Hauke zurück.</p>
-            <kbd>1</kbd>
-          </button>
-          <button class="upgrade-card cat-lavender" data-upgrade="speed" type="button">
-            <span class="up-icon">⚡</span>
-            <span class="up-tier">MAXIMAL STARK</span>
-            <h3>Creatin-Overdrive</h3>
-            <p>+25% Lauftempo für Torge &amp; kürzere Dash-Abklingzeit durch Pfützen.</p>
-            <kbd>2</kbd>
-          </button>
-          <button class="upgrade-card cat-copper" data-upgrade="aura" type="button">
-            <span class="up-icon">✦</span>
-            <span class="up-tier">EHREN-GÖNNUNG</span>
-            <h3>Anti-Tom-Steuer</h3>
-            <p>Sofort +2.500 Aura &amp; +2 goldene Pfand-Dosen zum Ablenken von Anton.</p>
-            <kbd>3</kbd>
-          </button>
-        </div>
-      </div>
 
       <div class="message-area" aria-live="polite">
         <p id="notice" class="notice" hidden></p>
@@ -154,49 +100,55 @@
 
       <div class="hud-bottom">
         <div class="meters">
-          <div class="meter-line"><span>Lautstärke</span><span id="noise-label">Leise</span></div>
+          <div class="meter-line">
+            <span id="noise-label">Leise</span>
+            <span id="lamp-state" class="lamp-pill on">🔦 AN</span>
+          </div>
           <div id="noise-meter" class="noise-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-          <p id="lamp-state">Taschenlampe an</p>
         </div>
 
-        <div class="riftline-abilities">
-          <div class="hotkeys">
-            <span><kbd>Q</kbd> Licht</span>
-            <span><kbd>F</kbd> Dose <small id="clapper-count">2</small></span>
-          </div>
-          <div class="ability-orbs">
-            <button id="orb-bonk" class="ability-orb" type="button" title="Chef-Schelle (C / Klick)">
-              <span class="orb-title">SCHELLE</span>
-              <small id="bonk-state">BEREIT</small>
-            </button>
-            <button id="orb-dash" class="ability-orb orb-large" type="button" title="Dash (Space)">
-              <span class="orb-title">DASH</span>
-              <small id="dash-state">BEREIT</small>
-            </button>
-          </div>
+        <div class="skill-rack">
+          <button id="slot-lamp" class="skill-slot compact" type="button" title="Taschenlampe (Q)">
+            <kbd>Q</kbd><span class="slot-name">LICHT</span>
+          </button>
+          <button id="slot-lure" class="skill-slot compact" type="button" title="Pfand-Dose werfen (F)">
+            <kbd>F</kbd><span class="slot-name">DOSE</span><em id="clapper-count">2</em>
+          </button>
+          <button id="orb-bonk" class="skill-slot accent" type="button" title="Chef-Schelle (Linksklick / C)">
+            <div class="slot-fill" id="bonk-fill"></div>
+            <kbd>C / 🖱️</kbd>
+            <span class="slot-name">SCHELLE</span>
+            <small id="bonk-state">BEREIT</small>
+          </button>
+          <button id="orb-dash" class="skill-slot primary-slot" type="button" title="Dash (Rechtsklick / Space)">
+            <div class="slot-fill" id="dash-fill"></div>
+            <kbd>␣</kbd>
+            <span class="slot-name">DASH</span>
+            <small id="dash-state">BEREIT</small>
+          </button>
         </div>
       </div>
 
       <div id="touch-ui" aria-label="Touch-Steuerung">
         <div id="stick" class="stick" role="img" aria-label="Bewegungs-Stick"><span id="stick-thumb"></span></div>
         <div class="touch-actions">
-          <button id="touch-bonk" class="quiet touch-bonk" type="button">SCHELLE</button>
-          <button id="touch-shutter" class="quiet" type="button" aria-pressed="true">Licht</button>
-          <button id="touch-lure" class="quiet" type="button">Dose</button>
-          <button id="touch-dash" class="quiet" type="button">Dash</button>
-          <button id="touch-use" class="quiet touch-use" type="button">Greifen</button>
+          <button id="touch-bonk" class="btn-pixel touch-bonk" type="button">SCHELLE</button>
+          <button id="touch-shutter" class="btn-pixel" type="button" aria-pressed="true">Licht</button>
+          <button id="touch-lure" class="btn-pixel" type="button">Dose</button>
+          <button id="touch-dash" class="btn-pixel" type="button">Dash</button>
+          <button id="touch-use" class="btn-pixel touch-use" type="button">Greifen</button>
         </div>
       </div>
     </section>
 
     <section id="overlay" class="screen overlay" aria-labelledby="overlay-title" tabindex="-1" hidden>
       <div class="overlay-card">
-        <p id="overlay-eyebrow" class="eyebrow">CHEF-BILANZ · 2026</p>
+        <p id="overlay-eyebrow" class="arcade-kicker">KELLER-BILANZ · '26</p>
         <h2 id="overlay-title">Pause</h2>
         <p id="overlay-copy"></p>
         <div id="overlay-receipt" class="receipt" hidden></div>
-        <button id="overlay-primary" class="primary" type="button"><span id="overlay-action">Weitermachen</span><span class="button-arrow" aria-hidden="true">→</span></button>
-        <div class="overlay-secondary"><button id="menu" class="quiet" type="button">Hauptmenü</button><button id="pause-audio" class="quiet" type="button" aria-pressed="true">Ton an</button></div>
+        <button id="overlay-primary" class="btn-start" type="button"><span id="overlay-action">Weitermachen</span><span class="btn-arrow" aria-hidden="true">▶</span></button>
+        <div class="overlay-secondary"><button id="menu" class="btn-pixel" type="button">Hauptmenü</button><button id="pause-audio" class="btn-pixel" type="button" aria-pressed="true">Ton an</button></div>
       </div>
     </section>
   </main>

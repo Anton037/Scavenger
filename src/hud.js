@@ -28,18 +28,18 @@ export function saveHighscore(score) {
 }
 
 function formatAura(amount) {
-  return `${Math.round(amount).toLocaleString('de-DE')} Aura`;
+  return Math.round(amount).toLocaleString('de-DE');
 }
 
 export class Hud {
   constructor() {
     this.elements = Object.fromEntries([
-      'hud', 'location', 'objective', 'record-counter', 'record-pips', 'pfand-counter',
+      'hud', 'location', 'objective', 'crown-badge', 'relic-rack', 'record-counter', 'pfand-counter',
       'noise-label', 'noise-meter', 'lamp-state', 'interact', 'interact-key', 'interact-label',
-      'notice', 'clapper-count', 'dash-state', 'bonk-state', 'popups',
-      'boss-bar', 'boss-name', 'boss-status', 'boss-bar-fill', 'upgrade-modal',
+      'notice', 'clapper-count', 'dash-state', 'bonk-state', 'bonk-fill', 'dash-fill', 'world-barks',
+      'boss-bar', 'boss-name', 'boss-status', 'boss-bar-fill',
       'touch-use', 'touch-dash', 'touch-shutter', 'touch-lure', 'touch-bonk',
-      'orb-bonk', 'orb-dash', 'menu-aura',
+      'orb-bonk', 'orb-dash', 'slot-lamp', 'slot-lure', 'menu-aura',
       'vignette', 'chart', 'chart-map', 'chart-toggle', 'overlay-receipt',
     ].map((id) => [id, get(id)]));
     const map = this.elements['chart-map'];
@@ -59,14 +59,21 @@ export class Hud {
         plan.fillRect(this.px(x), this.py(z), this.scale + 0.3, this.scale + 0.3);
       }
     }
-    this.lastPopupKey = '';
+    this.barkNodes = new Map();
     this.syncMenuHighscore();
   }
 
   syncMenuHighscore() {
     if (this.elements['menu-aura']) {
-      write(this.elements['menu-aura'], getHighscore().toLocaleString('de-DE'));
+      write(this.elements['menu-aura'], formatAura(getHighscore()));
     }
+  }
+
+  clearFloating() {
+    if (this.elements['world-barks']) this.elements['world-barks'].innerHTML = '';
+    this.barkNodes.clear();
+    if (this.elements.notice) this.elements.notice.hidden = true;
+    if (this.elements.interact) this.elements.interact.hidden = true;
   }
 
   px(x) { return 6 + this.scale * x; }
@@ -99,6 +106,7 @@ export class Hud {
       }
     };
     place(LIFT, '#38f2af', 8);
+    if (run.droppedHelmet) place(run.droppedHelmet, '#ffe082', 4.5, true);
     for (const record of RECORDS) {
       if (!run.records.has(record.id)) place(record, '#ffb84d', 4.7, true);
     }
@@ -111,59 +119,103 @@ export class Hud {
   renderReceipt(run) {
     const box = this.elements['overlay-receipt'];
     if (!box || !run) return;
-    const stats = run.stats ?? { bonks: 0, slips: 0, cans: 0, stolen: 0, toots: 0, valves: 0, haukeKos: 0 };
+    const stats = run.stats ?? { bonks: 0, slips: 0, cans: 0, stolen: 0, toots: 0, valves: 0, haukeKos: 0, dodges: 0, wallSlams: 0 };
     const aura = run.player.pfand ?? 1000;
-    const penalty = run.state === 'caught' ? 1500 : 0;
+    const penalty = run.state === 'caught' ? 1200 : 0;
     const net = Math.max(0, aura - penalty);
     const best = saveHighscore(net);
     this.syncMenuHighscore();
 
-    const rank = run.state === 'escaped' && (stats.haukeKos > 0 || stats.bonks >= 2)
+    const rank = run.state === 'escaped' && (stats.haukeKos > 0 || stats.wallSlams > 0 || stats.bonks >= 2)
       ? 'ÜBERLEGENER CHEF TORGE (MAX AURA)'
       : run.state === 'escaped'
-        ? 'Zertifizierter Macher (Spezi-Retter)'
+        ? 'Zertifizierter Macher'
         : run.caughtBy === 'hauke'
           ? 'Von Haukes Gravitation absorbiert'
           : 'Im Dunkeln genauso lost wie Anton';
 
     box.innerHTML = `
-      <div class="receipt-row"><span>Geborgene Schätze (${run.records.size}/3) &amp; Max-Combo</span><span>${run.player.maxCombo || 1}× Streak</span></div>
-      <div class="receipt-row"><span>Chef-Schellen (${stats.bonks}×) &amp; Hauke-K.O.s (${stats.haukeKos || 0}×)</span><span>+${formatAura(stats.bonks * 1200 + (stats.haukeKos || 0) * 4000)}</span></div>
-      <div class="receipt-row"><span>Anton-Fails / Ventile / Tom-Schnorrer</span><span>${stats.slips}× / ${stats.valves}× / ${stats.stolen}×</span></div>
-      ${penalty > 0 ? `<div class="receipt-row"><span>Aura-Verlust (im Schacht gecatcht)</span><span>-${formatAura(penalty)}</span></div>` : ''}
-      <div class="receipt-row total"><span>Run-Score (Rekord: ${best.toLocaleString('de-DE')})</span><span>⚡ ${formatAura(net)}</span></div>
-      <div class="receipt-rank">Status: <strong>${rank}</strong></div>
+      <div class="receipt-row"><span>Relikte (${run.records.size}/3) · Max-Combo</span><span>${run.player.maxCombo || 1}× Streak</span></div>
+      <div class="receipt-row"><span>Schellen (${stats.bonks}×) · Wand-Crash (${stats.wallSlams || 0}×) · K.O. (${stats.haukeKos || 0}×)</span><span>+${formatAura(stats.bonks * 1000 + (stats.haukeKos || 0) * 4000)} ⚡</span></div>
+      <div class="receipt-row"><span>Knapp-Dash (${stats.dodges || 0}×) · Slips (${stats.slips}×) · Tom-Klau (${stats.stolen}×)</span><span>${stats.cans} Dosen</span></div>
+      ${penalty > 0 ? `<div class="receipt-row"><span>Keller-Verlust</span><span>-${formatAura(penalty)} ⚡</span></div>` : ''}
+      <div class="receipt-row total"><span>Score (Rekord: ${formatAura(best)})</span><span>${formatAura(net)} ⚡</span></div>
+      <div class="receipt-rank"><strong>${rank}</strong></div>
     `;
     box.hidden = false;
   }
 
-  paint(run) {
+  paintBarks(run, view) {
+    const layer = this.elements['world-barks'];
+    if (!layer || !view || !run.barks) return;
+    const activeIds = new Set();
+    for (const bark of run.barks) {
+      const remaining = bark.until - run.time;
+      if (remaining <= 0) continue;
+      const elapsed = 1 - remaining / bark.duration;
+      const screen = view.projectPoint(bark.x, bark.y + elapsed * 0.72, bark.z);
+      if (!screen) continue;
+      activeIds.add(bark.id);
+      let el = this.barkNodes.get(bark.id);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = `world-bark tone-${bark.tone || 'gold'}`;
+        el.textContent = bark.text;
+        layer.appendChild(el);
+        this.barkNodes.set(bark.id, el);
+      }
+      el.style.left = `${screen.x.toFixed(1)}px`;
+      el.style.top = `${screen.y.toFixed(1)}px`;
+      el.style.opacity = remaining < 0.28 ? String(Math.max(0, remaining / 0.28)) : '1';
+    }
+    for (const [id, el] of this.barkNodes.entries()) {
+      if (!activeIds.has(id)) {
+        el.remove();
+        this.barkNodes.delete(id);
+      }
+    }
+  }
+
+  paint(run, view) {
     const ui = this.elements;
     const { player, records, lift, hauke } = run;
     const amount = records.size;
     const callTime = Math.ceil(lift.remaining);
     const objective = amount < TOTAL_RECORDS
-      ? 'Hol Chef-Krone, Spezi & Döner'
-      : lift.state === 'calling' ? `Aufzug kommt in ${callTime}s!` : 'Ab zum Aufzug!';
+      ? `${TOTAL_RECORDS - amount} offen`
+      : lift.state === 'calling' ? `Lift ${callTime}s` : 'Zum Lift!';
     write(ui.objective, objective);
     write(ui.location, roomAt(player.x, player.z));
-    write(ui['record-counter'], `${amount} / ${TOTAL_RECORDS}`);
-    const comboBadge = (player.combo || 1) >= 2 ? ` · 🔥 ${player.combo}x` : '';
-    write(ui['pfand-counter'], `⚡ ${formatAura(player.pfand ?? 1000)}${comboBadge}`);
-    for (const [index, pip] of [...ui['record-pips'].children].entries()) pip.classList.toggle('found', index < amount);
+    write(ui['record-counter'], `${amount}/${TOTAL_RECORDS}`);
+
+    if (ui['crown-badge']) {
+      const hasCrown = player.helmet !== false;
+      ui['crown-badge'].className = `crown-badge ${hasCrown ? 'on' : 'lost'}`;
+      write(ui['crown-badge'], hasCrown ? '👑 Schild' : '⚠ KRONE WEG!');
+    }
+
+    if (ui['relic-rack']) {
+      for (const el of ui['relic-rack'].querySelectorAll('.relic-slot')) {
+        el.classList.toggle('got', records.has(el.dataset.relic));
+      }
+    }
+
+    const comboBadge = (player.combo || 1) >= 2 ? ` · 🔥${player.combo}×` : '';
+    write(ui['pfand-counter'], `${formatAura(player.pfand ?? 1000)} ⚡${comboBadge}`);
+    ui['pfand-counter']?.parentElement?.classList.toggle('combo', (player.combo || 1) >= 2);
 
     if (ui['boss-bar'] && hauke) {
-      const gap = Math.hypot(hauke.x - player.x, hauke.z - player.z);
       const status = hauke.koTimer > 0
-        ? `FRESSKOMA (${Math.ceil(hauke.koTimer)}s K.O.)`
-        : hauke.stunned > 0
-          ? 'GEBONKT · TAUMELT'
-          : hauke.mode === 'hunt'
-            ? 'ROLLT MIT VOLLER MASSE AN!'
-            : gap < 9
-              ? 'BEBEN SPÜRBAR'
-              : 'LAUERT IM DUNKELN';
+        ? `FRESSKOMA ${Math.ceil(hauke.koTimer)}s`
+        : hauke.chargeState === 'windup' || hauke.chargeState === 'rush'
+          ? 'RAMMT!!'
+          : hauke.stunned > 0
+            ? 'TAUMELT'
+            : hauke.mode === 'hunt'
+              ? 'ROLLT AN'
+              : 'LAUERT';
       write(ui['boss-status'], status);
+      ui['boss-status'].classList.toggle('ko', hauke.koTimer > 0);
       if (ui['boss-bar-fill']) {
         const pct = hauke.koTimer > 0 ? 0 : Math.max(0, Math.min(100, hauke.hp ?? 100));
         ui['boss-bar-fill'].style.width = `${pct}%`;
@@ -174,35 +226,40 @@ export class Hud {
     for (const [index, line] of [...ui['noise-meter'].children].entries()) line.classList.toggle('active', index < loudness);
     ui['noise-meter'].classList.toggle('high', loudness >= 4);
     write(ui['noise-label'], loudness >= 4 ? 'Höllenlärm' : loudness >= 2 ? 'Hörbar' : 'Leise');
-    const boostText = player.beanBoost > 0 ? ' · ⚡ Booster aktiv!' : '';
-    write(ui['lamp-state'], `${player.lamp ? '🔦 Lichtkegel an' : '🌑 Licht aus (Getarnt)'}${boostText}`);
+
+    if (ui['lamp-state']) {
+      ui['lamp-state'].className = `lamp-pill ${player.lamp ? 'on' : ''}`;
+      const boostText = player.beanBoost > 0 ? ` ⚡${Math.ceil(player.beanBoost)}s` : '';
+      write(ui['lamp-state'], `${player.lamp ? '🔦 AN' : '🌑 AUS'}${boostText}`);
+    }
+
     write(ui['clapper-count'], String(player.clappers));
-    write(ui['dash-state'], player.cooldown > 0 ? `${Math.ceil(player.cooldown)}s` : 'BEREIT');
-    write(ui['bonk-state'], player.bonkCooldown > 0 ? `${Math.ceil(player.bonkCooldown)}s` : 'BEREIT');
+    write(ui['dash-state'], player.cooldown > 0 ? `${player.cooldown.toFixed(1)}s` : 'BEREIT');
+    write(ui['bonk-state'], player.bonkCooldown > 0 ? `${player.bonkCooldown.toFixed(1)}s` : 'BEREIT');
+    if (ui['bonk-fill']) ui['bonk-fill'].style.height = `${Math.min(100, (player.bonkCooldown / 1.85) * 100)}%`;
+    if (ui['dash-fill']) ui['dash-fill'].style.height = `${Math.min(100, (player.cooldown / 2.15) * 100)}%`;
+
     ui['touch-dash'].disabled = player.cooldown > 0;
     ui['touch-lure'].disabled = player.clappers === 0;
+    if (ui['slot-lure']) ui['slot-lure'].disabled = player.clappers === 0;
     if (ui['touch-bonk']) ui['touch-bonk'].disabled = player.bonkCooldown > 0;
     if (ui['orb-bonk']) ui['orb-bonk'].disabled = player.bonkCooldown > 0;
     if (ui['orb-dash']) ui['orb-dash'].disabled = player.cooldown > 0;
     ui['touch-shutter'].setAttribute('aria-pressed', String(player.lamp));
 
-    if (ui.popups && run.popups) {
-      const key = run.popups.map((p) => p.id).join(',');
-      if (key !== this.lastPopupKey) {
-        this.lastPopupKey = key;
-        ui.popups.innerHTML = run.popups.map((p) => `<div class="popup-tag">${p.text}</div>`).join('');
-      }
-    }
+    this.paintBarks(run, view);
 
     const action = interaction(run);
     ui['touch-use'].disabled = !action?.enabled;
     ui.interact.hidden = !action;
     ui['interact-key'].hidden = !action?.enabled;
     write(ui['interact-label'], action?.text ?? '');
+
     const notice = run.notices[0];
     ui.notice.hidden = !notice;
     write(ui.notice, notice?.message ?? '');
-    ui.vignette.classList.toggle('alert', run.listener.mode === 'hunt' || run.hauke?.mode === 'hunt');
+
+    ui.vignette.classList.toggle('alert', run.listener.mode === 'hunt' || run.hauke?.mode === 'hunt' || run.hauke?.chargeState !== 'none');
     if (!ui.chart.hidden) this.drawChart(run);
   }
 }

@@ -129,3 +129,17 @@ test('a full stealth route recovers all three records and escapes with the patro
   assert.equal(run.records.size, 3);
   assert.equal(run.state, 'escaped');
 });
+
+test('Chef-Krone absorbs the first hit, drops on the floor, and leaves Torge vulnerable until reclaimed', () => {
+  const run = newRun();
+  place(run.player, { x: 18.5, z: 16.0 });
+  place(run.listener, { x: 18.5, z: 16.0 });
+  advance(run);
+  assert.equal(run.state, 'playing');
+  assert.equal(run.player.helmet, false);
+  assert.ok(run.droppedHelmet);
+  run.player.invuln = 0;
+  advance(run);
+  assert.equal(run.state, 'caught');
+});
+
