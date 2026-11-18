@@ -329,9 +329,19 @@ export class Hud {
     write(ui['xp-text'], `LV ${player.level} · ${Math.floor(xpPct)}%`);
 
     if (ui['mutator-pill']) {
-      const showMut = map.mutator && map.mutator.id !== 'classic';
-      ui['mutator-pill'].hidden = !showMut;
-      if (showMut) write(ui['mutator-pill'], map.mutator.name);
+      if (run.chaosEvent) {
+        ui['mutator-pill'].hidden = false;
+        const short = run.chaosEvent.id === 'ordnungsamt'
+          ? 'ORDNUNGSAMT'
+          : run.chaosEvent.id === 'happy_hour'
+            ? 'HAPPY HOUR'
+            : 'FETT-BAHN';
+        write(ui['mutator-pill'], `${short} ${Math.ceil(run.chaosEvent.timer)}s`);
+      } else {
+        const showMut = map.mutator && map.mutator.id !== 'classic';
+        ui['mutator-pill'].hidden = !showMut;
+        if (showMut) write(ui['mutator-pill'], map.mutator.name);
+      }
     }
 
     if (ui['active-mods']) {
@@ -370,7 +380,16 @@ export class Hud {
         ui['boss-bar'].classList.add('enraged');
         ui['boss-bar'].classList.toggle('charging', boss.chargeState !== 'none');
         write(ui['boss-name'], 'HAUKE BOSS');
-        write(ui['boss-status'], boss.chargeState !== 'none' ? 'RAMMT!' : boss.enraged ? 'WUT!' : `${Math.ceil(boss.hp)} HP`);
+        write(
+          ui['boss-status'],
+          boss.coma > 0
+            ? 'FRESSKOMA!'
+            : boss.chargeState !== 'none'
+              ? 'RAMMT!'
+              : boss.enraged
+                ? 'WUT!'
+                : `${Math.ceil(boss.hp)} HP`,
+        );
         if (ui['boss-bar-fill']) {
           ui['boss-bar-fill'].style.width = `${Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100)).toFixed(1)}%`;
         }

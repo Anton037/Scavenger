@@ -226,6 +226,19 @@ export const UPGRADE_POOL = [
     ),
   },
   {
+    id: 'knobi',
+    kind: 'weapon',
+    name: 'Knobi-Knaller',
+    icon: 'fire',
+    tint: 'jade',
+    maxLevel: 5,
+    descForLevel: (lv) => (
+      lv === 1
+        ? 'Stinkende Knoblauch-Tzatziki-Aura hält Antons würgend auf Abstand'
+        : `Lv ${lv}: Größere Stink-Wolke, stärkerer Rückstoß & schnellerer Takt`
+    ),
+  },
+  {
     id: 'espresso',
     kind: 'passive',
     name: 'Dreifach-Espresso',

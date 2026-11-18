@@ -792,6 +792,11 @@ export class SceneView {
     this.chargeLane = createChargeLaneMesh(this.scene);
     this.novaRing = placeRing(this.scene, PALETTE.brass, 0, 0, 1);
     this.novaRing.visible = false;
+    this.knobiRing = placeRing(this.scene, PALETTE.jade, 0, 0, 1);
+    this.knobiRing.visible = false;
+    this.stolenCrown = crownMesh(1.1);
+    this.stolenCrown.visible = false;
+    this.scene.add(this.stolenCrown);
     this.slashArc = createSlashArcMesh(this.scene);
     this.particles = new ParticlePool(this.scene, 240);
 
@@ -822,7 +827,7 @@ export class SceneView {
       return r;
     });
 
-    // Instanced XP Gems Pool (120) + Spezial-Pickups (Heal Döner, Dosen, Gold Chests)
+    // Instanced XP Gems Pool (120) + Spezial-Pickups (Heal Döner, Dosen, Mega-Enten, Gold Chests)
     this.xpDummy = new THREE.Object3D();
     this.xpGemsMesh = new THREE.InstancedMesh(octa, new THREE.MeshBasicMaterial(), 120);
     this.xpGemsMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -847,6 +852,12 @@ export class SceneView {
     this.dosePickups = Array.from({ length: 10 }, () => {
       const m = rubberDuck(this.scene);
       m.scale.setScalar(1.2);
+      m.visible = false;
+      return m;
+    });
+    this.duckPickups = Array.from({ length: 3 }, () => {
+      const m = rubberDuck(this.scene);
+      m.scale.setScalar(2.15);
       m.visible = false;
       return m;
     });
@@ -1033,6 +1044,19 @@ export class SceneView {
       }
     }
 
+    if (this.knobiRing) {
+      const kp = player.knobiPulse || 0;
+      const knobiLv = player.weapons?.knobi || 0;
+      this.knobiRing.visible = kp > 0 || knobiLv > 0;
+      if (this.knobiRing.visible) {
+        const kr = player.knobiRadius || (2.15 + knobiLv * 0.28);
+        const pulseScale = kp > 0 ? kr * (1.0 - kp * 0.55) : kr * (0.86 + Math.sin(time * 4.5) * 0.04);
+        this.knobiRing.position.set(player.x, floorY + 0.022, player.z);
+        this.knobiRing.scale.set(pulseScale, 1, pulseScale);
+        this.knobiRing.material.opacity = kp > 0 ? Math.min(0.85, kp * 2.4) : 0.22;
+      }
+    }
+
     if (this.slashArc) {
       this.slashArc.visible = player.swing > 0;
       if (player.swing > 0) {
@@ -1105,7 +1129,12 @@ export class SceneView {
     root.visible = visible;
     if (!visible) return;
 
-    const scale = agent.elite ? 1.28 : agent.type === 'hauke' ? 1.18 : 1.0;
+    const comaBreath = (agent.coma || 0) > 0 ? Math.sin(time * 4.5) * 0.06 : 0;
+    const scale = agent.elite
+      ? 1.28
+      : agent.type === 'hauke'
+        ? 1.18 + (agent.stuffed || 0) * 0.1 + comaBreath
+        : 1.0;
     root.scale.setScalar(scale);
 
     if (eyes) {
@@ -1122,7 +1151,7 @@ export class SceneView {
       belly.material.emissive?.setHex((agent.hitFlash ?? 0) > 0 ? 0xffffff : chargingFlash ? 0x991122 : 0x000000);
     }
     if (lostMark) {
-      lostMark.visible = Boolean(agent.elite || agent.stunned > 0);
+      lostMark.visible = Boolean(agent.elite || agent.stunned > 0 || (agent.panicked || 0) > 0);
       if (lostMark.visible) {
         lostMark.position.y = 2.38 + Math.sin(time * 4.5) * 0.08;
         lostMark.rotation.y = time * 2.5;
@@ -1131,27 +1160,31 @@ export class SceneView {
 
     root.position.set(agent.x, 0.011, agent.z);
     root.rotation.y = Math.PI / 2 - agent.angle;
-    const faster = agent.type === 'tom' || agent.chargeState === 'rush' || agent.elite;
-    const pace = agent.moving ? Math.sin(time * (faster ? 13.0 : 8.5) + (agent.id || 0)) : 0;
+    const faster = agent.type === 'tom' || agent.chargeState === 'rush' || agent.elite || (agent.panicked || 0) > 0;
+    const pace = agent.moving ? Math.sin(time * (faster ? 14.5 : 8.5) + (agent.id || 0)) : 0;
 
     core.position.y = 0.02 + Math.abs(pace) * 0.08;
-    core.rotation.x = agent.stunned > 0
-      ? -0.42
-      : agent.chargeState === 'windup'
-        ? -0.22
-        : agent.chargeState === 'rush'
-          ? 0.34
-          : 0.16;
+    core.rotation.z = (agent.coma || 0) > 0 ? Math.sin(time * 3.2) * 0.28 : 0;
+    core.rotation.x = (agent.coma || 0) > 0
+      ? 0.55
+      : agent.stunned > 0
+        ? -0.42
+        : agent.chargeState === 'windup'
+          ? -0.22
+          : agent.chargeState === 'rush'
+            ? 0.34
+            : 0.16;
 
-    arms[0].rotation.x = pace * 0.52;
-    arms[1].rotation.x = -pace * 0.52;
+    const panicWave = (agent.panicked || 0) > 0 ? Math.sin(time * 22 + (agent.id || 0)) * 0.65 : 0;
+    arms[0].rotation.x = pace * 0.52 + panicWave - ((agent.panicked || 0) > 0 ? 2.1 : 0);
+    arms[1].rotation.x = -pace * 0.52 - panicWave - ((agent.panicked || 0) > 0 ? 2.1 : 0);
     if (legs) {
       legs[0].rotation.x = -pace * 0.58;
       legs[1].rotation.x = pace * 0.58;
     }
     mask.rotation.z = Math.cos(time * 2.1 + (agent.id || 0)) * 0.1;
     if (stars) {
-      stars.visible = (agent.stunned > 0 || (agent.exposed ?? 0) > 0);
+      stars.visible = (agent.stunned > 0 || (agent.exposed ?? 0) > 0 || (agent.coma ?? 0) > 0);
       stars.rotation.y = time * 6.5;
     }
   }
@@ -1175,6 +1208,7 @@ export class SceneView {
       }
     }
 
+    let crownTom = null;
     for (let i = 0; i < this.tomPool.length; i++) {
       const model = this.tomPool[i];
       const tom = toms[i];
@@ -1183,6 +1217,14 @@ export class SceneView {
         continue;
       }
       this.updateActor(model, tom, player, time, isTitle || run.state === 'caught');
+      if (tom.hasCrown && model.root.visible) crownTom = tom;
+    }
+    if (this.stolenCrown) {
+      this.stolenCrown.visible = Boolean(crownTom);
+      if (crownTom) {
+        this.stolenCrown.position.set(crownTom.x, 1.62 + Math.sin(time * 12) * 0.05, crownTom.z);
+        this.stolenCrown.rotation.y = time * 5.2;
+      }
     }
 
     this.updateActor(this.hauke, hauke, player, time, isTitle || run.state === 'caught');
@@ -1325,11 +1367,13 @@ export class SceneView {
     const xpList = [];
     const healList = [];
     const doseList = [];
+    const duckList = [];
     const chestList = [];
     for (const pk of run.pickups ?? []) {
       if (pk.collected) continue;
       if (pk.kind === 'xp') xpList.push(pk);
       else if (pk.kind === 'heal') healList.push(pk);
+      else if (pk.kind === 'duck') duckList.push(pk);
       else if (pk.kind === 'chest') chestList.push(pk);
       else doseList.push(pk);
     }
@@ -1368,6 +1412,15 @@ export class SceneView {
       if (pk) {
         m.position.set(pk.x, 0.12 + Math.sin(run.time * 4 + i) * 0.05, pk.z);
         m.rotation.y = run.time * 2.5;
+      }
+    }
+    for (let i = 0; i < this.duckPickups.length; i++) {
+      const m = this.duckPickups[i];
+      const pk = duckList[i];
+      m.visible = Boolean(pk);
+      if (pk) {
+        m.position.set(pk.x, 0.28 + Math.abs(Math.sin(run.time * 5 + i)) * 0.18, pk.z);
+        m.rotation.y = run.time * 3.6;
       }
     }
     for (let i = 0; i < this.chestPickups.length; i++) {

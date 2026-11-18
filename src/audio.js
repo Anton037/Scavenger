@@ -301,6 +301,29 @@ export class Soundscape {
         this.tone(783.99, 783.99, 0.14, 0.16, 0, 0.12, 'triangle');
         this.tone(1046.5, 1046.5, 0.32, 0.19, 0, 0.18, 'sine');
         break;
+      case 'duck_quack':
+        // Riesiges Quietscheenten-QUAAAK + Boing!
+        this.tone(920, 1480, 0.12, 0.22, pan, 0, 'sawtooth');
+        this.tone(1360, 740, 0.18, 0.22, pan, 0.11, 'sawtooth');
+        this.tone(1120, 560, 0.22, 0.2, pan, 0.27, 'triangle');
+        this.tone(125, 38, 0.36, 0.24, pan, 0.05, 'triangle');
+        break;
+      case 'hauke_burp':
+        // Massiver Kohlensäure-Mega-Rülps!
+        this.tone(98, 42, 0.44, 0.26, pan, 0, 'sawtooth');
+        this.tone(132, 54, 0.38, 0.18, pan, 0.09, 'sawtooth');
+        this.rustle(420, 1.4, 0.35, 0.15, pan);
+        break;
+      case 'knobi':
+        this.rustle(760, 1.1, 0.14, 0.09, pan);
+        this.tone(240, 150, 0.11, 0.065, pan, 0, 'triangle');
+        break;
+      case 'chaos_event':
+        // Imbiss-Durchsage Ding-Dong-Gong!
+        this.tone(660, 660, 0.14, 0.16, 0, 0, 'triangle');
+        this.tone(523.25, 523.25, 0.24, 0.16, 0, 0.14, 'triangle');
+        this.tone(880, 440, 0.18, 0.12, 0, 0.28, 'sine');
+        break;
       case 'caught':
         this.tone(126, 29, 0.93, 0.27, 0, 0, 'triangle');
         this.rustle(550, 0.85, 0.89, 0.14);

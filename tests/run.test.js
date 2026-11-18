@@ -175,3 +175,97 @@ test('60-second automated survival bot kites arena, levels up, and remains error
   assert.ok(run.player.level >= 2 || run.player.kills >= 3);
   assert.ok(run.wave >= 2 || run.state === 'caught');
 });
+
+test('Knobi-Knaller aura pushes and damages nearby Antons with funny pulse', () => {
+  const run = newRun({ seed: 111 });
+  run.player.weapons.knobi = 2;
+  run.player.timers.knobi = 0.02;
+  run.enemies[0].x = run.player.x + 1.4;
+  run.enemies[0].z = run.player.z;
+  const startHp = run.enemies[0].hp;
+
+  simulate(run, 0.12, () => ({}));
+  assert.ok(run.player.knobiPulse > 0);
+  assert.ok(run.enemies[0].hp < startHp || run.enemies[0].dead);
+});
+
+test('Mega-Quietscheente pickup triggers QUAAAK shockwave that stuns and panics enemies', () => {
+  const run = newRun({ seed: 222 });
+  run.enemies[0].x = run.player.x + 3.0;
+  run.enemies[0].z = run.player.z;
+  run.enemies[0].hp = 999;
+  run.pickups.push({
+    id: 777, kind: 'duck', x: run.player.x + 0.4, z: run.player.z,
+    value: 1, tone: 'gold', magnetized: false, collected: false, age: 0,
+  });
+
+  advance(run, {});
+  assert.ok(run.enemies[0].stunned > 0);
+  assert.ok(run.enemies[0].panicked > 0);
+  assert.ok(run.barks.some((b) => b.text === 'QUAAAK!!'));
+});
+
+test('Schnorrer Tom steals dropped crown, flees wearing it, and drops it on hit', () => {
+  const run = newRun({ seed: 333 });
+  run.player.helmet = false;
+  run.droppedHelmet = { x: run.player.x + 6.0, z: run.player.z };
+  run.enemies = [{
+    id: 601, type: 'tom', elite: false, x: run.player.x + 6.5, z: run.player.z,
+    angle: Math.PI, hp: 60, maxHp: 60, speed: 3.5, radius: 0.3, damage: 5,
+    dead: false, moving: true, stunned: 0, slowed: 0, exposed: 0, hitFlash: 0,
+    burning: 0, donerCd: 0, knockX: 0, knockZ: 0, knockTime: 0, lootBank: 6,
+    hasCrown: false, panicked: 0, stuffed: 0, coma: 0, burpCd: 0,
+    slideVx: 0, slideVz: 0, chargeState: 'none', chargeTimer: 0, chargeDir: { x: 0, z: 0 }, enraged: false, koTimer: 0,
+  }];
+
+  simulate(run, 0.35, () => ({}));
+  assert.equal(run.enemies[0].hasCrown, true);
+  assert.equal(run.droppedHelmet, null);
+
+  // Move Torge next to crown-thief Tom and land a Schelle
+  run.player.x = run.enemies[0].x - 1.0;
+  run.player.z = run.enemies[0].z;
+  run.player.angle = 0;
+  advance(run, { bonk: true });
+  assert.equal(run.enemies[0].hasCrown, false);
+  assert.ok(run.droppedHelmet !== null);
+});
+
+test('Hauke triggers Mega-Rülps on allies, eats 3 Spezi bombs, and enters Fresskoma', () => {
+  const run = newRun({ seed: 444 });
+  run.waveTimer = WAVE_DURATION - 0.05;
+  run.wave = 2;
+  simulate(run, 0.1, () => ({}));
+
+  const hauke = run.enemies.find((e) => e.type === 'hauke');
+  assert.ok(hauke);
+  const anton = run.enemies.find((e) => e.type === 'anton');
+  if (anton) {
+    anton.x = hauke.x + 1.8;
+    anton.z = hauke.z;
+    anton.hp = 999;
+  }
+  hauke.burpCd = 0.01;
+  advance(run, {});
+  assert.ok(run.barks.some((b) => b.text === 'BÖÖÖRPS!!'));
+  if (anton) assert.ok(anton.hp < 999);
+
+  // Feed 3 Spezi bombs to Hauke -> Fresskoma!
+  for (let i = 0; i < 3; i++) {
+    run.bombs.push({
+      fromX: hauke.x, fromZ: hauke.z, toX: hauke.x, toZ: hauke.z,
+      x: hauke.x, z: hauke.z, elapsed: 0.1, duration: 0.5, radius: 2, damage: 15,
+    });
+  }
+  advance(run, {});
+  assert.ok(hauke.coma > 1.5);
+  assert.ok(run.barks.some((b) => b.text.includes('FRESSKOMA')));
+});
+
+test('Chaos Events trigger cleanly when chaosTimer elapses', () => {
+  const run = newRun({ seed: 556 });
+  run.chaosTimer = 0.01;
+  advance(run, {});
+  assert.ok(run.chaosEvent !== null);
+  assert.ok(['ordnungsamt', 'happy_hour', 'fettbahn'].includes(run.chaosEvent.id));
+});
