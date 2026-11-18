@@ -17,9 +17,23 @@ export class Soundscape {
     if (!this.enabled) return;
     try {
       if (!this.context) this.build();
-      this.context?.resume().catch(() => {});
+      if (this.context && this.context.state !== 'running') {
+        this.context.resume().then(() => this.mix()).catch(() => {});
+      }
     } catch {
       this.context = null;
+    }
+  }
+
+  suspend() {
+    if (!this.context) return;
+    try {
+      this.master?.gain?.setTargetAtTime(0, this.context.currentTime, 0.03);
+      if (this.context.state === 'running') {
+        this.context.suspend().catch(() => {});
+      }
+    } catch {
+      // ignore audio state errors
     }
   }
 
@@ -262,9 +276,30 @@ export class Soundscape {
         this.tone(1046.5, 1046.5, 0.34, 0.18, pan, 0.18, 'sine');
         break;
       case 'descend':
-        // Aufzug fährt tiefer in den nächsten Sektor
-        this.tone(92, 48, 0.68, 0.2, 0, 0, 'triangle');
-        this.tone(220, 440, 0.35, 0.12, 0, 0.08, 'sine');
+      case 'wave':
+        // Nächste Welle / Arena-Horn
+        this.tone(140, 210, 0.36, 0.16, 0, 0, 'triangle');
+        this.tone(280, 420, 0.28, 0.11, 0, 0.08, 'sine');
+        break;
+      case 'gem':
+        this.tone(680 + Math.random() * 240, 1020 + Math.random() * 240, 0.085, 0.075, pan, 0, 'sine');
+        break;
+      case 'heal':
+        this.tone(440, 660, 0.14, 0.13, pan, 0, 'triangle');
+        this.tone(660, 880, 0.18, 0.12, pan, 0.07, 'sine');
+        break;
+      case 'skewer':
+        this.tone(720, 320, 0.075, 0.075, pan, 0, 'triangle');
+        break;
+      case 'spezi_boom':
+        this.rustle(950, 0.65, 0.32, 0.2, pan);
+        this.tone(140, 42, 0.34, 0.22, pan, 0, 'sawtooth');
+        break;
+      case 'levelup':
+        this.tone(523.25, 523.25, 0.12, 0.16, 0, 0, 'triangle');
+        this.tone(659.25, 659.25, 0.12, 0.16, 0, 0.06, 'triangle');
+        this.tone(783.99, 783.99, 0.14, 0.16, 0, 0.12, 'triangle');
+        this.tone(1046.5, 1046.5, 0.32, 0.19, 0, 0.18, 'sine');
         break;
       case 'caught':
         this.tone(126, 29, 0.93, 0.27, 0, 0, 'triangle');
@@ -297,10 +332,12 @@ export class Soundscape {
       this.tone(pitch * 2.28, pitch * 2.22, 0.41, 0.013, pan, 0.08);
       if (biomeId === 'furnace') this.rustle(290, 1.4, 0.28, 0.025, pan);
     }
-    const gap = Math.hypot(run.listener.x - run.player.x, run.listener.z - run.player.z);
+    const target = run.hauke && !run.hauke.dead ? run.hauke : run.listener;
+    if (!target || target.dead) return;
+    const gap = Math.hypot(target.x - run.player.x, target.z - run.player.z);
     if (gap < 6.5 && run.time > this.nextPulse) {
       const pressure = 1 - gap / 6.5;
-      const pan = (run.listener.x - run.player.x) / 8;
+      const pan = (target.x - run.player.x) / 8;
       this.nextPulse = run.time + 1.35 - pressure * 0.68;
       this.tone(71, 39, 0.22, 0.038 + pressure * 0.08, pan);
       this.tone(62, 37, 0.14, 0.027 + pressure * 0.047, pan, 0.16);

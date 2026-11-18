@@ -1,46 +1,58 @@
-import { interaction } from './game.js';
-import { ICONS, modIcon, relicIcon } from './icons.js';
-import { BIOMES, MOD_POOL } from './level.js';
+import { BONK_COOLDOWN, DASH_COOLDOWN, getStats, interaction, WAVE_DURATION } from './game.js';
+import { ICONS } from './icons.js';
+import { UPGRADE_POOL } from './level.js';
 
 export const get = (id) => document.getElementById(id);
 export function write(element, text) {
   if (element && element.textContent !== text) element.textContent = text;
 }
 
-const mapColors = ['#121524', '#232942', '#232942', '#313a59', '#2b2447', '#1c3a39', '#45362e', '#42222b', '#22364d'];
-const HIGHSCORE_KEY = 'scavenger_chef_highscore_2026';
-const BEST_FLOOR_KEY = 'scavenger_chef_bestfloor_2026';
+const mapColors = ['#121524', '#232942', '#283150', '#313a59', '#2b2447'];
+const HIGHSCORE_KEY = 'imbiss_survival_highscore_2026';
+const BEST_WAVE_KEY = 'imbiss_survival_bestwave_2026';
 
 export function getBestStats() {
   try {
     return {
-      score: Math.max(1000, Number(localStorage.getItem(HIGHSCORE_KEY)) || 1000),
-      floor: Math.max(1, Number(localStorage.getItem(BEST_FLOOR_KEY)) || 1),
+      score: Math.max(0, Number(localStorage.getItem(HIGHSCORE_KEY)) || 0),
+      wave: Math.max(1, Number(localStorage.getItem(BEST_WAVE_KEY)) || 1),
     };
   } catch {
-    return { score: 1000, floor: 1 };
+    return { score: 0, wave: 1 };
   }
 }
 
-export function saveBestStats(score, floor) {
+export function saveBestStats(score, wave) {
   const prev = getBestStats();
   const bestScore = Math.max(prev.score, Math.round(score));
-  const bestFloor = Math.max(prev.floor, floor);
+  const bestWave = Math.max(prev.wave, wave);
   try {
     localStorage.setItem(HIGHSCORE_KEY, String(bestScore));
-    localStorage.setItem(BEST_FLOOR_KEY, String(bestFloor));
+    localStorage.setItem(BEST_WAVE_KEY, String(bestWave));
   } catch {
     // ignore storage limits
   }
-  return { score: bestScore, floor: bestFloor };
+  return { score: bestScore, wave: bestWave };
 }
 
 function formatAura(amount) {
   return Math.round(amount).toLocaleString('de-DE');
 }
 
-function modMeta(id) {
-  return MOD_POOL.find((m) => m.id === id) ?? { id, name: id, desc: '', tint: 'gold' };
+function formatClock(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+
+function upgradeMeta(id) {
+  return UPGRADE_POOL.find((u) => u.id === id) ?? { id, name: id, icon: 'bolt', tint: 'gold', descForLevel: () => '' };
+}
+
+function upgradeIcon(id) {
+  const meta = upgradeMeta(id);
+  return ICONS[meta.icon] ?? ICONS.bolt;
 }
 
 export class Hud {
@@ -49,13 +61,17 @@ export class Hud {
       slot.innerHTML = ICONS[slot.dataset.ico] ?? '';
     }
     this.elements = Object.fromEntries([
-      'hud', 'floor-badge', 'location', 'objective', 'mutator-pill', 'crown-badge', 'relic-rack',
-      'active-mods', 'record-counter', 'pfand-counter', 'noise-label', 'noise-meter', 'lamp-state', 'interact',
-      'interact-key', 'interact-label', 'notice', 'clapper-count', 'dash-state', 'bonk-state',
+      'hud', 'floor-badge', 'location', 'mutator-pill', 'crown-badge', 'crown-label',
+      'hp-fill', 'hp-text', 'xp-fill', 'xp-text',
+      'active-mods', 'record-counter', 'pfand-counter', 'noise-label', 'noise-meter', 'lamp-state', 'lamp-label',
+      'interact', 'interact-key', 'interact-label', 'notice', 'clapper-count', 'dash-state', 'bonk-state',
       'bonk-fill', 'dash-fill', 'world-barks', 'boss-bar', 'boss-name', 'boss-status', 'boss-bar-fill',
-      'touch-use', 'touch-dash', 'touch-shutter', 'touch-lure', 'touch-bonk', 'orb-bonk', 'orb-dash',
-      'slot-lamp', 'slot-lure', 'menu-best', 'vignette', 'chart', 'chart-map', 'chart-toggle',
-      'chart-seed', 'overlay-mods', 'overlay-receipt', 'lift-screen', 'lift-eyebrow', 'lift-copy', 'mod-list',
+      'touch-use', 'touch-use-label', 'touch-dash', 'touch-dash-label', 'touch-dash-fill',
+      'touch-shutter', 'touch-shutter-label', 'touch-lure', 'touch-lure-count',
+      'touch-bonk', 'touch-bonk-label', 'touch-bonk-fill',
+      'orb-bonk', 'orb-dash', 'slot-lamp', 'slot-lure', 'menu-best', 'vignette', 'chart', 'chart-map',
+      'chart-toggle', 'chart-seed', 'overlay-mods', 'overlay-receipt', 'lift-screen', 'lift-eyebrow',
+      'lift-copy', 'mod-list',
     ].map((id) => [id, get(id)]));
 
     const mapCanvas = this.elements['chart-map'];
@@ -66,15 +82,14 @@ export class Hud {
     this.planMap = null;
     this.scale = 1;
     this.barkNodes = new Map();
-    this.lastRelicMap = null;
     this.lastModsKey = '';
     this.syncMenuHighscore();
   }
 
   syncMenuHighscore() {
     if (this.elements['menu-best']) {
-      const { floor, score } = getBestStats();
-      write(this.elements['menu-best'], `E${floor} · ${formatAura(score)}`);
+      const { wave, score } = getBestStats();
+      write(this.elements['menu-best'], `W${wave} · ${formatAura(score)}`);
     }
   }
 
@@ -105,17 +120,14 @@ export class Hud {
         ctx.fillRect(this.px(x), this.py(z), this.scale + 0.35, this.scale + 0.35);
       }
     }
-    if (this.elements['chart-seed']) {
-      write(this.elements['chart-seed'], `#${String(map.seed).padStart(4, '0')} · ${map.biome.name}`);
+    ctx.fillStyle = '#47506d';
+    for (const blk of map.blocks ?? []) {
+      ctx.fillRect(this.px(blk.x - blk.w * 0.5), this.py(blk.z - blk.d * 0.5), blk.w * this.scale, blk.d * this.scale);
     }
-  }
-
-  ensureRelicRack(map) {
-    if (!map || this.lastRelicMap === map || !this.elements['relic-rack']) return;
-    this.lastRelicMap = map;
-    this.elements['relic-rack'].innerHTML = map.records.map((rec) => (
-      `<span class="relic-slot" data-relic="${rec.id}" title="${rec.name} (${rec.perk})">${relicIcon(rec.id)}</span>`
-    )).join('');
+    if (this.elements['chart-seed']) {
+      const mut = map.mutator?.id && map.mutator.id !== 'classic' ? ` · ${map.mutator.name}` : '';
+      write(this.elements['chart-seed'], `#${String(map.seed).padStart(4, '0')} · ${map.biome.name}${mut}`);
+    }
   }
 
   px(x) { return (this.offsetX ?? 7) + this.scale * x; }
@@ -151,77 +163,95 @@ export class Hud {
       }
     };
 
-    for (const c of run.crates) {
-      if (!c.broken) {
-        if (c.gold) place(c, '#ffe082', 5.0, 'diamond');
-        else place(c, '#a86c3a', 3.2, 'square');
-      }
+    if (run.map.vending) place(run.map.vending, '#38f2af', 6.5, 'diamond');
+    for (const c of run.crates ?? []) {
+      if (!c.broken) place(c, c.gold ? '#ffe082' : '#a86c3a', c.gold ? 5 : 3.2, c.gold ? 'diamond' : 'square');
     }
-    for (const b of run.barrels) {
+    for (const b of run.barrels ?? []) {
       if (!b.exploded) place(b, '#ff5744', 3.6, 'square');
     }
-    place(run.map.lift, '#38f2af', 8, 'diamond');
-    if (run.droppedHelmet) {
-      ctx.strokeStyle = 'rgba(255, 224, 130, 0.85)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(this.px(run.droppedHelmet.x), this.py(run.droppedHelmet.z), 7 + Math.sin(run.time * 8) * 1.5, 0, Math.PI * 2);
-      ctx.stroke();
-      place(run.droppedHelmet, '#ffe082', 4.6, 'circle');
+    for (const pk of run.pickups ?? []) {
+      if (pk.collected) continue;
+      if (pk.kind === 'chest' || pk.kind === 'heal' || pk.kind === 'magnet_can') {
+        place(pk, pk.kind === 'chest' ? '#ffe082' : '#ffb84d', 4.4, 'circle');
+      }
     }
-    for (const record of run.map.records) {
-      if (!run.records.has(record.id)) place(record, '#ffb84d', 4.7, 'circle');
+    for (const e of run.enemies ?? []) {
+      if (e.dead) continue;
+      if (e.type === 'hauke') place(e, '#ff3b56', 6.4, 'circle');
+      else if (e.type === 'tom') place(e, '#38f2af', 4.0, 'circle');
+      else place(e, e.elite ? '#ff8c24' : '#73d7ff', e.elite ? 4.4 : 3.0, 'circle');
     }
-    place(run.listener, '#73d7ff', 4.4, 'circle');
-    place(run.hauke, '#ff3b56', 6.0, 'circle');
-    place(run.tom, '#38f2af', 3.8, 'circle');
-    place(run.player, '#f4ebd9', 5.4, 'circle');
+    if (run.player) {
+      const px = this.px(run.player.x);
+      const pz = this.py(run.player.z);
+      if (run.player.lamp) {
+        ctx.fillStyle = 'rgba(255, 224, 130, 0.28)';
+        ctx.beginPath();
+        ctx.moveTo(px, pz);
+        ctx.arc(px, pz, 16, run.player.angle - 0.5, run.player.angle + 0.5);
+        ctx.closePath();
+        ctx.fill();
+      }
+      place(run.player, '#f4ebd9', 5.2, 'circle');
+    }
   }
 
-  showLiftChoices(run, onPick) {
-    const { lift, 'lift-eyebrow': eyebrow, 'lift-copy': copy, 'mod-list': list } = {
-      lift: this.elements['lift-screen'],
-      'lift-eyebrow': this.elements['lift-eyebrow'],
-      'lift-copy': this.elements['lift-copy'],
-      'mod-list': this.elements['mod-list'],
-    };
+  showLevelChoices(run, onPick) {
+    const lift = this.elements['lift-screen'];
+    const eyebrow = this.elements['lift-eyebrow'];
+    const copy = this.elements['lift-copy'];
+    const list = this.elements['mod-list'];
     if (!lift || !list) return;
-    const nextFloor = run.floor + 1;
-    const nextBiome = BIOMES[(nextFloor - 1) % BIOMES.length];
-    const nextMult = (1 + (nextFloor - 1) * 0.35).toFixed(2).replace('.', ',');
-    write(eyebrow, `LASTENAUFZUG · ETAGE ${run.floor} BEZWUNGEN`);
-    write(copy, `Nächster Halt: Etage ${nextFloor} (${nextBiome.name} · Aura ×${nextMult})`);
+    write(eyebrow, `LEVEL UP! · STUFE ${run.player.level}`);
+    write(copy, `Welle ${run.wave} · ${formatClock(run.time)} überlebt · ${run.player.kills} Kills`);
     list.innerHTML = '';
-    for (const [idx, mod] of run.modOffers.entries()) {
+    for (const [idx, offer] of (run.upgradeOffers ?? []).entries()) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = `mod-switch tone-${mod.tint}`;
+      btn.className = `mod-switch tone-${offer.tint}`;
       btn.dataset.modIndex = String(idx);
+      const lvLabel = offer.isNew
+        ? '<span class="mod-tag-new">NEU!</span>'
+        : ` <small style="color:var(--gold)">LV ${offer.nextLevel}</small>`;
       btn.innerHTML = `
-        <span class="mod-ico">${modIcon(mod.id)}</span>
-        <span class="mod-text"><b>${mod.name}</b><small>${mod.desc}</small></span>
+        <span class="mod-ico">${upgradeIcon(offer.id)}</span>
+        <span class="mod-text"><b>${offer.name}${lvLabel}</b><small>${offer.desc}</small></span>
         <kbd class="mod-kbd">${idx + 1}</kbd>
         <span class="btn-arrow" aria-hidden="true">▶</span>
       `;
-      btn.addEventListener('click', () => onPick(mod.id));
+      btn.addEventListener('click', () => onPick(offer.id));
       list.appendChild(btn);
     }
     lift.hidden = false;
-    list.querySelector('button')?.focus({ preventScroll: true });
+    if (!document.body.classList.contains('touch-input')) {
+      list.querySelector('button')?.focus({ preventScroll: true });
+    }
   }
 
   renderOverlayMods(run) {
     const box = this.elements['overlay-mods'];
     if (!box) return;
-    if (!run || !run.mods || run.mods.size === 0) {
+    if (!run || !run.player) {
       box.hidden = true;
       box.innerHTML = '';
       return;
     }
-    box.innerHTML = [...run.mods].map((id) => {
-      const mod = modMeta(id);
-      return `<span class="overlay-mod-pill tone-${mod.tint}">${modIcon(mod.id)}<span>${mod.name}</span></span>`;
-    }).join('');
+    const items = [];
+    for (const [id, lv] of Object.entries(run.player.weapons || {})) {
+      if (lv > 0) items.push({ ...upgradeMeta(id), lv });
+    }
+    for (const [id, lv] of Object.entries(run.player.passives || {})) {
+      if (lv > 0) items.push({ ...upgradeMeta(id), lv });
+    }
+    if (items.length === 0) {
+      box.hidden = true;
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = items.map((m) => (
+      `<span class="overlay-mod-pill tone-${m.tint}">${upgradeIcon(m.id)}<span>${m.name} Lv ${m.lv}</span></span>`
+    )).join('');
     box.hidden = false;
   }
 
@@ -229,30 +259,23 @@ export class Hud {
     const box = this.elements['overlay-receipt'];
     if (!box || !run) return;
     const stats = run.stats ?? {};
-    const aura = run.player.pfand ?? 1000;
-    const penalty = run.state === 'caught' ? 800 : 0;
-    const net = Math.max(0, aura - penalty);
-    const best = saveBestStats(net, run.floor);
+    const score = Math.round(run.player.pfand ?? 0);
+    const best = saveBestStats(score, run.wave);
     this.syncMenuHighscore();
 
-    const rank = run.floor >= 3
-      ? 'KELLER-LEGENDE · TORGE SUPREME'
-      : run.state === 'escaped' && (stats.haukeKos > 0 || stats.barrels > 0 || stats.bonks >= 3)
-        ? 'ÜBERLEGENER CHEF TORGE'
-        : run.state === 'escaped'
-          ? 'Zertifizierter Macher'
-          : run.caughtBy === 'hauke'
-            ? 'Von Haukes Gravitation absorbiert'
-            : 'Im Dunkeln genauso lost wie Anton';
-
-    const modLabel = run.mods.size === 1 ? '1 Mod' : `${run.mods.size} Mods`;
+    const rank = run.wave >= 6 || stats.haukeKills >= 2
+      ? 'IMBISS-LEGENDE · TORGE SUPREME'
+      : run.wave >= 3 || stats.haukeKills >= 1
+        ? 'MEISTER DES MITTERNACHTS-GRILLS'
+        : run.player.level >= 4
+          ? 'FLINKER PFANNEN-PROFI'
+          : 'SPÄTSCHICHT-NEULING';
 
     box.innerHTML = `
-      <div class="receipt-row"><span>Etage ${run.floor} · Seed #${String(run.seed).padStart(4, '0')}</span><span>${modLabel} · ${run.player.maxCombo || 1}× Streak</span></div>
-      <div class="receipt-row"><span>Schellen (${stats.bonks || 0}×) · Kisten (${stats.crates || 0}×) · Fässer (${stats.barrels || 0}×)</span><span>K.O. ${stats.haukeKos || 0}×</span></div>
-      <div class="receipt-row"><span>Knapp-Dash (${stats.dodges || 0}×) · Slips (${stats.slips || 0}×) · Tom-Klau (${stats.stolen || 0}×)</span><span>${stats.cans || 0} Dosen</span></div>
-      ${penalty > 0 ? `<div class="receipt-row"><span>Keller-Verlust</span><span>-${formatAura(penalty)} ⚡</span></div>` : ''}
-      <div class="receipt-row total"><span>Score (Rekord: E${best.floor} · ${formatAura(best.score)})</span><span>${formatAura(net)} ⚡</span></div>
+      <div class="receipt-row"><span>Zeit ${formatClock(run.time)} · Welle ${run.wave} · Stufe ${run.player.level}</span><span>#${String(run.seed).padStart(4, '0')}</span></div>
+      <div class="receipt-row"><span>Antons (${stats.antonKills || 0}) · Toms (${stats.tomKills || 0}) · Haukes (${stats.haukeKills || 0})</span><span>${run.player.kills} Kills</span></div>
+      <div class="receipt-row"><span>Schellen (${stats.bonks || 0}) · Wand-Klatscher (${stats.wallSlams || 0}) · Fässer (${stats.barrels || 0})</span><span>${run.player.maxCombo || 1}× Max-Kombo</span></div>
+      <div class="receipt-row total"><span>Score (Rekord: W${best.wave} · ${formatAura(best.score)})</span><span>${formatAura(score)} ⚡</span></div>
       <div class="receipt-rank"><strong>${rank}</strong></div>
     `;
     box.hidden = false;
@@ -277,8 +300,7 @@ export class Hud {
         layer.appendChild(el);
         this.barkNodes.set(bark.id, el);
       }
-      el.style.left = `${screen.x.toFixed(1)}px`;
-      el.style.top = `${screen.y.toFixed(1)}px`;
+      el.style.transform = `translate3d(${screen.x.toFixed(1)}px, ${screen.y.toFixed(1)}px, 0) translate(-50%, -100%)`;
       el.style.opacity = remaining < 0.28 ? String(Math.max(0, remaining / 0.28)) : '1';
     }
     for (const [id, el] of this.barkNodes.entries()) {
@@ -291,19 +313,20 @@ export class Hud {
 
   paint(run, view) {
     const ui = this.elements;
-    const { player, records, lift, hauke, map, floor, mods } = run;
-    this.ensureRelicRack(map);
+    const { player, map, wave, waveTimer } = run;
+    const stats = getStats(run);
 
-    const totalRecs = map.records.length;
-    const amount = records.size;
-    const callTime = Math.ceil(lift.remaining);
-    const objective = amount < totalRecs
-      ? `${totalRecs - amount} offen`
-      : lift.state === 'calling' ? `Lift ${callTime}s` : 'Zum Lift';
-    write(ui.objective, objective);
-    write(ui['floor-badge'], `E${floor}`);
-    write(ui.location, map.roomAt(player.x, player.z));
-    write(ui['record-counter'], `${amount}/${totalRecs}`);
+    write(ui['floor-badge'], `W${wave}`);
+    write(ui.location, formatClock(run.time));
+    write(ui['record-counter'], `${player.kills} KILLS`);
+
+    const hpPct = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100));
+    if (ui['hp-fill']) ui['hp-fill'].style.width = `${hpPct.toFixed(1)}%`;
+    write(ui['hp-text'], `${Math.ceil(player.hp)} / ${player.maxHp} HP`);
+
+    const xpPct = Math.max(0, Math.min(100, (player.xp / Math.max(1, player.xpNext)) * 100));
+    if (ui['xp-fill']) ui['xp-fill'].style.width = `${xpPct.toFixed(1)}%`;
+    write(ui['xp-text'], `LV ${player.level} · ${Math.floor(xpPct)}%`);
 
     if (ui['mutator-pill']) {
       const showMut = map.mutator && map.mutator.id !== 'classic';
@@ -312,96 +335,134 @@ export class Hud {
     }
 
     if (ui['active-mods']) {
-      const modsKey = mods ? [...mods].join(',') : '';
+      const activePairs = [
+        ...Object.entries(player.weapons || {}).filter(([, lv]) => lv > 0),
+        ...Object.entries(player.passives || {}).filter(([, lv]) => lv > 0),
+      ];
+      const modsKey = activePairs.map(([id, lv]) => `${id}:${lv}`).join(',');
       if (modsKey !== this.lastModsKey) {
         this.lastModsKey = modsKey;
-        if (modsKey) {
-          ui['active-mods'].innerHTML = [...mods].map((id) => {
-            const mod = modMeta(id);
-            return `<span class="mod-badge tone-${mod.tint}" title="${mod.name}: ${mod.desc}">${modIcon(mod.id)}</span>`;
-          }).join('');
-          ui['active-mods'].hidden = false;
-        } else {
-          ui['active-mods'].innerHTML = '';
-          ui['active-mods'].hidden = true;
-        }
+        ui['active-mods'].innerHTML = activePairs.map(([id, lv]) => {
+          const meta = upgradeMeta(id);
+          return `<span class="mod-badge tone-${meta.tint}" title="${meta.name} Lv ${lv}">${upgradeIcon(id)}<em>${lv}</em></span>`;
+        }).join('');
+        ui['active-mods'].hidden = activePairs.length === 0;
       }
     }
 
     if (ui['crown-badge']) {
       const hasCrown = player.helmet !== false;
-      ui['crown-badge'].className = `crown-badge ${hasCrown ? 'on' : 'lost'}`;
-      ui['crown-badge'].innerHTML = `${ICONS.crown}<span>${hasCrown ? 'Schild' : 'KRONE WEG'}</span>`;
+      ui['crown-badge'].classList.toggle('on', hasCrown);
+      ui['crown-badge'].classList.toggle('lost', !hasCrown);
+      write(ui['crown-label'], hasCrown ? 'Schild' : `${Math.ceil(player.crownRegen || 0)}s`);
     }
 
-    if (ui['relic-rack']) {
-      for (const el of ui['relic-rack'].querySelectorAll('.relic-slot')) {
-        el.classList.toggle('got', records.has(el.dataset.relic));
+    const combo = player.combo || 1;
+    const fever = combo >= 8;
+    const comboBadge = combo >= 3 ? (fever ? ` · ${combo}× FEVER!` : ` · ${combo}×`) : '';
+    write(ui['pfand-counter'], `${formatAura(player.pfand ?? 0)}${comboBadge}`);
+    ui['pfand-counter']?.parentElement?.classList.toggle('combo', combo >= 3);
+    ui['pfand-counter']?.parentElement?.classList.toggle('fever', fever);
+
+    const boss = run.enemies?.find((e) => !e.dead && e.type === 'hauke');
+    if (ui['boss-bar']) {
+      if (boss) {
+        ui['boss-bar'].classList.add('enraged');
+        ui['boss-bar'].classList.toggle('charging', boss.chargeState !== 'none');
+        write(ui['boss-name'], 'HAUKE BOSS');
+        write(ui['boss-status'], boss.chargeState !== 'none' ? 'RAMMT!' : boss.enraged ? 'WUT!' : `${Math.ceil(boss.hp)} HP`);
+        if (ui['boss-bar-fill']) {
+          ui['boss-bar-fill'].style.width = `${Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100)).toFixed(1)}%`;
+        }
+      } else {
+        ui['boss-bar'].classList.remove('enraged', 'charging');
+        write(ui['boss-name'], `WELLE ${wave}`);
+        const remain = Math.max(0, Math.ceil(WAVE_DURATION - waveTimer));
+        write(ui['boss-status'], `${remain}s bis W${wave + 1}`);
+        if (ui['boss-bar-fill']) {
+          ui['boss-bar-fill'].style.width = `${Math.min(100, (waveTimer / WAVE_DURATION) * 100).toFixed(1)}%`;
+        }
       }
     }
 
-    const comboBadge = (player.combo || 1) >= 2 ? ` · ${player.combo}×` : '';
-    write(ui['pfand-counter'], `${formatAura(player.pfand ?? 1000)}${comboBadge}`);
-    ui['pfand-counter']?.parentElement?.classList.toggle('combo', (player.combo || 1) >= 2);
-
-    if (ui['boss-bar'] && hauke) {
-      const status = hauke.koTimer > 0
-        ? `KO ${Math.ceil(hauke.koTimer)}s`
-        : hauke.chargeState === 'windup' || hauke.chargeState === 'rush'
-          ? 'RAMMT!'
-          : hauke.stunned > 0
-            ? 'TAUMELT'
-            : hauke.enraged
-              ? 'WUT!'
-              : hauke.mode === 'hunt'
-                ? 'ROLLT AN'
-                : 'LAUERT';
-      write(ui['boss-status'], status);
-      ui['boss-status'].classList.toggle('ko', hauke.koTimer > 0);
-      ui['boss-bar'].classList.toggle('charging', hauke.chargeState === 'windup' || hauke.chargeState === 'rush');
-      ui['boss-bar'].classList.toggle('enraged', Boolean(hauke.enraged && hauke.koTimer <= 0));
-      if (ui['boss-bar-fill']) {
-        const pct = hauke.koTimer > 0 ? 0 : Math.max(0, Math.min(100, hauke.hp ?? 100));
-        ui['boss-bar-fill'].style.width = `${pct}%`;
-      }
-    }
-
-    const loudness = Math.ceil(player.noise / 2);
-    for (const [index, line] of [...ui['noise-meter'].children].entries()) line.classList.toggle('active', index < loudness);
-    ui['noise-meter'].classList.toggle('high', loudness >= 4);
-    write(ui['noise-label'], loudness >= 4 ? 'Laut' : loudness >= 2 ? 'Hörbar' : 'Leise');
+    const activeCount = Math.min(6, Math.ceil((run.enemies?.filter((e) => !e.dead).length || 0) / 4));
+    for (const [index, line] of [...ui['noise-meter'].children].entries()) line.classList.toggle('active', index < activeCount);
+    ui['noise-meter'].classList.toggle('high', activeCount >= 5);
+    write(ui['noise-label'], player.lamp ? 'Blend-Licht (+30% DMG)' : 'Schatten-Tempo (+14%)');
 
     if (ui['lamp-state']) {
-      ui['lamp-state'].className = `lamp-pill ${player.lamp ? 'on' : ''}`;
+      ui['lamp-state'].classList.toggle('on', Boolean(player.lamp));
       const boostText = player.beanBoost > 0 ? ` +${Math.ceil(player.beanBoost)}s` : '';
-      ui['lamp-state'].innerHTML = `${ICONS.lamp}<span>${player.lamp ? 'AN' : 'AUS'}${boostText}</span>`;
+      write(ui['lamp-label'], `${player.lamp ? 'LICHT' : 'TEMPO'}${boostText}`);
     }
+
+    const finisherReady = (player.comboStep || 0) === 2 && player.bonkCooldown <= 0;
+    const bonkLabel = player.bonkCooldown > 0
+      ? `${player.bonkCooldown.toFixed(1)}s`
+      : finisherReady
+        ? 'MEGA!'
+        : 'SCHELLE';
+    const bonkDesktopLabel = player.bonkCooldown > 0
+      ? `${player.bonkCooldown.toFixed(1)}s`
+      : finisherReady
+        ? 'MEGA!'
+        : 'BEREIT';
 
     write(ui['clapper-count'], String(player.clappers));
     write(ui['dash-state'], player.cooldown > 0 ? `${player.cooldown.toFixed(1)}s` : 'BEREIT');
-    write(ui['bonk-state'], player.bonkCooldown > 0 ? `${player.bonkCooldown.toFixed(1)}s` : 'BEREIT');
-    const totalBonkCd = 1.85 * (player.bonkCdMult || 1) * (map.mutator?.bonkCdMult || 1);
-    if (ui['bonk-fill']) ui['bonk-fill'].style.height = `${Math.min(100, (player.bonkCooldown / totalBonkCd) * 100)}%`;
-    if (ui['dash-fill']) ui['dash-fill'].style.height = `${Math.min(100, (player.cooldown / (2.15 * (player.dashCdMult || 1))) * 100)}%`;
+    write(ui['bonk-state'], bonkDesktopLabel);
+    const totalBonkCd = BONK_COOLDOWN * stats.bonkCdMult;
+    const totalDashCd = DASH_COOLDOWN * stats.dashCdMult;
+    const bonkPct = `${Math.min(100, (player.bonkCooldown / totalBonkCd) * 100).toFixed(1)}%`;
+    const dashPct = `${Math.min(100, (player.cooldown / totalDashCd) * 100).toFixed(1)}%`;
+    if (ui['bonk-fill']) ui['bonk-fill'].style.height = bonkPct;
+    if (ui['dash-fill']) ui['dash-fill'].style.height = dashPct;
 
-    ui['touch-dash'].disabled = player.cooldown > 0;
-    write(ui['touch-dash'], player.cooldown > 0 ? `Dash ${player.cooldown.toFixed(1)}` : 'Dash');
-    ui['touch-lure'].disabled = player.clappers === 0;
-    write(ui['touch-lure'], `Dose (${player.clappers})`);
+    if (ui['touch-dash']) {
+      const dashCd = player.cooldown > 0;
+      ui['touch-dash'].classList.toggle('on-cooldown', dashCd);
+      ui['touch-dash'].setAttribute('aria-disabled', String(dashCd));
+      write(ui['touch-dash-label'], dashCd ? `${player.cooldown.toFixed(1)}s` : 'DASH');
+      if (ui['touch-dash-fill']) ui['touch-dash-fill'].style.height = dashPct;
+    }
+    if (ui['touch-lure']) {
+      ui['touch-lure'].disabled = player.clappers === 0;
+      write(ui['touch-lure-count'], String(player.clappers));
+    }
     if (ui['slot-lure']) ui['slot-lure'].disabled = player.clappers === 0;
     if (ui['touch-bonk']) {
-      ui['touch-bonk'].disabled = player.bonkCooldown > 0;
-      write(ui['touch-bonk'], player.bonkCooldown > 0 ? `${player.bonkCooldown.toFixed(1)}s` : 'SCHELLE');
+      const bonkCd = player.bonkCooldown > 0;
+      ui['touch-bonk'].classList.toggle('on-cooldown', bonkCd);
+      ui['touch-bonk'].classList.toggle('finisher-ready', finisherReady);
+      ui['touch-bonk'].setAttribute('aria-disabled', String(bonkCd));
+      write(ui['touch-bonk-label'], bonkLabel);
+      if (ui['touch-bonk-fill']) ui['touch-bonk-fill'].style.height = bonkPct;
     }
-    if (ui['orb-bonk']) ui['orb-bonk'].disabled = player.bonkCooldown > 0;
-    if (ui['orb-dash']) ui['orb-dash'].disabled = player.cooldown > 0;
-    ui['touch-shutter'].setAttribute('aria-pressed', String(player.lamp));
+    if (ui['orb-bonk']) {
+      const bonkCd = player.bonkCooldown > 0;
+      ui['orb-bonk'].classList.toggle('on-cooldown', bonkCd);
+      ui['orb-bonk'].classList.toggle('finisher-ready', finisherReady);
+      ui['orb-bonk'].setAttribute('aria-disabled', String(bonkCd));
+    }
+    if (ui['orb-dash']) {
+      const dashCd = player.cooldown > 0;
+      ui['orb-dash'].classList.toggle('on-cooldown', dashCd);
+      ui['orb-dash'].setAttribute('aria-disabled', String(dashCd));
+    }
+    if (ui['touch-shutter']) {
+      ui['touch-shutter'].setAttribute('aria-pressed', String(player.lamp));
+      write(ui['touch-shutter-label'], player.lamp ? 'Licht' : 'Tempo');
+    }
 
     this.paintBarks(run, view);
 
     const action = interaction(run);
-    ui['touch-use'].disabled = !action?.enabled;
+    if (ui['touch-use']) {
+      ui['touch-use'].disabled = !action?.enabled;
+      write(ui['touch-use-label'], action?.vending ? (action.enabled ? 'Spezi!' : 'Lädt') : 'Späti');
+    }
     ui.interact.hidden = !action;
+    ui.interact.classList.toggle('locked', Boolean(action && !action.enabled));
     ui['interact-key'].hidden = !action?.enabled;
     write(ui['interact-label'], action?.text ?? '');
 
@@ -409,7 +470,7 @@ export class Hud {
     ui.notice.hidden = !notice;
     write(ui.notice, notice?.message ?? '');
 
-    ui.vignette.classList.toggle('alert', run.listener.mode === 'hunt' || run.hauke?.mode === 'hunt' || run.hauke?.chargeState !== 'none');
+    ui.vignette.classList.toggle('alert', player.hp <= player.maxHp * 0.35 || Boolean(boss));
     if (!ui.chart.hidden) this.drawChart(run);
   }
 }

@@ -2,6 +2,20 @@ const MOVEMENT = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft'
 const ACTIONS = { KeyQ: 'lamp', Space: 'dash', KeyF: 'lure', KeyE: 'use', KeyC: 'bonk', KeyV: 'bonk' };
 const shortcuts = new Set([...MOVEMENT, ...Object.keys(ACTIONS), 'KeyM', 'Escape', 'KeyP']);
 
+function detectInitialTouch() {
+  if (typeof matchMedia !== 'function') return false;
+  return matchMedia('(pointer: coarse)').matches
+    || (matchMedia('(any-pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches);
+}
+
+function capturePointer(element, pointerId) {
+  try {
+    element.setPointerCapture?.(pointerId);
+  } catch {
+    // ignore synthetic/released pointers
+  }
+}
+
 export class Controls {
   constructor(canvas, stick, thumb, { chart, pause }) {
     this.active = false;
@@ -9,11 +23,15 @@ export class Controls {
     this.actions = new Set();
     this.movement = { x: 0, z: 0 };
     this.stickId = null;
+    this.stickCenter = null;
     this.aimId = null;
     this.aimPoint = null;
     this.aimAngle = undefined;
+    this.lastTouchAt = 0;
+    this.stick = stick;
     this.thumb = thumb;
-    this.useTouch(matchMedia('(pointer: coarse)').matches);
+    this.stickTarget = stick.closest('.stick-zone') || stick;
+    this.useTouch(detectInitialTouch());
 
     window.addEventListener('keydown', (event) => {
       if (!shortcuts.has(event.code) || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -21,7 +39,8 @@ export class Controls {
         if (!event.repeat && pause()) event.preventDefault();
         return;
       }
-      if (!this.active || (event.code === 'Space' && event.target.closest?.('button'))) return;
+      if (!this.active) return;
+      if (event.code === 'Space' && event.target.closest?.('button') && !event.target.closest?.('#hud')) return;
       event.preventDefault();
       this.useTouch(false);
       if (MOVEMENT.has(event.code)) this.keys.add(event.code);
@@ -35,12 +54,17 @@ export class Controls {
     canvas.addEventListener('contextmenu', (event) => event.preventDefault());
     canvas.addEventListener('pointerdown', (event) => {
       if (!this.active) return;
-      if (event.pointerType === 'touch' && this.aimId === null) {
+      if (event.pointerType === 'touch') {
+        this.lastTouchAt = performance.now();
         this.useTouch(true);
-        this.aimId = event.pointerId;
-        canvas.setPointerCapture(event.pointerId);
-        this.aimPoint = { x: event.clientX, y: event.clientY };
-      } else if (event.pointerType !== 'touch') {
+        if (this.aimId === null) {
+          this.aimId = event.pointerId;
+          capturePointer(canvas, event.pointerId);
+          this.aimPoint = { x: event.clientX, y: event.clientY };
+        }
+      } else if (event.pointerType === 'mouse') {
+        if (performance.now() - this.lastTouchAt < 800) return;
+        this.useTouch(false);
         this.aimPoint = { x: event.clientX, y: event.clientY };
         if (event.button === 0) this.queue('bonk');
         else if (event.button === 2) this.queue('dash');
@@ -48,8 +72,13 @@ export class Controls {
     });
     canvas.addEventListener('pointermove', (event) => {
       if (!this.active) return;
-      if (event.pointerType !== 'touch') this.useTouch(false);
-      if (event.pointerType !== 'touch' || event.pointerId === this.aimId) {
+      if (event.pointerType === 'touch') {
+        this.lastTouchAt = performance.now();
+        if (event.pointerId === this.aimId) {
+          this.aimPoint = { x: event.clientX, y: event.clientY };
+        }
+      } else if (event.pointerType === 'mouse') {
+        if (performance.now() - this.lastTouchAt < 800 || this.touch) return;
         this.aimPoint = { x: event.clientX, y: event.clientY };
       }
     });
@@ -63,33 +92,59 @@ export class Controls {
     for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(name, releaseAim);
 
     const aimStick = (event) => {
-      const rect = stick.getBoundingClientRect();
-      const radius = rect.width * 0.34;
-      const x = event.clientX - rect.left - rect.width / 2;
-      const z = event.clientY - rect.top - rect.height / 2;
+      if (!this.stickCenter) return;
+      const { x: cx, y: cy, radius } = this.stickCenter;
+      const x = event.clientX - cx;
+      const z = event.clientY - cy;
       const length = Math.hypot(x, z);
       const scale = Math.max(radius, length);
       this.movement = { x: length > 5 ? x / scale : 0, z: length > 5 ? z / scale : 0 };
       thumb.style.transform = `translate(${this.movement.x * radius}px, ${this.movement.z * radius}px)`;
     };
-    stick.addEventListener('pointerdown', (event) => {
+    this.stickTarget.addEventListener('pointerdown', (event) => {
       if (!this.active || this.stickId !== null) return;
       event.preventDefault();
+      if (event.pointerType === 'touch') this.lastTouchAt = performance.now();
       this.useTouch(true);
       this.stickId = event.pointerId;
-      stick.setPointerCapture(event.pointerId);
+      capturePointer(this.stickTarget, event.pointerId);
+
+      stick.style.transform = '';
+      const zoneRect = this.stickTarget.getBoundingClientRect();
+      const stickRect = stick.getBoundingClientRect();
+      const pad = stickRect.width * 0.44;
+      const ax = Math.max(zoneRect.left + pad, Math.min(zoneRect.right - pad, event.clientX));
+      const ay = Math.max(zoneRect.top + pad, Math.min(zoneRect.bottom - pad, event.clientY));
+      this.stickCenter = { x: ax, y: ay, radius: Math.max(28, stickRect.width * 0.36) };
+      const homeX = stickRect.left + stickRect.width * 0.5;
+      const homeY = stickRect.top + stickRect.height * 0.5;
+      stick.style.transform = `translate(${(ax - homeX).toFixed(1)}px, ${(ay - homeY).toFixed(1)}px)`;
+      stick.classList.add('active');
       aimStick(event);
     });
-    stick.addEventListener('pointermove', (event) => {
-      if (event.pointerId === this.stickId) aimStick(event);
+    this.stickTarget.addEventListener('pointermove', (event) => {
+      if (event.pointerId === this.stickId) {
+        if (event.pointerType === 'touch') this.lastTouchAt = performance.now();
+        aimStick(event);
+      }
     });
     const releaseStick = (event) => {
       if (event.pointerId !== this.stickId) return;
       this.stickId = null;
+      this.stickCenter = null;
       this.movement = { x: 0, z: 0 };
       thumb.style.transform = '';
+      stick.style.transform = '';
+      stick.classList.remove('active');
     };
-    for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) stick.addEventListener(name, releaseStick);
+    for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+      this.stickTarget.addEventListener(name, releaseStick);
+    }
+  }
+
+  noteTouch() {
+    this.lastTouchAt = performance.now();
+    this.useTouch(true);
   }
 
   useTouch(touch) {
@@ -109,11 +164,14 @@ export class Controls {
     this.keys.clear();
     this.actions.clear();
     this.stickId = null;
+    this.stickCenter = null;
     this.aimId = null;
     this.aimPoint = null;
     this.aimAngle = undefined;
     this.movement = { x: 0, z: 0 };
     this.thumb.style.transform = '';
+    this.stick.style.transform = '';
+    this.stick.classList.remove('active');
   }
 
   queue(action) {
@@ -127,7 +185,6 @@ export class Controls {
     const down = this.keys.has('KeyS') || this.keys.has('ArrowDown');
     if (this.aimPoint) {
       this.aimAngle = view.aimAt(this.aimPoint, player);
-      if (this.touch) this.aimPoint = null;
     }
     const output = {
       x: this.movement.x + Number(right) - Number(left),

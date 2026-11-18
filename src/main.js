@@ -1,7 +1,7 @@
 import './style.css';
 import { Soundscape } from './audio.js';
 import { Controls } from './controls.js';
-import { advance, descendNextFloor, finishRunCashOut, newRun, STEP } from './game.js';
+import { advance, applyUpgrade, finishRunCashOut, newRun, STEP } from './game.js';
 import { get, Hud, write } from './hud.js';
 
 const canvas = get('arena');
@@ -58,6 +58,7 @@ for (const btn of document.querySelectorAll('.loadout-btn')) {
       item.classList.toggle('active', on);
       item.setAttribute('aria-pressed', String(on));
     }
+    refreshTitlePreview();
   });
 }
 
@@ -79,19 +80,103 @@ get('shuffle-seed')?.addEventListener('click', () => {
   refreshTitlePreview();
 });
 
+async function copyShareUrl(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // fallback below when Clipboard API is restricted (e.g. HTTP LAN on mobile)
+    }
+  }
+  try {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0;pointer-events:none;';
+    document.body.appendChild(area);
+    area.select();
+    area.setSelectionRange(0, text.length);
+    const copied = document.execCommand('copy');
+    area.remove();
+    if (copied) return true;
+  } catch {
+    // ignore execCommand restrictions
+  }
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Scavenger Seed', url: text });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 get('copy-seed')?.addEventListener('click', async () => {
   const shareUrl = `${window.location.origin}${window.location.pathname}?seed=${previewSeed}`;
-  try {
-    await navigator.clipboard?.writeText?.(shareUrl);
-  } catch {
-    // clipboard optional in headless/restricted contexts
-  }
+  const ok = await copyShareUrl(shareUrl);
   const btn = get('copy-seed');
-  if (btn) {
+  if (btn && ok) {
     btn.classList.add('copied');
     setTimeout(() => btn.classList.remove('copied'), 1200);
   }
 });
+
+let lastHapticAt = 0;
+function pulseHaptic(event) {
+  if (!controls.touch || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  const now = performance.now();
+  const urgent = event.kind === 'ko' || event.kind === 'wall_slam' || event.kind === 'crown_drop' || event.kind === 'caught' || event.kind === 'levelup';
+  if (!urgent && now - lastHapticAt < 90) return;
+  const pattern = event.kind === 'wall_slam' || event.kind === 'ko'
+    ? [24, 28, 36]
+    : event.kind === 'crown_drop' || event.kind === 'caught'
+      ? [40, 35, 55]
+      : event.kind === 'levelup' || event.kind === 'chest_gold' || event.kind === 'wave' || event.kind === 'escaped'
+        ? [18, 22, 24]
+        : event.kind === 'bonk' || event.kind === 'dodge' || event.kind === 'spezi_boom'
+          ? 14
+          : 0;
+  if (!pattern) return;
+  lastHapticAt = now;
+  try {
+    navigator.vibrate(pattern);
+  } catch {
+    // ignore unsupported/blocked vibration
+  }
+}
+
+function installTapGuard(container) {
+  if (!container) return;
+  container.addEventListener('click', (event) => {
+    const until = Number(container.dataset.guardUntil || 0);
+    if (performance.now() < until) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
+}
+installTapGuard(liftScreen);
+installTapGuard(overlay);
+
+function armTouchTapGuard(container, ms = 420) {
+  if (!container) return;
+  if (!controls.touch || ms <= 0) {
+    delete container.dataset.guardUntil;
+    container.classList.remove('tap-guard');
+    return;
+  }
+  const until = performance.now() + ms;
+  container.dataset.guardUntil = String(until);
+  container.classList.add('tap-guard');
+  setTimeout(() => {
+    if (Number(container.dataset.guardUntil || 0) <= until) {
+      container.classList.remove('tap-guard');
+    }
+  }, ms);
+}
 
 window.addEventListener('keydown', (event) => {
   if (stage !== 'lift' || event.repeat) return;
@@ -137,14 +222,25 @@ function restart(explicitSeed = null) {
   const seed = explicitSeed ?? freshSeed();
   previewSeed = seed;
   updateSeedBadge();
-  titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
   run = newRun({ seed, floor: 1, loadout: selectedLoadout });
+  if (run.map?.mutator && run.map.mutator.id !== 'classic') {
+    run.notices.push({
+      message: `${run.map.mutator.name}: ${run.map.mutator.hint}`,
+      until: 3.4,
+    });
+  } else {
+    run.notices.push({
+      message: 'Welle 1 gestartet! Pfand-XP sammeln für Upgrades · Auto-Waffen aktiv!',
+      until: 3.2,
+    });
+  }
   if (liftScreen) liftScreen.hidden = true;
   hud.clearFloating();
   title.hidden = true;
   canvas.hidden = false;
   get('hud').hidden = false;
   get('vignette').hidden = false;
+  get('vignette').classList.remove('alert');
   hud.toggleChart(run, false);
   sound.reset();
   view.resize();
@@ -158,7 +254,7 @@ async function begin() {
   stage = 'loading';
   startButton.disabled = true;
   const label = startButton.querySelector('span');
-  write(label, 'GENERIERT…');
+  write(label, 'STARTET…');
   get('launch-error').hidden = true;
   sound.open();
   try {
@@ -169,7 +265,7 @@ async function begin() {
     }
     restart(previewSeed);
   } catch (error) {
-    console.warn('Scavenger could not start', error.message);
+    console.warn('Imbiss-Survival could not start', error.message);
     stage = 'title';
     title.hidden = false;
     const message = get('launch-error');
@@ -177,7 +273,7 @@ async function begin() {
     message.hidden = false;
   } finally {
     startButton.disabled = false;
-    write(label, 'ETAGE 1 BETRETEN');
+    write(label, 'SCHICHT STARTEN');
   }
 }
 
@@ -194,33 +290,38 @@ function resume() {
   canvas.focus({ preventScroll: true });
 }
 
-function showFloorChoices() {
+function showLevelChoices() {
   stage = 'lift';
   controls.enable(false);
   sound.setActivity('pause');
   hud.toggleChart(run, false);
   hud.clearFloating();
+  get('vignette')?.classList.remove('alert');
   get('hud').inert = true;
-  hud.showLiftChoices(run, (modId) => {
-    descendNextFloor(run, modId);
-    for (const event of run.events) sound.play(event, run.player);
+  hud.showLevelChoices(run, (upgradeId) => {
+    applyUpgrade(run, upgradeId);
     view.resize();
     view.draw(run, 0, true);
     hud.paint(run, view);
-    resume();
+    if (run.state === 'levelup') {
+      showLevelChoices();
+    } else {
+      resume();
+    }
   });
+  armTouchTapGuard(liftScreen, 420);
 }
 
 function showOverlay(kind) {
-  const caughtTitle = run?.caughtBy === 'hauke' ? 'Von Hauke überrollt!' : 'Von Anton gecatcht!';
+  const caughtTitle = run?.caughtBy === 'hauke' ? 'Von Hauke überrollt!' : 'Schicht beendet!';
   const mutLabel = run?.map?.mutator?.id && run.map.mutator.id !== 'classic' ? ` · ${run.map.mutator.name}` : '';
   const details = {
-    pause: ['Pause', `Etage ${run?.floor ?? 1} · ${run?.map?.biome?.name ?? 'Keller'}${mutLabel} · Seed #${String(run?.seed ?? previewSeed).padStart(4, '0')}`, 'Weitermachen'],
-    caught: [caughtTitle, run?.deathReason ?? 'Du wurdest im Dunkeln erwischt.', 'Neuer Keller'],
+    pause: ['Pause', `Welle ${run?.wave ?? 1} · Stufe ${run?.player?.level ?? 1}${mutLabel} · Seed #${String(run?.seed ?? previewSeed).padStart(4, '0')}`, 'Weitermachen'],
+    caught: [caughtTitle, run?.deathReason ?? 'Die Horde war stärker.', 'Neue Schicht'],
     escaped: [
-      `Etage ${run?.floor ?? 1} gesichert!`,
-      'Chef Torge verlässt den Keller ungeschlagen mit voller Beute.',
-      'Neuer Run',
+      `Welle ${run?.wave ?? 1} gesichert!`,
+      'Chef Torge macht rechtzeitig Feierabend und behält die komplette Kasse.',
+      'Neue Schicht',
     ],
   }[kind];
   stage = kind;
@@ -228,6 +329,7 @@ function showOverlay(kind) {
   sound.setActivity('pause');
   hud.toggleChart(run, false);
   hud.clearFloating();
+  if (kind !== 'caught') get('vignette')?.classList.remove('alert');
   if (liftScreen) liftScreen.hidden = true;
   get('hud').inert = true;
   write(get('overlay-title'), details[0]);
@@ -243,7 +345,11 @@ function showOverlay(kind) {
     hud.renderReceipt(run);
   }
   overlay.hidden = false;
-  get('overlay-primary').focus({ preventScroll: true });
+  if (kind !== 'pause') armTouchTapGuard(overlay, 420);
+  else armTouchTapGuard(overlay, 0);
+  if (!controls.touch) {
+    get('overlay-primary').focus({ preventScroll: true });
+  }
 }
 
 function showTitle() {
@@ -255,9 +361,15 @@ function showTitle() {
   hud.clearFloating();
   get('hud').hidden = true;
   get('vignette').hidden = true;
+  get('vignette').classList.remove('alert');
   title.hidden = false;
+  if (!titlePreviewRun || titlePreviewRun.seed !== previewSeed || titlePreviewRun.loadoutId !== selectedLoadout) {
+    titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
+  }
   if (view) view.drawTitle(titlePreviewRun, performance.now() / 1000);
-  startButton.focus({ preventScroll: true });
+  if (!controls.touch) {
+    startButton.focus({ preventScroll: true });
+  }
 }
 
 get('lift-cashout')?.addEventListener('click', () => {
@@ -269,8 +381,18 @@ get('title-audio').addEventListener('click', changeSound);
 get('pause-audio').addEventListener('click', changeSound);
 paintSound();
 startButton.addEventListener('click', begin);
-get('pause').addEventListener('click', togglePause);
-get('chart-toggle').addEventListener('click', toggleChart);
+get('pause').addEventListener('click', () => {
+  togglePause();
+  get('pause')?.blur();
+});
+get('chart-toggle').addEventListener('click', () => {
+  toggleChart();
+  get('chart-toggle')?.blur();
+});
+get('chart-close')?.addEventListener('click', () => {
+  if (stage === 'play') hud.toggleChart(run, false);
+  get('chart-close')?.blur();
+});
 get('menu').addEventListener('click', showTitle);
 get('overlay-same-seed')?.addEventListener('click', () => {
   restart(run?.seed ?? previewSeed);
@@ -279,22 +401,75 @@ get('overlay-primary').addEventListener('click', () => {
   if (stage === 'pause') resume();
   else restart(null);
 });
-for (const [id, action] of [
+
+function bindActionButton(id, action, { checkLocked = false } = {}) {
+  const el = get(id);
+  if (!el) return;
+  let lastPointerAt = 0;
+  let pressTimer = 0;
+  const clearPressed = () => {
+    el.classList.remove('pressed');
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = 0;
+    }
+  };
+  el.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (el.disabled || (checkLocked && el.classList.contains('locked'))) return;
+    if (event.pointerType !== 'mouse') controls.noteTouch();
+    lastPointerAt = performance.now();
+    event.preventDefault();
+    sound.open();
+    controls.queue(action);
+    el.classList.add('pressed');
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(clearPressed, 120);
+  });
+  for (const ev of ['pointerup', 'pointercancel']) {
+    el.addEventListener(ev, clearPressed);
+  }
+  el.addEventListener('click', () => {
+    if (performance.now() - lastPointerAt < 700) return;
+    if (el.disabled || (checkLocked && el.classList.contains('locked'))) return;
+    sound.open();
+    controls.queue(action);
+    el.blur?.();
+  });
+}
+
+for (const [id, action, opts] of [
   ['touch-shutter', 'lamp'], ['touch-dash', 'dash'], ['touch-lure', 'lure'], ['touch-use', 'use'],
   ['touch-bonk', 'bonk'], ['orb-bonk', 'bonk'], ['orb-dash', 'dash'],
-  ['slot-lamp', 'lamp'], ['slot-lure', 'lure'], ['interact', 'use'],
-]) get(id)?.addEventListener('click', () => controls.queue(action));
+  ['slot-lamp', 'lamp'], ['slot-lure', 'lure'], ['interact', 'use', { checkLocked: true }],
+]) bindActionButton(id, action, opts);
 
-window.addEventListener('resize', () => {
-  if (view) {
-    view.resize();
-    if (stage === 'title') view.drawTitle(titlePreviewRun, performance.now() / 1000);
-    else if (run && stage !== 'play') view.draw(run, 0, true);
+function handleResize() {
+  if (!view) return;
+  view.resize();
+  if (stage === 'title') {
+    view.drawTitle(titlePreviewRun, performance.now() / 1000);
+  } else if (run && stage !== 'play') {
+    view.draw(run, 0, true);
   }
+}
+
+window.addEventListener('resize', handleResize);
+window.addEventListener('orientationchange', () => {
+  handleResize();
+  setTimeout(handleResize, 140);
+  setTimeout(handleResize, 360);
 });
+window.visualViewport?.addEventListener('resize', handleResize);
+
+function handleBackgroundHide() {
+  sound.suspend();
+  if (stage === 'play') showOverlay('pause');
+}
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && stage === 'play') showOverlay('pause');
+  if (document.hidden) handleBackgroundHide();
 });
+window.addEventListener('pagehide', handleBackgroundHide);
 
 function tick(now) {
   requestAnimationFrame(tick);
@@ -318,17 +493,20 @@ function tick(now) {
   lag += dt;
   while (lag >= STEP && run.state === 'playing') {
     advance(run, controls.read(view, run.player));
-    for (const event of run.events) sound.play(event, run.player);
+    for (const event of run.events) {
+      sound.play(event, run.player);
+      pulseHaptic(event);
+    }
     lag -= STEP;
   }
   sound.background(run);
   view.draw(run, dt);
   hud.paint(run, view);
-  if (run.state === 'floor_clear') showFloorChoices();
+  if (run.state === 'levelup') showLevelChoices();
   else if (run.state !== 'playing') showOverlay(run.state);
 }
 requestAnimationFrame(tick);
 
 if (import.meta.env.DEV) {
-  Object.defineProperty(window, '__scavenger', { get: () => ({ run, view, stage, hud }) });
+  Object.defineProperty(window, '__scavenger', { get: () => ({ run, view, stage, hud, controls }) });
 }

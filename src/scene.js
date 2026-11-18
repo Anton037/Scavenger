@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { LIFT_WAIT } from './game.js';
 import {
   PALETTE, TAU, band, batchScenery, barrelMesh, brassMaterial, color, crateMesh, crownMesh,
-  diver, doenerModel, dredged, emissive, greedyTom, haukeBoss, haukeSnack, material, octa, orb,
+  diver, doenerModel, dredged, emissive, greedyTom, haukeBoss, haukeSnack, hoop, material, octa, orb,
   piece, randomFrom, round, rubberDuck, skewerModel, solid, speziModel, surfaceTexture, tapered,
 } from './art.js';
 
@@ -18,6 +18,9 @@ const tilePlane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const markPlane = new THREE.RingGeometry(0.93, 1, 32).rotateX(-Math.PI / 2);
 const thinRingPlane = new THREE.RingGeometry(0.965, 1, 32).rotateX(-Math.PI / 2);
 const floorY = 0.013;
+
+const SHARED_GEOS = new Set([tilePlane, markPlane, thinRingPlane, solid, round, tapered, orb, octa, hoop]);
+const SHARED_MATERIALS = new Set([brass, copper, enamel, clay, ink, ivoryMat, jadeMat]);
 
 // Dead-Cells Pixel-Art Auflösung
 const PIXEL_SCALE = 2.4;
@@ -230,10 +233,7 @@ function fixtureLights(world, map) {
     const orbFlame = piece(shape, orb, emissive(tint), x, 0.89, z, 0.17, 0.21, 0.17);
     piece(shape, tapered, brass, x, 1.03, z, 0.22, 0.08, 0.22);
     world.add(shape);
-    const lantern = new THREE.PointLight(tint, strength * 0.42, 5.4, 2.0);
-    lantern.position.set(x, 1.12, z);
-    world.add(lantern);
-    torches.push({ light: lantern, flame: orbFlame, base: strength * 0.42, seed: i * 1.93 });
+    torches.push({ x, z, color: tint, flame: orbFlame, base: strength * 0.42, seed: i * 1.93 });
   }
   return torches;
 }
@@ -660,12 +660,12 @@ function createPixelPostPass() {
         float lit = rawLight + dither;
 
         float celBand;
-        if (lit > 0.82) celBand = 1.34;
-        else if (lit > 0.46) celBand = 1.04;
-        else if (lit > 0.18) celBand = 0.62;
-        else celBand = 0.25;
+        if (lit > 0.82) celBand = 1.36;
+        else if (lit > 0.46) celBand = 1.1;
+        else if (lit > 0.18) celBand = 0.8;
+        else celBand = 0.56;
 
-        vec3 darkIndigoTint = vec3(0.48, 0.58, 1.18);
+        vec3 darkIndigoTint = vec3(0.62, 0.72, 1.16);
         vec3 warmBeamTint = vec3(1.12, 1.01, 0.86);
         vec3 lightTint = mix(darkIndigoTint, warmBeamTint, clamp(rawLight * 1.25, 0.0, 1.0));
 
@@ -729,20 +729,49 @@ export class SceneView {
     this.scene.add(this.worldGroup);
     this.loadedMap = null;
     this.torches = [];
+    this.torchLights = Array.from({ length: 8 }, () => {
+      const light = new THREE.PointLight(0xffe082, 0, 5.4, 2.0);
+      this.scene.add(light);
+      return light;
+    });
     this.records = [];
     this.valves = [];
-    this.crates = [];
-    this.barrels = [];
+    this.crates = Array.from({ length: 10 }, () => {
+      const m = crateMesh(false);
+      m.visible = false;
+      this.scene.add(m);
+      return m;
+    });
+    this.goldCrates = Array.from({ length: 4 }, () => {
+      const m = crateMesh(true);
+      m.visible = false;
+      this.scene.add(m);
+      return m;
+    });
+    this.barrels = Array.from({ length: 12 }, () => {
+      const m = barrelMesh();
+      m.root.visible = false;
+      this.scene.add(m.root);
+      return m;
+    });
     this.cans = [];
     this.lift = null;
     this.air = null;
     this.water = null;
+    this.viewRect = { left: 0, top: 0, width: 1, height: 1 };
 
     this.actor = diver();
-    this.monster = dredged();
+    this.antonPool = Array.from({ length: 28 }, () => dredged());
+    this.monster = this.antonPool[0];
     this.hauke = haukeBoss();
-    this.tom = greedyTom();
-    this.scene.add(this.actor.root, this.monster.root, this.hauke.root, this.tom.root);
+    this.tomPool = Array.from({ length: 6 }, () => greedyTom());
+    this.tom = this.tomPool[0];
+    this.scene.add(
+      this.actor.root,
+      this.hauke.root,
+      ...this.tomPool.map((m) => m.root),
+      ...this.antonPool.map((m) => m.root),
+    );
 
     this.droppedCrown = crownMesh(1.35);
     this.droppedCrown.visible = false;
@@ -751,9 +780,11 @@ export class SceneView {
     this.droppedCrownRing.visible = false;
     this.crownBeacon = createCrownBeaconMesh(this.scene);
 
-    this.antonCone = createAntonConeMesh(this.scene);
-    this.haukeSnacks = Array.from({ length: 3 }, (_, i) => {
+    this.antonCones = [];
+    this.antonCone = null;
+    this.haukeSnacks = Array.from({ length: 4 }, (_, i) => {
       const s = haukeSnack(i);
+      s.visible = false;
       this.scene.add(s);
       return s;
     });
@@ -762,21 +793,88 @@ export class SceneView {
     this.novaRing = placeRing(this.scene, PALETTE.brass, 0, 0, 1);
     this.novaRing.visible = false;
     this.slashArc = createSlashArcMesh(this.scene);
-    this.particles = new ParticlePool(this.scene, 180);
+    this.particles = new ParticlePool(this.scene, 240);
 
-    this.lamp = new THREE.SpotLight(0xffe29e, 68, 14.5, 0.65, 0.45, 1.2);
+    // Auto-Waffen Pools
+    this.donerOrbiters = Array.from({ length: 6 }, () => {
+      const d = doenerModel();
+      d.visible = false;
+      this.scene.add(d);
+      return d;
+    });
+    this.skewerShots = Array.from({ length: 24 }, () => {
+      const s = skewerModel();
+      s.rotation.x = Math.PI / 2;
+      s.scale.setScalar(0.85);
+      s.visible = false;
+      this.scene.add(s);
+      return s;
+    });
+    this.speziBombs = Array.from({ length: 10 }, () => {
+      const s = speziModel();
+      s.visible = false;
+      this.scene.add(s);
+      return s;
+    });
+    this.explosionRings = Array.from({ length: 8 }, () => {
+      const r = placeRing(this.scene, 0xff8c24, 0, 0, 1);
+      r.visible = false;
+      return r;
+    });
+
+    // Instanced XP Gems Pool (120) + Spezial-Pickups (Heal Döner, Dosen, Gold Chests)
+    this.xpDummy = new THREE.Object3D();
+    this.xpGemsMesh = new THREE.InstancedMesh(octa, new THREE.MeshBasicMaterial(), 120);
+    this.xpGemsMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.xpGemsMesh.frustumCulled = false;
+    this.xpGemsMesh.renderOrder = 3;
+    const whiteCol = color(0xffffff);
+    for (let i = 0; i < 120; i++) {
+      this.xpDummy.scale.setScalar(0);
+      this.xpDummy.updateMatrix();
+      this.xpGemsMesh.setMatrixAt(i, this.xpDummy.matrix);
+      this.xpGemsMesh.setColorAt(i, whiteCol);
+    }
+    this.scene.add(this.xpGemsMesh);
+
+    this.healPickups = Array.from({ length: 10 }, () => {
+      const m = doenerModel();
+      m.scale.setScalar(0.85);
+      m.visible = false;
+      this.scene.add(m);
+      return m;
+    });
+    this.dosePickups = Array.from({ length: 10 }, () => {
+      const m = rubberDuck(this.scene);
+      m.scale.setScalar(1.2);
+      m.visible = false;
+      return m;
+    });
+    this.chestPickups = Array.from({ length: 4 }, () => {
+      const m = crateMesh(true);
+      m.scale.setScalar(0.85);
+      m.visible = false;
+      this.scene.add(m);
+      return m;
+    });
+
+    this.lamp = new THREE.SpotLight(0xffe29e, 74, 15.5, 0.68, 0.45, 1.2);
     this.lamp.castShadow = true;
     this.lamp.shadow.mapSize.set(512, 512);
     this.lamp.shadow.camera.near = 0.3;
-    this.lamp.shadow.camera.far = 14;
+    this.lamp.shadow.camera.far = 15;
     this.scene.add(this.lamp, this.lamp.target);
 
     this.beamCone = createFlashlightConeMesh(this.scene);
-    this.island = new THREE.PointLight(0x8aa8ff, 2.6, 3.6, 1.8);
+    this.island = new THREE.PointLight(0x8aa8ff, 3.2, 4.4, 1.6);
     this.scene.add(this.island);
 
     this.ripples = Array.from({ length: 14 }, () => placeRing(this.scene, PALETTE.brass, 0, 0, 1));
-    this.clappers = Array.from({ length: 5 }, () => rubberDuck(this.scene));
+    this.clappers = Array.from({ length: 12 }, () => {
+      const m = rubberDuck(this.scene);
+      m.visible = false;
+      return m;
+    });
 
     this.pixelTarget = new THREE.WebGLRenderTarget(480, 300, {
       minFilter: THREE.NearestFilter,
@@ -798,63 +896,68 @@ export class SceneView {
     this.resize();
   }
 
+  disposeWorld() {
+    const disposedGeos = new Set();
+    const disposedMats = new Set();
+    this.worldGroup.traverse((obj) => {
+      if (obj.geometry && !SHARED_GEOS.has(obj.geometry) && !disposedGeos.has(obj.geometry)) {
+        disposedGeos.add(obj.geometry);
+        obj.geometry.dispose();
+      }
+      const mats = Array.isArray(obj.material) ? obj.material : obj.material ? [obj.material] : [];
+      for (const mat of mats) {
+        if (mat && !SHARED_MATERIALS.has(mat) && !disposedMats.has(mat)) {
+          disposedMats.add(mat);
+          mat.dispose();
+        }
+      }
+    });
+    this.worldGroup.clear();
+  }
+
   ensureMap(map) {
     if (!map || this.loadedMap === map) return;
     this.loadedMap = map;
-    this.worldGroup.clear();
+    this.disposeWorld();
     this.scene.background = color(map.biome.fogHex);
 
     installFloor(this.worldGroup, map, this.texture);
     this.water = installWater(this.worldGroup, map);
     installMachinery(this.worldGroup, map);
-    this.valves = installValves(this.worldGroup, map);
     this.torches = fixtureLights(this.worldGroup, map);
-    this.records = installRecords(this.worldGroup, map);
-    this.lift = installLift(this.worldGroup, map);
     this.air = diffuseAir(this.worldGroup, map);
-
-    this.crates = map.crates.map((c) => {
-      const m = crateMesh(Boolean(c.gold));
-      m.position.set(c.x, 0, c.z);
-      this.worldGroup.add(m);
-      return m;
-    });
-
-    this.barrels = map.barrels.map((b) => {
-      const m = barrelMesh();
-      m.root.position.set(b.x, 0, b.z);
-      this.worldGroup.add(m.root);
-      return m;
-    });
-
-    this.cans = map.cans.map(() => {
-      const canGroup = new THREE.Group();
-      piece(canGroup, round, brass, 0, 0.11, 0, 0.11, 0.2, 0.11);
-      piece(canGroup, round, emissive(PALETTE.jade), 0, 0.11, 0, 0.114, 0.08, 0.114);
-      this.worldGroup.add(canGroup);
-      return canGroup;
-    });
   }
 
   resize() {
-    const { clientWidth, clientHeight } = this.renderer.domElement;
-    const width = Math.max(clientWidth || window.innerWidth, 1);
-    const height = Math.max(clientHeight || window.innerHeight, 1);
-    this.camera.aspect = width / height;
+    const canvas = this.renderer.domElement;
+    const bounds = canvas.getBoundingClientRect();
+    const width = Math.max(Math.round(bounds.width) || canvas.clientWidth || window.innerWidth, 1);
+    const height = Math.max(Math.round(bounds.height) || canvas.clientHeight || window.innerHeight, 1);
+    this.viewRect = {
+      left: bounds.left || 0,
+      top: bounds.top || 0,
+      width,
+      height,
+    };
+    const aspect = width / height;
+    this.camera.aspect = aspect;
+    const portraitBoost = aspect < 0.95 ? Math.min(11, (0.95 - aspect) * 20) : 0;
+    this.camera.fov = 44 + portraitBoost;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
 
-    const pw = Math.max(260, Math.round(width / PIXEL_SCALE));
-    const ph = Math.max(160, Math.round(height / PIXEL_SCALE));
+    const scale = Math.min(PIXEL_SCALE, Math.max(1.25, Math.min(width, height) / 185));
+    const pw = Math.max(160, Math.round(width / scale));
+    const ph = Math.max(160, Math.round(height / scale));
     this.pixelTarget.setSize(pw, ph);
     this.post.uniforms.uResolution.value.set(pw, ph);
-    this.post.uniforms.uAspect.value = width / height;
+    this.post.uniforms.uAspect.value = aspect;
   }
 
   projectPoint(x, y, z) {
     this.projTempA.set(x, y, z).project(this.camera);
     if (this.projTempA.z > 1) return null;
-    const bounds = this.renderer.domElement.getBoundingClientRect();
+    const bounds = this.viewRect;
     return {
       x: (this.projTempA.x * 0.5 + 0.5) * bounds.width + bounds.left,
       y: (-this.projTempA.y * 0.5 + 0.5) * bounds.height + bounds.top,
@@ -862,7 +965,7 @@ export class SceneView {
   }
 
   aimAt(screenPoint, player) {
-    const bounds = this.renderer.domElement.getBoundingClientRect();
+    const bounds = this.viewRect;
     this.pointer.set(
       2 * (screenPoint.x - bounds.left) / bounds.width - 1,
       1 - 2 * (screenPoint.y - bounds.top) / bounds.height,
@@ -875,23 +978,29 @@ export class SceneView {
 
   setCamera(run, dt, snap) {
     const { player, cameraShake, time } = run;
-    const lead = 0.55;
+    const lead = 0.45;
     const tx = player.x + Math.cos(player.angle) * lead;
     const tz = player.z + Math.sin(player.angle) * lead;
     const near = this.follow;
-    const easing = snap ? 1 : 1 - Math.exp(-6.5 * dt);
+    const easing = snap ? 1 : 1 - Math.exp(-7.5 * dt);
     near.x += (tx - near.x) * easing;
     near.z += (tz - near.z) * easing;
-    const mobileLift = Math.max(0, 1.33 - this.camera.aspect) * 3.9;
+    const aspect = this.camera.aspect;
+    const mobileLift = Math.max(0, 1.33 - aspect) * 4.8;
+    const portraitOffset = aspect < 0.9 ? (0.9 - aspect) * 1.55 : 0;
     const shakeX = cameraShake > 0 ? Math.sin(time * 58) * cameraShake * 0.36 : 0;
     const shakeZ = cameraShake > 0 ? Math.cos(time * 51) * cameraShake * 0.36 : 0;
-    this.camera.position.set(near.x + 0.82 + shakeX, 10.05 + mobileLift, near.z + 7.5 + mobileLift * 0.53 + shakeZ);
-    this.camera.lookAt(near.x + shakeX * 0.5, 0, near.z - 1.03 + shakeZ * 0.5);
+    this.camera.position.set(
+      near.x + 0.72 + shakeX,
+      11.85 + mobileLift,
+      near.z + 8.85 + mobileLift * 0.54 + portraitOffset + shakeZ,
+    );
+    this.camera.lookAt(near.x + shakeX * 0.5, 0, near.z - 0.85 + portraitOffset + shakeZ * 0.5);
     this.camera.updateMatrixWorld();
   }
 
   updateHero(run, time) {
-    const { player, mods } = run;
+    const { player } = run;
     const { root, body, legs, bulb, wrench, helmet } = this.actor;
     root.position.set(player.x, 0.012, player.z);
     root.rotation.y = Math.PI / 2 - player.angle;
@@ -902,39 +1011,58 @@ export class SceneView {
     body.rotation.x = player.sliding > 0 ? 1.1 : player.dash > 0 ? 0.38 : 0;
     root.visible = player.invuln > 0 ? Math.floor(time * 18) % 2 === 0 : true;
     if (helmet) helmet.visible = player.helmet !== false;
+
+    const swingTotal = (player.finisherSwing || 0) > 0 ? 0.42 : 0.32;
     if (wrench) {
-      wrench.rotation.x = player.swing > 0 ? Math.sin((player.swing / 0.36) * Math.PI) * 1.65 : 0;
+      wrench.rotation.x = player.swing > 0 ? Math.sin((player.swing / swingTotal) * Math.PI) * 1.65 : 0;
       wrench.rotation.z = player.swing > 0 ? -0.45 : 0;
     }
 
-    const firePan = mods?.has('fire_pan');
+    const isFinisher = (player.finisherSwing || 0) > 0;
+    const fever = (player.combo || 1) >= 6;
     if (this.novaRing) {
       this.novaRing.visible = player.swing > 0;
       if (player.swing > 0) {
-        const progress = 1 - player.swing / 0.36;
-        const radius = 0.4 + progress * (player.novaRadius || 2.25);
+        const progress = 1 - Math.min(1, player.swing / swingTotal);
+        const targetRadius = player.novaRadius || 2.45;
+        const radius = 0.45 + progress * targetRadius;
         this.novaRing.position.set(player.x, floorY + 0.03, player.z);
         this.novaRing.scale.set(radius, 1, radius);
-        this.novaRing.material.color.setHex(firePan ? 0xff5744 : PALETTE.brass);
-        this.novaRing.material.opacity = (1 - progress) * 0.92;
+        this.novaRing.material.color.setHex(isFinisher ? 0xffe082 : (player.weapons?.pan || 0) >= 4 ? 0xff5744 : PALETTE.brass);
+        this.novaRing.material.opacity = (1 - progress) * (isFinisher ? 1.0 : 0.9);
       }
     }
 
     if (this.slashArc) {
       this.slashArc.visible = player.swing > 0;
       if (player.swing > 0) {
-        const progress = 1 - player.swing / 0.36;
-        const radiusScale = ((player.novaRadius || 2.25) * 0.85) * (0.65 + progress * 0.45);
+        const progress = 1 - Math.min(1, player.swing / swingTotal);
+        const targetRadius = player.novaRadius || 2.45;
+        const radiusScale = (targetRadius * 0.88) * (0.65 + progress * 0.45);
         this.slashArc.position.set(player.x, 0.56, player.z);
-        this.slashArc.rotation.y = -player.angle + (progress - 0.5) * 2.1;
+        this.slashArc.rotation.y = -player.angle + (progress - 0.5) * (isFinisher ? 4.4 : 2.3);
         this.slashArc.scale.setScalar(radiusScale);
-        this.slashArc.material.color.setHex(firePan ? 0xff6b44 : 0xffe082);
+        this.slashArc.material.color.setHex(isFinisher ? 0xfff3b0 : 0xffe082);
         this.slashArc.material.opacity = (1 - progress) * 0.95;
       }
     }
 
-    if (player.dash > 0 || player.sliding > 0) {
-      if (Math.random() < 0.7) {
+    // Döner-Orbit Klingen um Chef Torge
+    const donerLv = player.weapons?.doner || 0;
+    const donerCount = donerLv > 0 ? 1 + donerLv : 0;
+    const donerRadius = (2.05 + donerLv * 0.14) * (1 + (player.passives?.chili || 0) * 0.12);
+    for (let i = 0; i < this.donerOrbiters.length; i++) {
+      const orb = this.donerOrbiters[i];
+      orb.visible = i < donerCount;
+      if (!orb.visible) continue;
+      const a = (player.donerAngle || time * 3) + (i * TAU) / donerCount;
+      orb.position.set(player.x + Math.cos(a) * donerRadius, 0.45 + Math.sin(time * 5 + i) * 0.06, player.z + Math.sin(a) * donerRadius);
+      orb.rotation.y = -a + time * 6.5;
+      orb.scale.setScalar(0.95);
+    }
+
+    if (player.dash > 0 || player.sliding > 0 || (fever && Math.random() < 0.22)) {
+      if (player.dash > 0 || player.sliding > 0 ? Math.random() < 0.7 : true) {
         this.particles.emit(
           player.x + (Math.random() - 0.5) * 0.3,
           0.24,
@@ -942,7 +1070,7 @@ export class SceneView {
           (Math.random() - 0.5) * 0.8,
           0.8,
           (Math.random() - 0.5) * 0.8,
-          player.sliding > 0 ? PALETTE.glacier : PALETTE.ivory,
+          player.sliding > 0 ? PALETTE.glacier : fever && player.dash <= 0 ? PALETTE.brass : PALETTE.ivory,
           0.11,
           0.26,
           2.0,
@@ -961,26 +1089,32 @@ export class SceneView {
     this.beamCone.position.set(player.x, floorY + 0.018, player.z);
     this.beamCone.rotation.y = -player.angle;
 
-    this.island.position.set(player.x, 1.25, player.z);
-    this.island.intensity = player.lamp ? 3.5 : 1.9;
+    this.island.position.set(player.x, 1.35, player.z);
+    this.island.intensity = player.lamp ? 3.8 : 2.5;
   }
 
-  updateActor(model, agent, map, player, time, alwaysShow) {
-    if (!agent || !map) {
+  updateActor(model, agent, player, time, alwaysShow) {
+    if (!agent || agent.dead) {
       model.root.visible = false;
       return;
     }
     const { root, core, arms, legs, mask, stars, eyes, belly, lostMark } = model;
     const gap = Math.hypot(agent.x - player.x, agent.z - player.z);
-    const hasLOS = alwaysShow || (gap < 15.5 && map.clearPath(player, agent));
+    const visible = alwaysShow || gap < 22;
 
-    root.visible = hasLOS;
-    const isKO = (agent.koTimer ?? 0) > 0;
+    root.visible = visible;
+    if (!visible) return;
+
+    const scale = agent.elite ? 1.28 : agent.type === 'hauke' ? 1.18 : 1.0;
+    root.scale.setScalar(scale);
+
     if (eyes) {
-      eyes.visible = hasLOS && !isKO;
-      if (agent.chargeState && eyes.children[0]?.material) {
-        const isAngry = agent.mode === 'hunt' || agent.chargeState !== 'none';
-        eyes.children[0].material.color.setHex(isAngry ? 0xff2233 : 0xffaa3b);
+      eyes.visible = true;
+      if (eyes.children[0]?.material) {
+        const isAngry = agent.elite || agent.chargeState !== 'none' || agent.enraged;
+        eyes.children[0].material.color.setHex(
+          agent.hitFlash > 0 ? 0xffffff : isAngry ? 0xff2233 : agent.type === 'tom' ? PALETTE.jade : 0xffaa3b,
+        );
       }
     }
     if (belly) {
@@ -988,87 +1122,81 @@ export class SceneView {
       belly.material.emissive?.setHex((agent.hitFlash ?? 0) > 0 ? 0xffffff : chargingFlash ? 0x991122 : 0x000000);
     }
     if (lostMark) {
-      const isLost = hasLOS && agent.mode !== 'hunt' && !isKO;
-      lostMark.visible = isLost;
-      if (isLost) {
-        lostMark.position.y = 2.38 + Math.sin(time * 3.4) * 0.08;
-        lostMark.rotation.y = time * 1.9;
+      lostMark.visible = Boolean(agent.elite || agent.stunned > 0);
+      if (lostMark.visible) {
+        lostMark.position.y = 2.38 + Math.sin(time * 4.5) * 0.08;
+        lostMark.rotation.y = time * 2.5;
       }
     }
 
     root.position.set(agent.x, 0.011, agent.z);
     root.rotation.y = Math.PI / 2 - agent.angle;
-    const faster = agent.mode === 'hunt' || agent.mode === 'flee' || agent.chargeState === 'rush';
-    const pace = agent.moving ? Math.sin(time * (faster ? 13.0 : 6.8)) : 0;
+    const faster = agent.type === 'tom' || agent.chargeState === 'rush' || agent.elite;
+    const pace = agent.moving ? Math.sin(time * (faster ? 13.0 : 8.5) + (agent.id || 0)) : 0;
 
-    core.position.y = isKO ? 0.56 : 0.02 + Math.abs(pace) * 0.08;
-    core.rotation.x = isKO
-      ? -1.42
-      : agent.stunned > 0
-        ? -0.45
-        : agent.chargeState === 'windup'
-          ? -0.22
-          : agent.chargeState === 'rush'
-            ? 0.34
-            : faster
-              ? 0.18
-              : 0.05;
+    core.position.y = 0.02 + Math.abs(pace) * 0.08;
+    core.rotation.x = agent.stunned > 0
+      ? -0.42
+      : agent.chargeState === 'windup'
+        ? -0.22
+        : agent.chargeState === 'rush'
+          ? 0.34
+          : 0.16;
 
-    arms[0].rotation.x = isKO ? -0.9 : pace * 0.52;
-    arms[1].rotation.x = isKO ? -0.9 : -pace * 0.52;
+    arms[0].rotation.x = pace * 0.52;
+    arms[1].rotation.x = -pace * 0.52;
     if (legs) {
-      legs[0].rotation.x = isKO ? 0.45 : -pace * 0.58;
-      legs[1].rotation.x = isKO ? 0.35 : pace * 0.58;
+      legs[0].rotation.x = -pace * 0.58;
+      legs[1].rotation.x = pace * 0.58;
     }
-    mask.rotation.z = isKO ? 0.3 : Math.cos(time * 1.8) * 0.1;
+    mask.rotation.z = Math.cos(time * 2.1 + (agent.id || 0)) * 0.1;
     if (stars) {
-      stars.visible = (agent.stunned > 0 || isKO) && hasLOS;
-      stars.position.y = isKO ? 1.45 : stars.position.y;
+      stars.visible = (agent.stunned > 0 || (agent.exposed ?? 0) > 0);
       stars.rotation.y = time * 6.5;
     }
   }
 
   updateThreat(run, isTitle = false) {
-    const { player, listener, hauke, tom, time, map } = run;
-    this.updateActor(this.monster, listener, map, player, time, isTitle || run.state === 'caught');
-    this.updateActor(this.hauke, hauke, map, player, time, isTitle || run.state === 'caught');
-    this.updateActor(this.tom, tom, map, player, time, isTitle);
+    const { player, time } = run;
+    const antons = run.enemies ? run.enemies.filter((e) => !e.dead && e.type === 'anton') : [];
+    const toms = isTitle && run.tom ? [run.tom] : (run.enemies ? run.enemies.filter((e) => !e.dead && e.type === 'tom') : []);
+    const hauke = isTitle && run.hauke ? run.hauke : (run.enemies ? run.enemies.find((e) => !e.dead && e.type === 'hauke') : run.hauke);
 
-    if (this.antonCone) {
-      const showCone = !isTitle && Boolean(this.monster.root.visible && listener && listener.stunned <= 0);
-      this.antonCone.visible = showCone;
-      if (showCone) {
-        this.antonCone.position.set(listener.x, floorY + 0.019, listener.z);
-        this.antonCone.rotation.y = -listener.angle;
-        this.antonCone.material.uniforms.uTime.value = time;
-        this.antonCone.material.uniforms.uHunt.value = listener.mode === 'hunt' ? 1.0 : 0.0;
+    for (let i = 0; i < this.antonPool.length; i++) {
+      const model = this.antonPool[i];
+      const anton = antons[i];
+      if (!anton || (isTitle && i > 2)) {
+        model.root.visible = false;
+        continue;
+      }
+      this.updateActor(model, anton, player, time, isTitle || run.state === 'caught');
+      if (!isTitle && model.root.visible && (anton.burning ?? 0) > 0 && Math.random() < 0.25) {
+        this.particles.emit(anton.x, 0.7, anton.z, 0, 1.5, 0, 0xff5744, 0.1, 0.28, 1);
       }
     }
+
+    for (let i = 0; i < this.tomPool.length; i++) {
+      const model = this.tomPool[i];
+      const tom = toms[i];
+      if (!tom || (isTitle && i > 0)) {
+        model.root.visible = false;
+        continue;
+      }
+      this.updateActor(model, tom, player, time, isTitle || run.state === 'caught');
+    }
+
+    this.updateActor(this.hauke, hauke, player, time, isTitle || run.state === 'caught');
 
     const showHauke = this.hauke.root.visible && hauke;
     this.haukeRing.visible = Boolean(showHauke);
     if (showHauke) {
       this.haukeRing.position.set(hauke.x, floorY + 0.02, hauke.z);
-      const baseScale = hauke.chargeState !== 'none' ? 2.22 : hauke.enraged ? 2.08 : 1.85;
+      const baseScale = hauke.chargeState !== 'none' ? 2.4 : hauke.enraged ? 2.25 : 2.05;
       const pulse = baseScale + Math.sin(time * (hauke.enraged ? 6.5 : 4.5)) * 0.15;
       this.haukeRing.scale.set(pulse, 1, pulse);
       this.haukeRing.material.color.setHex(
         hauke.chargeState !== 'none' || hauke.enraged ? PALETTE.vermilion : PALETTE.copper,
       );
-      if (hauke.enraged && (hauke.koTimer ?? 0) <= 0 && Math.random() < 0.24) {
-        this.particles.emit(
-          hauke.x + (Math.random() - 0.5) * 0.7,
-          0.95,
-          hauke.z + (Math.random() - 0.5) * 0.7,
-          (Math.random() - 0.5) * 1.1,
-          1.6 + Math.random() * 1.2,
-          (Math.random() - 0.5) * 1.1,
-          0xff3b56,
-          0.11,
-          0.34,
-          1.2,
-        );
-      }
     }
 
     if (this.chargeLane) {
@@ -1082,45 +1210,12 @@ export class SceneView {
       }
     }
 
-    if (!isTitle) {
-      for (const [model, agent] of [[this.monster, listener], [this.hauke, hauke], [this.tom, tom]]) {
-        if (model.root.visible && (agent?.burning ?? 0) > 0 && Math.random() < 0.34) {
-          this.particles.emit(
-            agent.x + (Math.random() - 0.5) * 0.45,
-            0.55 + Math.random() * 0.4,
-            agent.z + (Math.random() - 0.5) * 0.45,
-            (Math.random() - 0.5) * 0.6,
-            1.8,
-            (Math.random() - 0.5) * 0.6,
-            Math.random() < 0.5 ? 0xff5744 : 0xffb84d,
-            0.1,
-            0.32,
-            0.5,
-          );
-        }
-      }
-      if (this.tom.root.visible && (tom?.lootBank || 0) > 0 && Math.random() < 0.14) {
-        this.particles.emit(
-          tom.x + (Math.random() - 0.5) * 0.35,
-          0.75,
-          tom.z + (Math.random() - 0.5) * 0.35,
-          (Math.random() - 0.5) * 0.5,
-          1.4,
-          (Math.random() - 0.5) * 0.5,
-          0xffe082,
-          0.09,
-          0.35,
-          2.0,
-        );
-      }
-    }
-
     for (const [i, snack] of this.haukeSnacks.entries()) {
-      snack.visible = Boolean(showHauke && (hauke.koTimer ?? 0) <= 0);
+      snack.visible = Boolean(showHauke);
       if (!snack.visible) continue;
       const a = (i * TAU) / this.haukeSnacks.length + time * (hauke.enraged ? 2.8 : 1.9);
-      const r = 1.38 + Math.sin(time * 3 + i) * 0.08;
-      snack.position.set(hauke.x + Math.cos(a) * r, 0.05 + Math.sin(time * 4 + i) * 0.04, hauke.z + Math.sin(a) * r);
+      const r = 1.55 + Math.sin(time * 3 + i) * 0.08;
+      snack.position.set(hauke.x + Math.cos(a) * r, 0.12 + Math.sin(time * 4 + i) * 0.04, hauke.z + Math.sin(a) * r);
       snack.rotation.y = -a;
     }
   }
@@ -1131,85 +1226,85 @@ export class SceneView {
       if (fx.kind === 'bonk_swing') {
         this.particles.burst(fx.x, 0.65, fx.z, 10, PALETTE.brass, 4.4, 0.09, 0.28, 3.0);
       } else if (fx.kind === 'bonk_hit') {
-        this.particles.burst(fx.x, 0.85, fx.z, 18, fx.color ?? PALETTE.brass, 5.4, 0.12, 0.42, 8.5);
+        this.particles.burst(fx.x, 0.85, fx.z, 14, fx.color ?? PALETTE.brass, 5.2, 0.11, 0.38, 8.5);
       } else if (fx.kind === 'crate_smash') {
         this.particles.burst(fx.x, 0.42, fx.z, 16, 0xa86c3a, 4.6, 0.12, 0.46, 10.5);
         this.particles.burst(fx.x, 0.55, fx.z, 8, PALETTE.brass, 3.6, 0.09, 0.44, 7.5);
       } else if (fx.kind === 'dash') {
         this.particles.burst(fx.x, 0.22, fx.z, 9, PALETTE.glacier, 3.0, 0.11, 0.34, 4.0);
       } else if (fx.kind === 'water_slip') {
-        this.particles.burst(fx.x, 0.2, fx.z, 16, PALETTE.glacier, 4.8, 0.11, 0.48, 10.5);
+        this.particles.burst(fx.x, 0.2, fx.z, 14, PALETTE.glacier, 4.6, 0.11, 0.45, 10.5);
       } else if (fx.kind === 'coin_burst') {
         this.particles.burst(fx.x, 0.65, fx.z, 18, 0xffe082, 5.2, 0.12, 0.56, 9.5);
       } else if (fx.kind === 'wall_slam' || fx.kind === 'ko_explosion') {
-        this.particles.burst(fx.x, 0.7, fx.z, 26, PALETTE.vermilion, 6.2, 0.14, 0.55, 8.5);
-        this.particles.burst(fx.x, 0.9, fx.z, 16, PALETTE.brass, 5.0, 0.12, 0.58, 7.0);
-      } else if (fx.kind === 'valve_blast') {
-        this.particles.burst(fx.x, 0.4, fx.z, 22, PALETTE.ivory, 5.6, 0.13, 0.46, 3.2);
+        this.particles.burst(fx.x, 0.7, fx.z, 22, PALETTE.vermilion, 6.2, 0.13, 0.5, 8.5);
+        this.particles.burst(fx.x, 0.9, fx.z, 14, PALETTE.brass, 5.0, 0.12, 0.52, 7.0);
       } else if (fx.kind === 'can_pickup') {
-        this.particles.burst(fx.x, 0.4, fx.z, 12, fx.color ?? PALETTE.jade, 3.8, 0.1, 0.4, 6.0);
+        this.particles.burst(fx.x, 0.4, fx.z, 10, fx.color ?? PALETTE.jade, 3.8, 0.1, 0.36, 6.0);
       }
     }
     run.vfx.length = 0;
   }
 
   updateProps(run, dt) {
+    const px = run.player.x;
+    const pz = run.player.z;
     for (const torch of this.torches) {
       const flick = 0.86 + Math.sin(run.time * 13.7 + torch.seed) * 0.1 + Math.cos(run.time * 21.3 + torch.seed) * 0.06;
-      torch.light.intensity = torch.base * flick;
+      torch.intensity = torch.base * flick;
+      torch.distSq = (torch.x - px) ** 2 + (torch.z - pz) ** 2;
       torch.flame.scale.setScalar(0.17 * (0.9 + flick * 0.12));
     }
+    const nearest = [...this.torches].sort((a, b) => a.distSq - b.distSq);
+    for (let i = 0; i < this.torchLights.length; i++) {
+      const light = this.torchLights[i];
+      const torch = nearest[i];
+      if (torch) {
+        light.position.set(torch.x, 1.12, torch.z);
+        light.color.setHex(torch.color);
+        light.intensity = torch.intensity;
+      } else {
+        light.intensity = 0;
+      }
+    }
 
-    if (run.crates) {
-      for (const [i, mesh] of this.crates.entries()) {
-        const c = run.crates[i];
-        mesh.visible = Boolean(c && !c.broken);
-        if (mesh.visible && c.gold && mesh.userData.topGem) {
+    // Dynamic Wooden & Gold Crates
+    const woodCrates = (run.crates ?? []).filter((c) => !c.broken && !c.gold);
+    const goldCrates = (run.crates ?? []).filter((c) => !c.broken && c.gold);
+    for (let i = 0; i < this.crates.length; i++) {
+      const mesh = this.crates[i];
+      const c = woodCrates[i];
+      mesh.visible = Boolean(c);
+      if (c) mesh.position.set(c.x, 0, c.z);
+    }
+    for (let i = 0; i < this.goldCrates.length; i++) {
+      const mesh = this.goldCrates[i];
+      const c = goldCrates[i];
+      mesh.visible = Boolean(c);
+      if (c) {
+        mesh.position.set(c.x, 0, c.z);
+        if (mesh.userData.topGem) {
           mesh.userData.topGem.rotation.y = run.time * 2.6;
           mesh.userData.topGem.position.y = 0.78 + Math.sin(run.time * 4.0) * 0.04;
-          if (Math.random() < 0.08) {
-            this.particles.emit(
-              c.x + (Math.random() - 0.5) * 0.45,
-              0.75,
-              c.z + (Math.random() - 0.5) * 0.45,
-              0,
-              1.1,
-              0,
-              PALETTE.jade,
-              0.08,
-              0.38,
-              1.0,
-            );
-          }
-        }
-      }
-    }
-    if (run.barrels) {
-      for (const [i, mesh] of this.barrels.entries()) {
-        const b = run.barrels[i];
-        mesh.root.visible = Boolean(b && !b.exploded);
-        if (b && !b.exploded) {
-          const pulse = b.fuse > 0 ? Math.floor(run.time * 32) % 2 === 0 : Math.sin(run.time * 3.5 + i) > 0.7;
-          mesh.glowBand.material.color.setHex(pulse ? 0xffffff : 0xffc94d);
-          mesh.cap.rotation.y = run.time * (b.fuse > 0 ? 12.0 : 3.0);
-          if (b.fuse > 0 && Math.random() < 0.65) {
-            this.particles.emit(
-              b.x + (Math.random() - 0.5) * 0.15,
-              0.86,
-              b.z + (Math.random() - 0.5) * 0.15,
-              (Math.random() - 0.5) * 1.4,
-              2.6,
-              (Math.random() - 0.5) * 1.4,
-              0xffe082,
-              0.09,
-              0.24,
-              6.0,
-            );
-          }
         }
       }
     }
 
+    // Dynamic Barrels
+    const activeBarrels = (run.barrels ?? []).filter((b) => !b.exploded);
+    for (let i = 0; i < this.barrels.length; i++) {
+      const mesh = this.barrels[i];
+      const b = activeBarrels[i];
+      mesh.root.visible = Boolean(b);
+      if (b) {
+        mesh.root.position.set(b.x, 0, b.z);
+        const pulse = Math.sin(run.time * 3.5 + i) > 0.7;
+        mesh.glowBand.material.color.setHex(pulse ? 0xffffff : 0xffc94d);
+        mesh.cap.rotation.y = run.time * 3.0;
+      }
+    }
+
+    // Dropped Crown
     const drop = run.droppedHelmet;
     this.droppedCrown.visible = Boolean(drop);
     this.droppedCrownRing.visible = Boolean(drop);
@@ -1223,57 +1318,125 @@ export class SceneView {
       if (this.crownBeacon) {
         this.crownBeacon.position.set(drop.x, 1.45, drop.z);
         this.crownBeacon.rotation.y = run.time * 1.4;
-        const beamPulse = 0.85 + Math.sin(run.time * 6.5) * 0.22;
-        this.crownBeacon.scale.set(beamPulse, 1, beamPulse);
       }
     }
 
-    for (const { record, root, ring, glow } of this.records) {
-      const present = !run.records.has(record.id);
-      root.visible = ring.visible = glow.visible = present;
-      root.rotation.y = 0.3 + run.time * 0.95;
-      root.position.y = 0.66 + Math.sin(run.time * 2.8) * 0.05;
-      const gap = Math.hypot(run.player.x - record.x, run.player.z - record.z);
-      ring.material.opacity = gap < 1.45 ? 0.95 : 0.48 + 0.14 * Math.sin(run.time * 2.4);
+    // Pickups: Instanced XP Gems + Spezial-Items
+    const xpList = [];
+    const healList = [];
+    const doseList = [];
+    const chestList = [];
+    for (const pk of run.pickups ?? []) {
+      if (pk.collected) continue;
+      if (pk.kind === 'xp') xpList.push(pk);
+      else if (pk.kind === 'heal') healList.push(pk);
+      else if (pk.kind === 'chest') chestList.push(pk);
+      else doseList.push(pk);
     }
-    if (run.cans) {
-      for (const [index, mesh] of this.cans.entries()) {
-        const can = run.cans[index];
-        mesh.visible = Boolean(can && !can.collected);
-        if (!can || can.collected) continue;
-        mesh.position.set(can.x, 0.03 + Math.sin(run.time * 3.5 + index) * 0.02, can.z);
-        mesh.rotation.y = run.time * 2.2 + index;
+
+    for (let i = 0; i < 120; i++) {
+      const g = xpList[i];
+      if (!g) {
+        this.xpDummy.scale.setScalar(0);
+        this.xpDummy.updateMatrix();
+        this.xpGemsMesh.setMatrixAt(i, this.xpDummy.matrix);
+        continue;
+      }
+      this.xpDummy.position.set(g.x, 0.24 + Math.sin(run.time * 4 + g.id) * 0.05, g.z);
+      this.xpDummy.rotation.set(0.3, run.time * 2.4 + g.id, 0.2);
+      this.xpDummy.scale.setScalar(g.tone === 'gold' ? 0.19 : g.tone === 'cyan' ? 0.15 : 0.12);
+      this.xpDummy.updateMatrix();
+      this.xpGemsMesh.setMatrixAt(i, this.xpDummy.matrix);
+      this.xpGemsMesh.setColorAt(i, color(g.tone === 'gold' ? PALETTE.brass : g.tone === 'cyan' ? PALETTE.glacier : PALETTE.jade));
+    }
+    this.xpGemsMesh.instanceMatrix.needsUpdate = true;
+    if (this.xpGemsMesh.instanceColor) this.xpGemsMesh.instanceColor.needsUpdate = true;
+
+    for (let i = 0; i < this.healPickups.length; i++) {
+      const m = this.healPickups[i];
+      const pk = healList[i];
+      m.visible = Boolean(pk);
+      if (pk) {
+        m.position.set(pk.x, 0.16 + Math.sin(run.time * 3.8 + i) * 0.06, pk.z);
+        m.rotation.y = run.time * 2.2;
       }
     }
-    if (run.valves) {
-      for (const [index, viewValve] of this.valves.entries()) {
-        const state = run.valves[index];
-        if (!state) continue;
-        viewValve.wheel.rotation.y = state.active > 0 ? run.time * 10 : 0;
-        viewValve.steam.visible = state.active > 0;
-        if (state.active > 0) {
-          const s = 1.2 + (1.6 - state.active) * 2.2;
-          viewValve.steam.scale.set(s, 1, s);
-          viewValve.steam.material.opacity = (state.active / 1.6) * 0.85;
-        }
+    for (let i = 0; i < this.dosePickups.length; i++) {
+      const m = this.dosePickups[i];
+      const pk = doseList[i];
+      m.visible = Boolean(pk);
+      if (pk) {
+        m.position.set(pk.x, 0.12 + Math.sin(run.time * 4 + i) * 0.05, pk.z);
+        m.rotation.y = run.time * 2.5;
       }
     }
-    if (this.lift) {
-      const called = run.lift.state !== 'idle';
-      this.lift.ring.material.color.setHex(
-        called ? PALETTE.vermilion : run.records.size === run.map.records.length ? PALETTE.jade : PALETTE.brass,
-      );
-      this.lift.ring.material.opacity = called ? 0.95 : 0.58;
-      const progress = 1 - run.lift.remaining / LIFT_WAIT;
-      const filled = called ? Math.ceil(this.lift.segments.length * progress) : 0;
-      for (const [index, marker] of this.lift.segments.entries()) marker.visible = index < filled;
+    for (let i = 0; i < this.chestPickups.length; i++) {
+      const m = this.chestPickups[i];
+      const pk = chestList[i];
+      m.visible = Boolean(pk);
+      if (pk) {
+        m.position.set(pk.x, 0.06 + Math.sin(run.time * 3 + i) * 0.04, pk.z);
+        m.rotation.y = run.time * 1.4;
+      }
     }
+
+    // Grillspieß-Projektile
+    for (let i = 0; i < this.skewerShots.length; i++) {
+      const m = this.skewerShots[i];
+      const p = run.projectiles?.[i];
+      m.visible = Boolean(p);
+      if (p) {
+        m.position.set(p.x, 0.62, p.z);
+        m.rotation.set(Math.PI / 2, 0, Math.atan2(p.vx, p.vz));
+      }
+    }
+
+    // Arcing Spezi Bombs
+    for (let i = 0; i < this.speziBombs.length; i++) {
+      const m = this.speziBombs[i];
+      const b = run.bombs?.[i];
+      m.visible = Boolean(b);
+      if (b) {
+        const t = Math.min(1, b.elapsed / b.duration);
+        m.position.set(b.x, 0.25 + Math.sin(t * Math.PI) * 2.35, b.z);
+        m.rotation.set(t * 9, t * 7, 0);
+      }
+    }
+
+    // Explosion Rings
+    for (let i = 0; i < this.explosionRings.length; i++) {
+      const r = this.explosionRings[i];
+      const ex = run.explosions?.[i];
+      r.visible = Boolean(ex);
+      if (ex) {
+        const p = Math.min(1, ex.age / ex.maxAge);
+        const s = 0.4 + p * ex.radius;
+        r.position.set(ex.x, floorY + 0.035, ex.z);
+        r.scale.set(s, 1, s);
+        r.material.color.setHex(ex.color ?? 0xff8c24);
+        r.material.opacity = (1 - p) * 0.92;
+      }
+    }
+
+    // Ricochet Dosen
+    for (let i = 0; i < this.clappers.length; i++) {
+      const clapper = this.clappers[i];
+      const tossed = run.throws?.[i];
+      clapper.visible = Boolean(tossed);
+      if (tossed) {
+        const py = 0.28 + Math.abs(Math.sin(tossed.elapsed * (tossed.slapshot ? 16 : 10))) * 0.24;
+        clapper.position.set(tossed.x, py, tossed.z);
+        clapper.rotation.y = tossed.elapsed * (tossed.slapshot ? 22 : 12);
+        clapper.scale.setScalar(tossed.slapshot ? 1.25 : 1.0);
+      }
+    }
+
     if (this.air) {
       this.air.position.x = Math.sin(run.time * 0.24) * 0.85;
       this.air.position.z = Math.sin(run.time * 0.15) * 0.6;
     }
     if (this.water) this.water.value = run.time;
-    const pulses = run.pulses.filter((entry) => entry.kind !== 'step' && entry.age < 0.63);
+    const pulses = (run.pulses ?? []).filter((entry) => entry.kind !== 'step' && entry.age < 0.63);
     for (const [index, ring] of this.ripples.entries()) {
       const pulse = pulses[index];
       ring.visible = Boolean(pulse);
@@ -1282,20 +1445,8 @@ export class SceneView {
       ring.position.z = pulse.z;
       const size = 0.2 + pulse.age * (pulse.kind === 'splash' ? 2.2 : 3.4);
       ring.scale.set(size, 1, size);
-      ring.material.color.setHex(pulse.kind === 'splash' ? PALETTE.glacier : pulse.kind === 'toot' ? PALETTE.jade : PALETTE.brass);
+      ring.material.color.setHex(pulse.kind === 'splash' ? PALETTE.glacier : PALETTE.brass);
       ring.material.opacity = (1 - pulse.age / 0.63) * 0.68;
-    }
-    for (const [index, clapper] of this.clappers.entries()) {
-      const tossed = run.throws[index];
-      clapper.visible = Boolean(tossed);
-      if (!tossed) continue;
-      const factor = tossed.elapsed / tossed.duration;
-      clapper.position.set(
-        THREE.MathUtils.lerp(tossed.from.x, tossed.to.x, factor),
-        0.05 + Math.sin(factor * Math.PI) * 0.85,
-        THREE.MathUtils.lerp(tossed.from.z, tossed.to.z, factor),
-      );
-      clapper.rotation.y = factor * 8;
     }
 
     this.consumeVfx(run);
@@ -1303,11 +1454,11 @@ export class SceneView {
   }
 
   renderPixelPipeline(run, isTitle = false) {
-    const { player, listener, hauke, time, hitFlash, mods } = run;
+    const { player, time, hitFlash } = run;
     const u = this.post.uniforms;
     u.uTime.value = time;
     u.uLampOn.value = player.lamp ? 1.0 : 0.0;
-    u.uWideBeam.value = mods?.has('searchlight') ? 1.0 : 0.0;
+    u.uWideBeam.value = (player.weapons?.beam || 0) > 0 ? 1.0 : 0.0;
     u.uTitleMode.value = isTitle ? 1.0 : 0.0;
     u.uHitFlash.value = isTitle ? 0.0 : Math.min(1, (hitFlash || 0) * 2.4);
 
@@ -1328,10 +1479,11 @@ export class SceneView {
     const len = Math.hypot(dx, dy) || 1;
     u.uAimDirUv.value.set(dx / len, dy / len);
 
-    const dAnton = listener ? Math.hypot(listener.x - player.x, listener.z - player.z) : 99;
-    const dHauke = hauke ? Math.hypot(hauke.x - player.x, hauke.z - player.z) : 99;
-    const minDist = Math.min(dAnton, dHauke);
-    u.uDanger.value = isTitle ? 0.0 : Math.max(0, 1 - minDist / 6.5);
+    let minDist = 99;
+    for (const e of run.enemies ?? []) {
+      if (!e.dead) minDist = Math.min(minDist, Math.hypot(e.x - player.x, e.z - player.z));
+    }
+    u.uDanger.value = isTitle ? 0.0 : Math.max(0, 1 - minDist / 4.2);
 
     this.renderer.setRenderTarget(this.pixelTarget);
     this.renderer.render(this.scene, this.camera);
@@ -1341,30 +1493,41 @@ export class SceneView {
 
   drawTitle(run, time) {
     this.ensureMap(run.map);
-    const hall = run.map.rooms[1] ?? run.map.rooms[0];
-    const cx = hall.cx;
-    const cz = hall.cz;
+    const cx = run.map.start.x;
+    const cz = run.map.start.z;
 
     run.time = time;
     run.player.x = cx - 0.5;
     run.player.z = cz + 0.35;
     run.player.angle = -0.35;
     run.player.lamp = true;
-    run.hauke.x = cx + 1.5;
-    run.hauke.z = cz - 0.8;
-    run.hauke.angle = Math.PI + 0.4;
-    run.listener.x = cx - 2.2;
-    run.listener.z = cz - 1.9;
-    run.listener.angle = 0.5;
-    run.tom.x = cx + 0.7;
-    run.tom.z = cz + 1.8;
-    run.tom.angle = -1.2;
+    run.player.donerAngle = time * 2.4;
 
-    const orbit = time * 0.2;
-    const ox = cx + Math.sin(orbit) * 1.1;
-    const oz = cz + Math.cos(orbit) * 0.8;
-    this.camera.position.set(ox + 1.4, 7.6, oz + 6.4);
-    this.camera.lookAt(cx - 0.4, 0.55, cz - 0.3);
+    if (!run.hauke) {
+      run.hauke = {
+        id: 99, type: 'hauke', x: cx + 2.2, z: cz - 1.1, angle: Math.PI + 0.4,
+        dead: false, moving: false, chargeState: 'none', enraged: false,
+      };
+    }
+    if (!run.tom) {
+      run.tom = {
+        id: 98, type: 'tom', x: cx + 1.1, z: cz + 2.2, angle: -1.2,
+        dead: false, moving: true,
+      };
+    }
+
+    const orbit = time * 0.22;
+    const isPortrait = this.camera.aspect < 0.95;
+    const pull = isPortrait ? (0.95 - this.camera.aspect) * 3.8 : 0;
+    const ox = cx + Math.sin(orbit) * (isPortrait ? 0.8 : 1.2);
+    const oz = cz + Math.cos(orbit) * 0.85;
+    if (isPortrait) {
+      this.camera.position.set(ox + 0.35, 8.9 + pull, oz + 7.2 + pull * 0.75);
+      this.camera.lookAt(cx - 0.1, 0.3, cz + 1.55 + pull * 0.35);
+    } else {
+      this.camera.position.set(ox + 1.4, 8.1, oz + 6.8);
+      this.camera.lookAt(cx - 0.4, 0.55, cz - 0.3);
+    }
     this.camera.updateMatrixWorld();
 
     this.updateHero(run, time);

@@ -1,343 +1,177 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  advance,
-  applyMod,
-  descendNextFloor,
-  finishRunCashOut,
-  interaction,
-  LIFT_WAIT,
-  newRun,
-  STEP,
-} from '../src/game.js';
-import { buildDungeon } from '../src/level.js';
+import { advance, applyUpgrade, finishRunCashOut, interaction, newRun, STEP, WAVE_DURATION } from '../src/game.js';
+import { buildArena, LOADOUTS } from '../src/level.js';
 
-function idle(run, seconds) {
-  for (let frame = 0; frame < Math.ceil(seconds / STEP); frame++) advance(run);
-}
-
-function follow(run, destination) {
-  const { clearPath, route } = run.map;
-  const gap = (point) => Math.hypot(point.x - run.player.x, point.z - run.player.z);
-  for (let frame = 0; frame < 4800 && run.state === 'playing'; frame++) {
-    if (gap(destination) < 0.25) return;
-    const path = route(run.player, destination);
-    while (path.length && gap(path[0]) < 0.16) path.shift();
-    while (path.length > 1 && clearPath(run.player, path[1], 0.27, true)) path.shift();
-    assert.ok(path.length, 'expected a waypoint toward the destination');
-    const waypoint = path[0];
-    const angle = Math.atan2(waypoint.z - run.player.z, waypoint.x - run.player.x);
-    advance(run, { x: Math.cos(angle), z: Math.sin(angle) });
-  }
-  assert.fail(`could not reach ${destination.name ?? 'the lift'} while playing`);
-}
-
-function place(point, destination) {
-  point.x = destination.x;
-  point.z = destination.z;
-}
-
-test('procedural dungeon connectivity and floor scaling hold across 10 seeds', () => {
-  for (let seed = 1001; seed <= 1010; seed++) {
-    for (const floor of [1, 3]) {
-      const map = buildDungeon(seed, floor);
-      assert.equal(map.walkable(0, 0), false);
-      assert.equal(map.records.length, floor >= 3 ? 4 : 3);
-      assert.ok(map.crates.length >= 6);
-      assert.ok(map.barrels.length >= 3);
-      for (const destination of [map.lift, ...map.records, ...map.patrol]) {
-        assert.ok(map.walkable(destination.x, destination.z), `walkable point on seed ${seed} E${floor}`);
-        const path = map.route(map.spawn, destination);
-        assert.ok(path.length > 0, `reachable route on seed ${seed} E${floor}`);
-        let prev = map.spawn;
-        for (const step of path) {
-          assert.ok(map.clearPath(prev, step, 0.25, true), `clear segment on seed ${seed} E${floor}`);
-          prev = step;
-        }
-        assert.deepEqual(prev, destination);
-      }
+function simulate(run, seconds, inputFn = () => ({})) {
+  const steps = Math.round(seconds / STEP);
+  for (let i = 0; i < steps; i++) {
+    if (run.state === 'levelup') {
+      const offer = run.upgradeOffers[0];
+      if (offer) applyUpgrade(run, offer.id);
     }
+    if (run.state !== 'playing') break;
+    advance(run, inputFn(run, i));
+  }
+  return run;
+}
+
+test('open survival arena generates spacious walkable courtyard across seeds', () => {
+  for (let i = 0; i < 8; i++) {
+    const map = buildArena(4000 + i * 17, (i % 3) + 1);
+    assert.equal(map.width, 28);
+    assert.equal(map.depth, 28);
+    assert.equal(map.walkable(map.start.x, map.start.z, 0.3), true);
+    assert.equal(map.blocks.length, 4);
+    assert.ok(map.barrels.length >= 5);
+    assert.ok(map.crates.length >= 5);
   }
 });
 
-test('dash gives a burst of motion, a single loud pulse, and respects cooldown', () => {
-  const run = newRun({ seed: 2026, floor: 1, loadout: 'classic' });
-  const startZ = run.player.z;
-  advance(run, { z: -1, dash: true });
-  assert.ok(run.player.z < startZ - 0.1);
-  assert.ok(run.player.cooldown > 2);
-  assert.equal(run.events.filter((event) => event.kind === 'dash').length, 1);
-  advance(run, { z: -1, dash: true });
-  assert.equal(run.events.filter((event) => event.kind === 'dash').length, 0);
+test('loadouts initialize unique starter weapons, HP, and speed profiles', () => {
+  const classic = newRun({ seed: 100, loadout: 'classic' });
+  const runner = newRun({ seed: 100, loadout: 'runner' });
+  const brawler = newRun({ seed: 100, loadout: 'brawler' });
+
+  assert.equal(classic.player.weapons.pan, 1);
+  assert.equal(runner.player.weapons.skewer, 1);
+  assert.equal(brawler.player.weapons.doner, 1);
+  assert.equal(brawler.player.maxHp, LOADOUTS.brawler.maxHp);
+  assert.ok(runner.player.clappers > classic.player.clappers);
 });
 
-test('loadouts customize starting speed, pan radius, and clapper stock', () => {
-  const runner = newRun({ seed: 2026, floor: 1, loadout: 'runner' });
-  const brawler = newRun({ seed: 2026, floor: 1, loadout: 'brawler' });
-  assert.equal(runner.player.clappers, 4);
-  assert.ok(runner.player.speedMult > 1.1);
-  assert.ok(brawler.player.novaRadius > runner.player.novaRadius);
-});
+test('XP pickup magnetism fills level bar and triggers 3-card level-up selection', () => {
+  const run = newRun({ seed: 2026 });
+  run.enemies.forEach((e) => { e.dead = true; });
+  run.pickups.push({
+    id: 9001,
+    kind: 'xp',
+    x: run.player.x + 1.5,
+    z: run.player.z,
+    value: run.player.xpNext + 2,
+    tone: 'gold',
+    magnetized: false,
+    collected: false,
+    age: 0,
+  });
 
-test('the lamp exposes Chef Torge while darkness conceals him in open room sightlines', () => {
-  const lit = newRun({ seed: 4242, floor: 1 });
-  const dark = newRun({ seed: 4242, floor: 1 });
-  const hall = lit.map.rooms[1];
-  for (const run of [lit, dark]) {
-    run.cans.length = 0;
-    place(run.player, { x: hall.cx - 1.4, z: hall.cz });
-    place(run.listener, { x: hall.cx + 1.4, z: hall.cz });
-    assert.ok(run.map.clearPath(run.listener, run.player), 'expected clear line across hall');
-    run.listener.target = { ...run.listener };
-    run.listener.mode = 'search';
-    run.listener.searchUntil = 2;
+  for (let i = 0; i < 60 && run.state === 'playing'; i++) {
+    advance(run, {});
   }
-  advance(dark, { lamp: true });
-  idle(lit, 0.42);
-  idle(dark, 0.42);
-  assert.equal(lit.listener.mode, 'hunt');
-  assert.equal(dark.listener.mode, 'search');
+  assert.equal(run.state, 'levelup');
+  assert.equal(run.upgradeOffers.length, 3);
+  assert.ok(run.player.level >= 2);
+
+  const chosen = run.upgradeOffers[0].id;
+  applyUpgrade(run, chosen);
+  assert.equal(run.state, 'playing');
+  assert.ok((run.player.weapons[chosen] || run.player.passives[chosen]) >= 1);
 });
 
-test('clappers land on walkable floor, emit one noise pulse, and attract Anton', () => {
-  const run = newRun({ seed: 3030, floor: 1 });
-  const hall = run.map.rooms[1];
-  place(run.player, { x: hall.cx, z: hall.cz + 1.1 });
-  place(run.listener, { x: hall.cx + 1.8, z: hall.cz - 1.2 });
-  run.listener.mode = 'search';
-  run.listener.searchUntil = 6;
-  advance(run, { lamp: true, angle: -Math.PI / 2, lure: true });
-  assert.equal(run.player.clappers, 1);
-  const destination = run.throws[0].to;
-  assert.ok(run.map.walkable(destination.x, destination.z, 0.08));
-  idle(run, 1.0);
-  assert.equal(run.throws.length, 0);
-  assert.equal(run.pulses.filter((pulse) => pulse.kind === 'clapper').length, 1);
-  assert.equal(run.listener.mode, 'investigate');
-  assert.deepEqual(run.listener.target, destination);
+test('auto-weapons (skewer, doner, spezi, beam, can) damage and defeat enemies', () => {
+  const run = newRun({ seed: 555 });
+  run.player.weapons = { pan: 2, skewer: 2, doner: 2, spezi: 2, beam: 2, can: 2 };
+  run.player.timers = { pan: 0.05, skewer: 0.05, spezi: 0.05, beam: 0.05, can: 0.05 };
+  // Place Anton right in front of Torge inside light cone & doner orbit
+  run.enemies = [{
+    id: 500, type: 'anton', elite: false, x: run.player.x + 1.6, z: run.player.z,
+    angle: Math.PI, hp: 32, maxHp: 32, speed: 0, radius: 0.32, damage: 5,
+    dead: false, moving: false, stunned: 0, slowed: 0, exposed: 0, hitFlash: 0,
+    burning: 0, donerCd: 0, knockX: 0, knockZ: 0, knockTime: 0, lootBank: 0,
+    chargeState: 'none', chargeTimer: 0, chargeDir: { x: 0, z: 0 }, enraged: false, koTimer: 0,
+  }];
+  run.player.angle = 0;
+
+  simulate(run, 1.8, () => ({}));
+  assert.ok(run.player.kills >= 1);
+  assert.ok(run.pickups.some((pk) => pk.kind === 'xp'));
 });
 
-test('Chef-Schelle bonks enemies, smashes crates, and detonates barrels with Hauke splash damage', () => {
-  const run = newRun({ seed: 5050, floor: 1 });
-  const hall = run.map.rooms[1];
-  place(run.player, { x: hall.cx, z: hall.cz });
-  place(run.listener, { x: hall.cx, z: hall.cz - 1.1 });
-  place(run.tom, { x: hall.cx + 0.8, z: hall.cz });
-  place(run.hauke, { x: hall.cx + 1.8, z: hall.cz });
-
-  const targetCrate = run.crates[0];
-  targetCrate.x = hall.cx - 0.9;
-  targetCrate.z = hall.cz;
-  targetCrate.broken = false;
-
-  const targetBarrel = run.barrels[0];
-  targetBarrel.x = hall.cx + 1.2;
-  targetBarrel.z = hall.cz;
-  targetBarrel.exploded = false;
+test('manual Power-Schelle, Spezi-Granate, and Explosive Barrels chain-detonate', () => {
+  const run = newRun({ seed: 777 });
+  const barrel = run.barrels[0];
+  barrel.x = run.player.x + 1.8;
+  barrel.z = run.player.z;
+  barrel.exploded = false;
+  run.enemies[0].x = barrel.x + 1.0;
+  run.enemies[0].z = barrel.z;
+  run.enemies[0].hp = 18;
+  run.player.angle = 0;
 
   advance(run, { bonk: true });
-  assert.ok(run.listener.stunned > 2.0, 'Lost Anton should be stunned by Chef-Schelle');
-  assert.ok(run.tom.stunned > 2.0, 'Tom should be stunned by Chef-Schelle');
-  assert.equal(targetCrate.broken, true, 'Crate inside Schelle radius should shatter');
-  assert.ok(run.stats.crates >= 1);
-  assert.ok(targetBarrel.fuse > 0, 'Barrel should start fuse after hit');
-
-  idle(run, 0.35);
-  assert.equal(targetBarrel.exploded, true, 'Barrel fuse should detonate');
+  assert.equal(barrel.exploded, true);
+  assert.equal(run.enemies[0].dead, true);
   assert.ok(run.stats.barrels >= 1);
-  assert.ok(run.hauke.hp <= 25, 'Barrel explosion should heavily damage nearby Hauke');
 });
 
-test('collecting all relics unlocks the lift, offers Chef-Mods, descends to Floor 2, and supports cash-out', () => {
-  const run = newRun({ seed: 2026, floor: 1 });
-  place(run.player, run.map.lift);
-  assert.equal(interaction(run).enabled, false);
-  advance(run, { use: true });
-  assert.equal(run.lift.state, 'idle');
+test('Crown Shield absorbs first hit and drops crown before HP loss occurs', () => {
+  const run = newRun({ seed: 888 });
+  run.player.invuln = 0;
+  run.player.helmet = true;
+  const startHp = run.player.hp;
+  run.enemies[0].x = run.player.x + 0.2;
+  run.enemies[0].z = run.player.z;
 
-  for (const record of run.map.records) run.records.add(record.id);
-  advance(run, { use: true });
-  assert.equal(run.lift.state, 'calling');
-  place(run.player, run.map.spawn);
-  idle(run, LIFT_WAIT + 0.1);
-  assert.equal(run.lift.state, 'ready');
-  assert.equal(run.state, 'playing');
+  advance(run, {});
+  assert.equal(run.player.helmet, false);
+  assert.ok(run.droppedHelmet !== null);
+  assert.equal(run.player.hp, startHp);
 
-  place(run.player, run.map.lift);
-  advance(run);
-  assert.equal(run.state, 'floor_clear');
-  assert.equal(run.modOffers.length, 3);
+  // Second hit after invuln expires reduces HP
+  run.player.invuln = 0;
+  run.enemies[0].x = run.player.x + 0.2;
+  run.enemies[0].z = run.player.z;
+  run.enemies[0].stunned = 0;
+  run.enemies[0].knockTime = 0;
+  advance(run, {});
+  assert.ok(run.player.hp < startHp);
+});
 
-  const chosenMod = run.modOffers[0].id;
-  descendNextFloor(run, chosenMod);
-  assert.equal(run.floor, 2);
-  assert.equal(run.state, 'playing');
-  assert.equal(run.mods.has(chosenMod), true);
-  assert.equal(run.records.size, 0);
-  assert.equal(run.map.biome.id, 'freezer');
+test('Dash provides invulnerability frames and Perfect Dodge resets manual Schelle cooldown', () => {
+  const run = newRun({ seed: 999 });
+  run.player.invuln = 0;
+  run.player.bonkCooldown = 0.6;
+  run.enemies[0].x = run.player.x + 1.1;
+  run.enemies[0].z = run.player.z;
 
+  advance(run, { x: 1, z: 0, dash: true });
+  assert.ok(run.player.dash > 0);
+  assert.equal(run.player.bonkCooldown, 0);
+  assert.ok(run.stats.dodges >= 1);
+});
+
+test('Wave Director advances waves and spawns Boss Hauke on Wave 3', () => {
+  const run = newRun({ seed: 303 });
+  run.waveTimer = WAVE_DURATION - 0.1;
+  run.wave = 2;
+
+  simulate(run, 0.3, () => ({}));
+  assert.equal(run.wave, 3);
+  assert.ok(run.enemies.some((e) => !e.dead && e.type === 'hauke'));
+});
+
+test('Cashout cleanly ends the survival shift with stats intact', () => {
+  const run = newRun({ seed: 404 });
+  simulate(run, 15, (r, i) => ({ x: Math.cos(i * 0.04), z: Math.sin(i * 0.04) }));
   finishRunCashOut(run);
   assert.equal(run.state, 'escaped');
+  assert.ok(run.time >= 14.9);
+  assert.ok(interaction(run) === null);
 });
 
-test('a full procedural route collects every relic on Floor 1 and activates the Lastenaufzug', () => {
-  const run = newRun({ seed: 7777, floor: 1, loadout: 'runner' });
-  const { clearPath, route } = run.map;
-  const gap = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
-  const navigate = (dest) => {
-    for (let f = 0; f < 4800 && run.state === 'playing'; f++) {
-      if (gap(run.player, dest) < 0.28) return;
-      const path = route(run.player, dest);
-      while (path.length && gap(run.player, path[0]) < 0.16) path.shift();
-      while (path.length > 1 && clearPath(run.player, path[1], 0.27, true)) path.shift();
-      const wp = path[0];
-      const ang = Math.atan2(wp.z - run.player.z, wp.x - run.player.x);
-      const nearThreat = gap(run.player, run.listener) < 1.85 || gap(run.player, run.hauke) < 2.1;
-      const nearCrate = run.crates.some((c) => !c.broken && gap(run.player, c) < 1.2);
-      advance(run, {
-        x: Math.cos(ang),
-        z: Math.sin(ang),
-        bonk: nearThreat || nearCrate,
-        dash: nearThreat && run.player.bonkCooldown > 0,
-      });
-    }
-    assert.fail(`could not reach ${dest.name ?? 'the lift'} (${run.state})`);
-  };
-  advance(run, { lamp: true });
-  for (const record of run.map.records) {
-    navigate(record);
-    assert.equal(interaction(run).record, record);
-    advance(run, { use: true });
-  }
-  navigate(run.map.lift);
-  advance(run, { use: true });
-  for (let f = 0; f < Math.ceil((LIFT_WAIT + 0.25) / STEP) && run.state === 'playing'; f++) {
-    const nearThreat = gap(run.player, run.listener) < 2.1 || gap(run.player, run.hauke) < 2.2;
-    advance(run, { bonk: nearThreat });
-  }
-  if (run.state === 'playing') navigate(run.map.lift);
-  assert.equal(run.records.size, run.map.records.length);
-  assert.equal(run.state, 'floor_clear');
+test('60-second automated survival bot kites arena, levels up, and remains error-free', () => {
+  const run = newRun({ seed: 2026, loadout: 'runner' });
+  simulate(run, 60, (r, i) => {
+    const a = i * 0.035;
+    return {
+      x: Math.cos(a),
+      z: Math.sin(a),
+      bonk: i % 50 === 0,
+      dash: i % 95 === 0,
+      lure: i % 160 === 0,
+      lamp: i % 300 === 0,
+    };
+  });
+  assert.ok(run.player.level >= 2 || run.player.kills >= 3);
+  assert.ok(run.wave >= 2 || run.state === 'caught');
 });
-
-test('Chef-Krone absorbs the first hit, drops on the floor, and leaves Torge vulnerable until reclaimed', () => {
-  const run = newRun({ seed: 8888, floor: 1 });
-  const hall = run.map.rooms[1];
-  place(run.player, { x: hall.cx, z: hall.cz });
-  place(run.listener, { x: hall.cx, z: hall.cz });
-  advance(run);
-  assert.equal(run.state, 'playing');
-  assert.equal(run.player.helmet, false);
-  assert.ok(run.droppedHelmet);
-  run.player.invuln = 0;
-  advance(run);
-  assert.equal(run.state, 'caught');
-});
-
-test('Goldene Chef-Truhe grants jackpot Aura, repairs dropped crown, grants Turbo, and emits chest_gold', () => {
-  const run = newRun({ seed: 6161, floor: 1 });
-  const hall = run.map.rooms[1];
-  const goldCrate = run.crates.find((c) => c.gold);
-  assert.ok(goldCrate, 'expected at least one Golden Chef-Truhe per floor');
-  for (const c of run.crates) c.broken = c !== goldCrate;
-  for (const e of [run.listener, run.hauke, run.tom]) place(e, { x: 1, z: 1 });
-  goldCrate.x = hall.cx + 0.9;
-  goldCrate.z = hall.cz;
-  goldCrate.broken = false;
-  place(run.player, { x: hall.cx, z: hall.cz });
-  run.player.helmet = false;
-  run.droppedHelmet = { x: hall.cx + 3, z: hall.cz + 3 };
-  const startClappers = run.player.clappers;
-  const startPfand = run.player.pfand;
-
-  advance(run, { bonk: true });
-  assert.equal(goldCrate.broken, true);
-  assert.equal(run.events.some((e) => e.kind === 'chest_gold'), true);
-  assert.equal(run.player.helmet, true);
-  assert.equal(run.droppedHelmet, null);
-  assert.equal(run.player.clappers, startClappers + 1);
-  assert.ok(run.player.beanBoost >= 4.0);
-  assert.ok(run.player.pfand >= startPfand + 1200);
-  assert.ok(run.hitStop > 0);
-});
-
-test('Tom banks stolen Aura in lootBank and bursts out as a Piñata jackpot on Chef-Schelle', () => {
-  const run = newRun({ seed: 6262, floor: 1 });
-  const hall = run.map.rooms[1];
-  place(run.player, { x: hall.cx, z: hall.cz });
-  place(run.tom, { x: hall.cx + 0.35, z: hall.cz });
-  run.player.lamp = true;
-  run.tom.stealCooldown = 0;
-
-  advance(run);
-  assert.equal(run.stats.stolen, 1);
-  assert.equal(run.tom.lootBank, 400);
-  const auraAfterSteal = run.player.pfand;
-
-  place(run.tom, { x: hall.cx + 0.9, z: hall.cz });
-  advance(run, { bonk: true });
-  assert.equal(run.tom.lootBank, 0);
-  assert.ok(run.player.pfand >= auraAfterSteal + 1800, 'Piñata should return banked Aura + bonk bonus');
-  assert.ok(run.hitStop > 0);
-});
-
-test('Fire Pan burns enemies with Aura DoT while Searchlight blinds Anton only when lamp is lit', () => {
-  const run = newRun({ seed: 6363, floor: 1 });
-  const hall = run.map.rooms[1];
-  applyMod(run, 'fire_pan');
-  place(run.player, { x: hall.cx, z: hall.cz });
-  place(run.listener, { x: hall.cx + 1.0, z: hall.cz });
-  place(run.hauke, { x: hall.cx - 1.1, z: hall.cz });
-  const startHaukeHp = run.hauke.hp;
-
-  advance(run, { bonk: true });
-  assert.ok(run.listener.burning > 2.0);
-  assert.ok(run.hauke.burning > 2.0);
-  const pfandRightAfterBonk = run.player.pfand;
-
-  idle(run, 0.7);
-  assert.ok(run.player.pfand > pfandRightAfterBonk, 'Burning listener should tick burn Aura');
-  assert.ok(run.hauke.hp < startHaukeHp - 35, 'Burning Hauke should suffer DoT damage');
-
-  const darkRun = newRun({ seed: 6464, floor: 1 });
-  const litRun = newRun({ seed: 6464, floor: 1 });
-  for (const r of [darkRun, litRun]) {
-    applyMod(r, 'searchlight');
-    const rm = r.map.rooms[1];
-    place(r.player, { x: rm.cx - 1.1, z: rm.cz });
-    place(r.listener, { x: rm.cx + 1.1, z: rm.cz });
-    r.listener.awareness = 0.95;
-  }
-  advance(darkRun, { lamp: true }); // toggle off
-  idle(darkRun, 0.25);
-  idle(litRun, 0.25);
-  assert.equal(litRun.listener.stunned > 1.0, true, 'Lit lamp + Searchlight should blind Anton');
-  assert.equal(darkRun.listener.stunned > 0, false, 'Unlit lamp should not trigger Searchlight blind');
-});
-
-test('Input buffering, Hauke Phase 2 Wut-Modus, and touch Dose auto-aim work deterministically', () => {
-  const run = newRun({ seed: 6565, floor: 1 });
-  const hall = run.map.rooms[1];
-  place(run.player, { x: hall.cx, z: hall.cz });
-  place(run.listener, { x: hall.cx + 1.0, z: hall.cz });
-  run.player.bonkCooldown = 0.08;
-
-  advance(run, { bonk: true });
-  assert.equal(run.listener.stunned, 0, 'Still on cooldown for 1st frame');
-  idle(run, 0.12);
-  assert.ok(run.listener.stunned > 2.0, 'Buffered bonk should execute once cooldown expires');
-
-  run.hauke.hp = 45;
-  run.hauke.koTimer = 0;
-  advance(run);
-  assert.equal(run.hauke.enraged, true, 'Hauke <= 50 HP should enter Wut-Modus');
-
-  const barrel = run.barrels[0];
-  place(barrel, { x: hall.cx, z: hall.cz - 2.6 });
-  barrel.exploded = false;
-  run.player.angle = Math.PI / 2; // pointing away (south)
-  advance(run, { isTouch: true, lure: true });
-  assert.equal(run.throws.length, 1);
-  assert.ok(run.throws[0].to.z < run.player.z - 0.8, 'Touch auto-aim should throw Dose toward nearby barrel');
-});
-
