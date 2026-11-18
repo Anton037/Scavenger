@@ -16,6 +16,14 @@ function capturePointer(element, pointerId) {
   }
 }
 
+const ZOOM_KEYS = new Set(['Equal', 'Minus', 'Digit0', 'NumpadAdd', 'NumpadSubtract', 'Numpad0']);
+const ZOOM_KEY_CHARS = new Set(['+', '-', '=', '0']);
+
+function isEditableTarget(target) {
+  const tag = target?.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || Boolean(target?.isContentEditable);
+}
+
 export class Controls {
   constructor(canvas, stick, thumb, { chart, pause }) {
     this.active = false;
@@ -33,7 +41,33 @@ export class Controls {
     this.stickTarget = stick.closest('.stick-zone') || stick;
     this.useTouch(detectInitialTouch());
 
+    const preventNonEditable = (event) => {
+      if (!isEditableTarget(event.target)) event.preventDefault();
+    };
+    window.addEventListener('contextmenu', preventNonEditable);
+    window.addEventListener('selectstart', preventNonEditable);
+    window.addEventListener('dragstart', preventNonEditable);
+    window.addEventListener('dblclick', preventNonEditable);
+    window.addEventListener('wheel', (event) => {
+      if (event.ctrlKey || event.metaKey) event.preventDefault();
+    }, { passive: false });
+    for (const gesture of ['gesturestart', 'gesturechange', 'gestureend']) {
+      window.addEventListener(gesture, (event) => event.preventDefault(), { passive: false });
+    }
+    window.addEventListener('touchstart', (event) => {
+      if ((event.touches?.length ?? 0) > 1 && !event.target?.closest?.('button, input, textarea')) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+    window.addEventListener('touchmove', (event) => {
+      if ((event.touches?.length ?? 0) > 1) event.preventDefault();
+    }, { passive: false });
+
     window.addEventListener('keydown', (event) => {
+      if ((event.ctrlKey || event.metaKey) && (ZOOM_KEYS.has(event.code) || ZOOM_KEY_CHARS.has(event.key))) {
+        event.preventDefault();
+        return;
+      }
       if (!shortcuts.has(event.code) || event.altKey || event.ctrlKey || event.metaKey) return;
       if (event.code === 'Escape' || event.code === 'KeyP') {
         if (!event.repeat && pause()) event.preventDefault();

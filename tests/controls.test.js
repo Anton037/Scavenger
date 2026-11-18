@@ -158,3 +158,26 @@ test('Controls ignores synthetic mouse jitter right after touch and keeps Space 
   const modalKey = windowEl.dispatch('keydown', { code: 'Space', target: modalBtn, repeat: false });
   assert.equal(modalKey.defaultPrevented, false);
 });
+
+test('Controls blocks zooming, selection, and context menu outside editable inputs', async () => {
+  const { windowEl } = await setupControls({ coarse: true });
+
+  const selectEvt = windowEl.dispatch('selectstart', { target: { tagName: 'DIV' } });
+  const ctxEvt = windowEl.dispatch('contextmenu', { target: { tagName: 'BUTTON' } });
+  const inputCtxEvt = windowEl.dispatch('contextmenu', { target: { tagName: 'INPUT' } });
+  const wheelZoomEvt = windowEl.dispatch('wheel', { ctrlKey: true, deltaY: -100 });
+  const wheelScrollEvt = windowEl.dispatch('wheel', { ctrlKey: false, deltaY: -100 });
+  const keyZoomEvt = windowEl.dispatch('keydown', { ctrlKey: true, code: 'Equal', key: '+' });
+  const gestureEvt = windowEl.dispatch('gesturestart');
+  const pinchEvt = windowEl.dispatch('touchmove', { touches: [{}, {}] });
+
+  assert.equal(selectEvt.defaultPrevented, true);
+  assert.equal(ctxEvt.defaultPrevented, true);
+  assert.equal(inputCtxEvt.defaultPrevented, false);
+  assert.equal(wheelZoomEvt.defaultPrevented, true);
+  assert.equal(wheelScrollEvt.defaultPrevented, false);
+  assert.equal(keyZoomEvt.defaultPrevented, true);
+  assert.equal(gestureEvt.defaultPrevented, true);
+  assert.equal(pinchEvt.defaultPrevented, true);
+});
+
