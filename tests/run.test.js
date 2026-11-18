@@ -1,7 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advance, applyUpgrade, finishRunCashOut, interaction, newRun, STEP, WAVE_DURATION } from '../src/game.js';
-import { buildArena, LOADOUTS } from '../src/level.js';
+import {
+  advance,
+  applyUpgrade,
+  CHAOS_EVENTS,
+  DEATH_ROASTS,
+  finishRunCashOut,
+  interaction,
+  newRun,
+  rerollUpgrades,
+  STEP,
+  triggerChaosEvent,
+  WAVE_DURATION,
+} from '../src/game.js';
+import { computeBadges, formatShareReceipt } from '../src/hud.js';
+import { buildArena, EVOLUTIONS, getDailySeed, LOADOUTS } from '../src/level.js';
 
 function simulate(run, seconds, inputFn = () => ({})) {
   const steps = Math.round(seconds / STEP);
@@ -16,9 +29,11 @@ function simulate(run, seconds, inputFn = () => ({})) {
   return run;
 }
 
-test('open survival arena generates spacious walkable courtyard across seeds', () => {
+test('open survival arena generates spacious walkable courtyard and rotates biomes across seeds', () => {
+  const seenBiomes = new Set();
   for (let i = 0; i < 8; i++) {
-    const map = buildArena(4000 + i * 17, (i % 3) + 1);
+    const map = buildArena(2026 + i, 1);
+    seenBiomes.add(map.biome.name);
     assert.equal(map.width, 28);
     assert.equal(map.depth, 28);
     assert.equal(map.walkable(map.start.x, map.start.z, 0.3), true);
@@ -26,17 +41,24 @@ test('open survival arena generates spacious walkable courtyard across seeds', (
     assert.ok(map.barrels.length >= 5);
     assert.ok(map.crates.length >= 5);
   }
+  assert.equal(buildArena(2026, 1).biome.name, 'Mitternachts-Imbiss');
+  assert.equal(seenBiomes.size, 3);
+  assert.equal(getDailySeed(new Date('2026-05-19T12:00:00Z')), 260519);
 });
 
-test('loadouts initialize unique starter weapons, HP, and speed profiles', () => {
+test('loadouts initialize unique starter weapons, HP, and speed profiles (including Knobi-Priester)', () => {
   const classic = newRun({ seed: 100, loadout: 'classic' });
   const runner = newRun({ seed: 100, loadout: 'runner' });
   const brawler = newRun({ seed: 100, loadout: 'brawler' });
+  const knobi = newRun({ seed: 100, loadout: 'knobi_chef' });
 
   assert.equal(classic.player.weapons.pan, 1);
   assert.equal(runner.player.weapons.skewer, 1);
   assert.equal(brawler.player.weapons.doner, 1);
+  assert.equal(knobi.player.weapons.knobi, 1);
   assert.equal(brawler.player.maxHp, LOADOUTS.brawler.maxHp);
+  assert.equal(knobi.player.maxHp, LOADOUTS.knobi_chef.maxHp);
+  assert.equal(knobi.player.clappers, LOADOUTS.knobi_chef.clappers);
   assert.ok(runner.player.clappers > classic.player.clappers);
 });
 
@@ -247,7 +269,8 @@ test('Hauke triggers Mega-Rülps on allies, eats 3 Spezi bombs, and enters Fress
   }
   hauke.burpCd = 0.01;
   advance(run, {});
-  assert.ok(run.barks.some((b) => b.text === 'BÖÖÖRPS!!'));
+  assert.ok(run.stats.burps >= 1);
+  assert.ok(run.barks.some((b) => /BÖÖÖRPS|KOHLENSÄURE/i.test(b.text)));
   if (anton) assert.ok(anton.hp < 999);
 
   // Feed 3 Spezi bombs to Hauke -> Fresskoma!
@@ -262,10 +285,148 @@ test('Hauke triggers Mega-Rülps on allies, eats 3 Spezi bombs, and enters Fress
   assert.ok(run.barks.some((b) => b.text.includes('FRESSKOMA')));
 });
 
-test('Chaos Events trigger cleanly when chaosTimer elapses', () => {
+test('All 6 Chaos Events trigger cleanly with expected gameplay effects', () => {
   const run = newRun({ seed: 556 });
   run.chaosTimer = 0.01;
   advance(run, {});
   assert.ok(run.chaosEvent !== null);
-  assert.ok(['ordnungsamt', 'happy_hour', 'fettbahn'].includes(run.chaosEvent.id));
+  assert.ok(CHAOS_EVENTS.some((ev) => ev.id === run.chaosEvent.id));
+
+  for (const ev of CHAOS_EVENTS) {
+    const r = newRun({ seed: 600 });
+    const prevDucks = r.pickups.filter((pk) => pk.kind === 'duck').length;
+    triggerChaosEvent(r, ev.id);
+    assert.equal(r.chaosEvent.id, ev.id);
+    assert.ok(r.stats.chaosEvents >= 1);
+    if (ev.id === 'enten_regen') {
+      assert.ok(r.pickups.filter((pk) => pk.kind === 'duck').length >= prevDucks + 3);
+    }
+    if (ev.id === 'kartenzahlung') {
+      const xpBefore = r.player.xp;
+      const expected = 2 * 2 * (r.map.mutator?.scoreMult || 1);
+      r.pickups.push({
+        id: 8888, kind: 'xp', x: r.player.x + 0.2, z: r.player.z,
+        value: 2, tone: 'gold', magnetized: false, collected: false, age: 0,
+      });
+      advance(r, {});
+      assert.ok(Math.abs((r.player.xp - xpBefore) - expected) < 0.01);
+    }
+  }
+});
+
+test('Weapon Evolutions appear on slot 0 when synergy conditions are met and enhance combat', () => {
+  for (const evo of EVOLUTIONS) {
+    const run = newRun({ seed: 2026 });
+    run.player.weapons[evo.weapon] = 3;
+    if (evo.synergy in run.player.passives) run.player.passives[evo.synergy] = 1;
+    else run.player.weapons[evo.synergy] = 1;
+    run.pendingLevelUps = 1;
+    advance(run, {});
+
+    assert.equal(run.state, 'levelup');
+    assert.equal(run.upgradeOffers[0].id, evo.id);
+    assert.equal(run.upgradeOffers[0].isEvo, true);
+
+    applyUpgrade(run, evo.id);
+    assert.equal(run.state, 'playing');
+    assert.equal(run.player.evolutions.has(evo.id), true);
+    assert.equal(run.stats.evolutions, 1);
+  }
+
+  // Verify evo_pan creates a 360° fiery shockwave explosion on manual Schelle
+  const evoRun = newRun({ seed: 2026 });
+  evoRun.player.weapons.pan = 3;
+  evoRun.player.passives.chili = 1;
+  evoRun.player.evolutions.add('evo_pan');
+  advance(evoRun, { bonk: true });
+  assert.ok(evoRun.explosions.length >= 1);
+});
+
+test('Upgrade reroll consumes a reroll charge and refreshes level-up offers', () => {
+  const run = newRun({ seed: 707 });
+  run.pendingLevelUps = 1;
+  advance(run, {});
+  assert.equal(run.state, 'levelup');
+  assert.equal(run.player.rerolls, 2);
+
+  const firstOfferIds = run.upgradeOffers.map((o) => o.id);
+  const ok1 = rerollUpgrades(run);
+  assert.equal(ok1, true);
+  assert.equal(run.player.rerolls, 1);
+  assert.equal(run.upgradeOffers.length, 3);
+  assert.notDeepEqual(run.upgradeOffers.map((o) => o.id), firstOfferIds);
+
+  assert.equal(rerollUpgrades(run), true);
+  assert.equal(run.player.rerolls, 0);
+  assert.equal(rerollUpgrades(run), false);
+});
+
+test('Combo milestone at 10 kills grants bonus Aura, heal, and milestone bark', () => {
+  const run = newRun({ seed: 808 });
+  run.player.combo = 9;
+  run.player.comboTimer = 3.0;
+  run.player.hp = 60;
+  const pfandBefore = run.player.pfand;
+  run.enemies = [{
+    id: 901, type: 'anton', elite: false, x: run.player.x + 1.0, z: run.player.z,
+    angle: Math.PI, hp: 5, maxHp: 20, speed: 0, radius: 0.32, damage: 5,
+    dead: false, moving: false, stunned: 0, slowed: 0, exposed: 0, hitFlash: 0,
+    burning: 0, donerCd: 0, knockX: 0, knockZ: 0, knockTime: 0, lootBank: 0,
+    hasCrown: false, panicked: 0, stuffed: 0, coma: 0, burpCd: 0,
+    slideVx: 0, slideVz: 0, chargeState: 'none', chargeTimer: 0, chargeDir: { x: 0, z: 0 }, enraged: false, koTimer: 0,
+  }];
+  run.player.angle = 0;
+
+  advance(run, { bonk: true });
+  assert.equal(run.player.combo, 10);
+  assert.equal(run.player.comboTier, 10);
+  assert.ok(run.player.pfand >= pfandBefore + 250);
+  assert.ok(run.player.hp > 60);
+  assert.ok(run.events.some((ev) => ev.kind === 'combo_milestone'));
+});
+
+test('Killer-specific death roasts match Hauke, Tom, and Anton', () => {
+  for (const killerType of ['hauke', 'tom', 'anton']) {
+    const run = newRun({ seed: 909 });
+    run.player.helmet = false;
+    run.player.invuln = 0;
+    run.player.hp = 1;
+    run.enemies = [{
+      id: 950, type: killerType, elite: false, x: run.player.x + 0.1, z: run.player.z,
+      angle: Math.PI, hp: 50, maxHp: 50, speed: 0, radius: 0.4, damage: 25,
+      dead: false, moving: false, stunned: 0, slowed: 0, exposed: 0, hitFlash: 0,
+      burning: 0, donerCd: 0, knockX: 0, knockZ: 0, knockTime: 0, lootBank: 0,
+      hasCrown: false, panicked: 0, stuffed: 0, coma: 0, burpCd: 0,
+      slideVx: 0, slideVz: 0, chargeState: 'none', chargeTimer: 0, chargeDir: { x: 0, z: 0 }, enraged: false, koTimer: 0,
+    }];
+    advance(run, {});
+    assert.equal(run.state, 'caught');
+    assert.equal(run.caughtBy, killerType);
+    assert.ok(DEATH_ROASTS[killerType].some((line) => run.deathReason.includes(line)));
+  }
+});
+
+test('Rival challenge marks beaten and formatShareReceipt builds WhatsApp-ready Kassenbon', () => {
+  const run = newRun({ seed: 2026, loadout: 'knobi_chef', beatScore: 500, beatFrom: 'Anton' });
+  assert.equal(run.challenge.score, 500);
+  assert.equal(run.challenge.beaten, false);
+
+  run.player.pfand = 750;
+  run.player.evolutions.add('evo_pan');
+  run.stats.evolutions = 1;
+  run.stats.ducks = 2;
+  advance(run, {});
+  assert.equal(run.challenge.beaten, true);
+  assert.ok(run.events.some((ev) => ev.kind === 'ka_ching'));
+
+  const badges = computeBadges(run);
+  assert.ok(badges.some((b) => b.label.includes('EVOLUTIONS-CHEF')));
+  assert.ok(badges.some((b) => b.label.includes('ENTEN-FLÜSTERER')));
+
+  const text = formatShareReceipt(run, 'https://example.com/?seed=2026&beat=750');
+  assert.ok(text.includes('IMBISS-SURVIVAL KASSENBON (#2026)'));
+  assert.ok(text.includes('Knobi-Priester'));
+  assert.ok(text.includes('SCHELLEN-INFERNO'));
+  assert.ok(text.includes('GEKNACKT!'));
+  assert.ok(text.includes('https://example.com/?seed=2026&beat=750'));
 });

@@ -1,4 +1,4 @@
-import { buildArena, LOADOUTS, randomFrom, UPGRADE_POOL } from './level.js';
+import { buildArena, EVOLUTIONS, LOADOUTS, randomFrom, UPGRADE_POOL } from './level.js';
 
 export const STEP = 1 / 60;
 export const WAVE_DURATION = 30;
@@ -47,16 +47,142 @@ function emitVfx(run, fx) {
   if (run.vfx.length < 48) run.vfx.push(fx);
 }
 
-const ANTON_QUIPS = ['NOCH PFAND DRAUF?!', 'HAB NUR 50 CENT!', 'AU MEIN SCHIENBEIN!', 'SCHON WIEDER MONTAG!', 'WO IST MEIN DÖNER?!'];
-const TOM_QUIPS = ['MEINS!!', 'GRATIS SNACK!', 'PFAND-JACKPOT!'];
-const KNOBI_QUIPS = ['BOAH KNOBI!!', 'KEIN TZATZIKI!!', 'FRISCHER ATEM!'];
-const CHAOS_EVENTS = [
+const ANTON_QUIPS = [
+  'NOCH PFAND DRAUF?!',
+  'HAB NUR 50 CENT!',
+  'AU MEIN SCHIENBEIN!',
+  'SCHON WIEDER MONTAG!',
+  'WO IST MEIN DÖNER?!',
+  'KANN MAN MIT KARTE?!',
+  '1 STERN AUF GOOGLE!!',
+  'ICH RUF MEIN ANWALT!',
+  'MEIN ANZUG IST VON ZARA!',
+  'OHNE ZWIEBELN BITTE!',
+  'HABT IHR AUCH VEGAN?!',
+  'KEIN BON = STEUERBETRUG!',
+  'WO IST DER MANAGER?!',
+  'ICH WILL DIE QUITTUNG!',
+];
+const ANTON_KO_QUIPS = [
+  'ICH WOLLT NUR POMMES...',
+  'BEWERTUNG IST RAUS!!',
+  'MEIN PFAND!!',
+  'NIE WIEDER DIESER LADEN!',
+  'KRIEG ICH MEIN GELD ZURÜCK?',
+];
+const TOM_QUIPS = [
+  'MEINS!!',
+  'GRATIS SNACK!',
+  'PFAND-JACKPOT!',
+  'ICH ZAHL MORGEN BRO!',
+  'PAYPAL GEHT GRAD NICHT!',
+  'DARF ICH MAL ABBEISSEN?',
+  'NUR EIN SCHLUCK SPEZI!',
+];
+const KNOBI_QUIPS = [
+  'BOAH KNOBI!!',
+  'KEIN TZATZIKI!!',
+  'MEINE AUGEN BRENNEN!',
+  'FRISCHER ATEM!',
+  'WHOA KNOBLAUCH-KEULE!',
+  'ICH HABE HEUTE EIN DATE!!',
+];
+const HAUKE_SPAWN_QUIPS = [
+  'WO BLEIBT MEIN XXL-MENÜ?!',
+  'EINMAL ALLES MIT EXTRA KÄSE!',
+  'SEIT 15 MIN NIX GEGESSEN!!',
+];
+const HAUKE_CHARGE_QUIPS = [
+  'PLATZ DA! BUFFET ÖFFNET!',
+  'ACHTUNG KUGELBLITZ!!',
+  'ICH ROLL JETZT DURCH!',
+];
+const HAUKE_SLAM_QUIPS = [
+  'WER HAT DIE WAND DA HINGESTELLT?!',
+  'AUFSTAND DER WAMPE!',
+  'MEIN BAUCH!!',
+];
+const HAUKE_SNACK_QUIPS = [
+  'HAPS! LECKER SPEZI!',
+  'NOM NOM ZUCKER-SCHUB!',
+  'BOAH EISKALT!!',
+];
+const HAUKE_BURP_QUIPS = [
+  'BÖÖÖRPS!!',
+  'SORRY, WAR KOHLENSÄURE!',
+  'SCHULZ!! BÖÖÖRPS!',
+];
+const DODGE_QUIPS = [
+  'PERFECT DODGE!',
+  'ZU LANGSAM, BRE!',
+  'ANKLE-BREAKER!!',
+  'NICHT AUF DIE SNEAKER!',
+];
+const SLIP_QUIPS = [
+  'NASSER SOCKE!!',
+  'TOKYO DRIFT IM IMBISS!',
+  'FETT-GLITZE!!',
+  'RUTSCH-TURBO!',
+];
+const VENDING_QUIPS = [
+  'SPÄTI-REFILL! +30 HP',
+  'KALTES SPEZI RETTET LEBEN!',
+  'SCHICHT-KAFFEE BALLERT!',
+];
+const SCHELLE_MULTI_QUIPS = [
+  'GRATIS SCHELLE FÜR ALLE!',
+  'ALLE IN DIE FRITTEUSE!!',
+  'MIT SCHARF UND OHNE GNADE!',
+  'KÜCHENSCHLUSS, JUNGS!!',
+];
+
+export const TITLE_TICKERS = [
+  'Heute im Angebot: 1× Power-Schelle mit Scharf · Kartenzahlung leider defekt.',
+  'Achtung: Schnorrer Tom zahlt „morgen über PayPal“ — glaub ihm kein Wort!',
+  'Geheimtipp: Füttere Boss Hauke mit 3 Spezi-Granaten für sofortiges Fresskoma!',
+  'Kombi-Tipp: Gold-Pfanne Lv 3 + Scharfe Soße = SCHELLEN-INFERNO ★',
+  'Ordnungsamt-Warnung: Alle Antons ohne Gewerbe bitte unauffällig rennen!',
+  'Pro-Tipp: Teile deinen Kassenbon nach der Schicht & fordere deine Kumpels heraus!',
+];
+
+export const DEATH_ROASTS = {
+  hauke: [
+    'Hauke hat dich mit Menü #4 (XXL + Pommes) verwechselt!',
+    'Vom Bauch-Express überfahren — Gesundheit!',
+    'Hauke fragte nach Nachtisch. Du warst der Nachtisch.',
+    'Haukes Gravitationsfeld war heute leider stärker als deine Pfanne.',
+  ],
+  tom: [
+    'Schnorrer Tom hat dir sogar das allerletzte HP geschnorrt!',
+    'Tom zahlt dir deine HP „nächste Woche über PayPal zurück“.',
+    'Ausgeraubt von einem Typen mit umgedrehter Cap — bitter!',
+  ],
+  anton: [
+    'Anton hat dir 1 Stern auf Google gegeben — kritischer Treffer!',
+    'Von einer Horde Praktikanten ohne Kleingeld überrannt.',
+    'Anton wollte „nur kurz fragen ob die Pfanne glutenfrei ist“.',
+    'Zu viele Antons, zu wenig Bratpfanne — Schichtende!',
+  ],
+};
+
+export const RECEIPT_FOOTERS = [
+  'Kartenzahlung erst ab 999.999 ⚡ — EC-Gerät „leider kaputt“.',
+  'Enthält Spuren von Knoblauch, Pfand-Ehre und Haukes Kohlensäure.',
+  'Trinkgeld: 0,00 € (Typisch Schnorrer Tom).',
+  'Google-Bewertung: 5/5 Sterne — „Schelle war knusprig, gerne wieder!“',
+  'MwSt. 7% (Mitnahme) · Rückgabe von Schellen ausgeschlossen.',
+];
+
+export const CHAOS_EVENTS = [
   { id: 'ordnungsamt', title: 'ORDNUNGSAMT KOMMT!!', sub: 'Antons rennen in Panik weg!' },
   { id: 'happy_hour', title: 'SPEZI HAPPY HOUR!!', sub: '-45% Cooldowns & Gratis-Dosen!' },
   { id: 'fettbahn', title: 'FRITTEUSEN-ÖL AUSGELAUFEN!!', sub: 'Gegner schlittern unkontrolliert!' },
+  { id: 'kartenzahlung', title: 'NUR BARZAHLUNG!!', sub: 'Antons schockiert · 2× Pfand-XP!' },
+  { id: 'doenerpreis', title: 'DÖNER KOSTET 9,50 €!!', sub: 'Wut-Inflation · Gold-XP-Regen!' },
+  { id: 'enten_regen', title: 'QUIETSCHEENTEN-INVASION!!', sub: '3 Mega-Enten gelandet — QUAAAK!!' },
 ];
 
-function quip(run, x, y, z, list, tone = 'gold', duration = 1.05, minGap = 2.1) {
+function quip(run, x, y, z, list, tone = 'gold', duration = 1.05, minGap = 1.9) {
   if (run.time - (run.lastQuipAt ?? -99) < minGap || !list.length) return false;
   run.lastQuipAt = run.time;
   const text = list[Math.floor(run.rng() * list.length)];
@@ -77,6 +203,8 @@ export function getStats(run) {
   const mut = run.map.mutator ?? {};
   const shadowMode = !p.lamp;
   const happyHour = run.chaosEvent?.id === 'happy_hour';
+  const cashOnly = run.chaosEvent?.id === 'kartenzahlung';
+  const inflation = run.chaosEvent?.id === 'doenerpreis';
   const espresso = p.passives.espresso || 0;
   const magnet = p.passives.magnet || 0;
   const chili = p.passives.chili || 0;
@@ -92,7 +220,7 @@ export function getStats(run) {
     dashCdMult: loadout.dashCdMult * Math.max(0.35, 1 - dashMod * 0.16),
     bonkCdMult: loadout.bonkCdMult,
     magnetRadius: 2.65 * loadout.magnetMult * (1 + magnet * 0.38),
-    xpMult: (mut.scoreMult || 1) * (1 + magnet * 0.18),
+    xpMult: (mut.scoreMult || 1) * (1 + magnet * 0.18) * (cashOnly ? 2.0 : inflation ? 1.5 : 1),
   };
 }
 
@@ -162,8 +290,32 @@ function shiftBodyWithSlam(run, body, dx, dz, radius = 0.28) {
   return wallHit;
 }
 
-function buildUpgradeOffers(run) {
-  const { weapons, passives } = run.player;
+function buildUpgradeOffers(run, excludeIds = null) {
+  const { weapons, passives, evolutions } = run.player;
+  const readyEvos = [];
+  for (const evo of EVOLUTIONS) {
+    if (evolutions?.has(evo.id)) continue;
+    const wLv = weapons[evo.weapon] || 0;
+    const sLv = (passives[evo.synergy] || 0) + (weapons[evo.synergy] || 0);
+    if (wLv >= 3 && sLv >= 1) {
+      readyEvos.push({
+        id: evo.id,
+        kind: 'evolution',
+        isEvo: true,
+        isNew: true,
+        name: evo.name,
+        icon: evo.icon,
+        tint: evo.tint,
+        nextLevel: '★',
+        desc: evo.desc,
+      });
+    }
+  }
+  for (let i = readyEvos.length - 1; i > 0; i--) {
+    const j = Math.floor(run.rng() * (i + 1));
+    [readyEvos[i], readyEvos[j]] = [readyEvos[j], readyEvos[i]];
+  }
+
   const candidates = [];
   for (const item of UPGRADE_POOL) {
     const cur = item.kind === 'weapon' ? (weapons[item.id] || 0) : (passives[item.id] || 0);
@@ -171,6 +323,7 @@ function buildUpgradeOffers(run) {
       candidates.push({
         id: item.id,
         kind: item.kind,
+        isEvo: false,
         name: item.name,
         icon: item.icon,
         tint: item.tint,
@@ -185,7 +338,28 @@ function buildUpgradeOffers(run) {
     const j = Math.floor(run.rng() * (i + 1));
     [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
   }
-  return candidates.slice(0, 3);
+
+  const offers = [];
+  if (readyEvos.length > 0) offers.push(readyEvos[0]);
+  const needed = 3 - offers.length;
+  let pool = candidates;
+  if (excludeIds && excludeIds.size > 0) {
+    const fresh = candidates.filter((c) => !excludeIds.has(c.id));
+    if (fresh.length >= needed) pool = fresh;
+  }
+  for (let i = 0; i < Math.min(needed, pool.length); i++) offers.push(pool[i]);
+  return offers;
+}
+
+export function rerollUpgrades(run) {
+  if (!run || run.state !== 'levelup' || (run.player.rerolls || 0) <= 0) return false;
+  const prevIds = new Set(run.upgradeOffers.map((o) => o.id));
+  const next = buildUpgradeOffers(run, prevIds);
+  if (next.length === 0) return false;
+  run.player.rerolls -= 1;
+  run.upgradeOffers = next;
+  emitEvent(run, 'reroll', run.player.x, run.player.z);
+  return true;
 }
 
 export function newRun(options = {}) {
@@ -233,7 +407,10 @@ export function newRun(options = {}) {
     pfand: 0,
     combo: 1,
     comboTimer: 0,
+    comboTier: 0,
     maxCombo: 1,
+    rerolls: 2,
+    evolutions: new Set(),
     weapons,
     passives,
     novaRadius: 2.45 * loadout.areaMult,
@@ -251,6 +428,14 @@ export function newRun(options = {}) {
 
   const crates = map.crates.map((c) => ({ ...c }));
   const barrels = map.barrels.map((b) => ({ ...b }));
+  const beatScore = Number(options.beatScore);
+  const challenge = Number.isFinite(beatScore) && beatScore > 0
+    ? {
+        score: Math.round(beatScore),
+        from: String(options.beatFrom || 'Kumpel').trim().slice(0, 18) || 'Kumpel',
+        beaten: false,
+      }
+    : null;
 
   const run = {
     seed,
@@ -261,6 +446,7 @@ export function newRun(options = {}) {
     rng,
     map,
     player,
+    challenge,
     enemies: [],
     antons: [],
     listener: null,
@@ -271,7 +457,7 @@ export function newRun(options = {}) {
     crateRespawn: 14,
     barrelRespawn: 11,
     duckSpawnTimer: 16,
-    chaosTimer: 26,
+    chaosTimer: 24,
     chaosEvent: null,
     lastQuipAt: -5,
     projectiles: [],
@@ -308,11 +494,18 @@ export function newRun(options = {}) {
       antonKills: 0,
       tomKills: 0,
       haukeKills: 0,
+      elites: 0,
       bonks: 0,
       wallSlams: 0,
       barrels: 0,
       dodges: 0,
       chests: 0,
+      ducks: 0,
+      burps: 0,
+      fresskomas: 0,
+      crownsRecovered: 0,
+      chaosEvents: 0,
+      evolutions: 0,
     },
   };
 
@@ -482,30 +675,46 @@ function triggerPendingLevelUp(run) {
 }
 
 export function applyUpgrade(run, upgradeId) {
-  const def = UPGRADE_POOL.find((u) => u.id === upgradeId);
-  if (!def) {
-    run.upgradeOffers = [];
-    run.state = 'playing';
-    return run;
-  }
   const { player } = run;
-  if (def.kind === 'weapon') {
-    player.weapons[def.id] = Math.min(def.maxLevel, (player.weapons[def.id] || 0) + 1);
-    if (def.id === 'can') player.clappers = Math.min(12, player.clappers + 2);
+  const evo = EVOLUTIONS.find((e) => e.id === upgradeId);
+  if (evo) {
+    player.evolutions.add(evo.id);
+    run.mods.add(evo.id);
+    run.stats.evolutions += 1;
+    player.hp = Math.min(player.maxHp, player.hp + 20);
+    player.pfand += 500;
+    if (evo.id === 'evo_can') player.clappers = Math.min(12, player.clappers + 3);
+    run.upgradeOffers = [];
+    run.cameraShake = Math.max(run.cameraShake, 0.42);
+    emitEvent(run, 'evolve', player.x, player.z);
+    emitVfx(run, { kind: 'coin_burst', x: player.x, z: player.z });
+    notice(run, `★ EVOLUTION: ${evo.name} freigeschaltet!`, 3.2);
+    bark(run, player.x, 1.95, player.z, `★ ${evo.name}!!`, evo.tint, 1.45);
   } else {
-    player.passives[def.id] = Math.min(def.maxLevel, (player.passives[def.id] || 0) + 1);
-    if (def.id === 'crown') {
-      player.maxHp += 25;
-      player.hp = Math.min(player.maxHp, player.hp + 35);
-      player.helmet = true;
-      run.droppedHelmet = null;
-      player.crownRegen = 0;
+    const def = UPGRADE_POOL.find((u) => u.id === upgradeId);
+    if (!def) {
+      run.upgradeOffers = [];
+      run.state = 'playing';
+      return run;
     }
+    if (def.kind === 'weapon') {
+      player.weapons[def.id] = Math.min(def.maxLevel, (player.weapons[def.id] || 0) + 1);
+      if (def.id === 'can') player.clappers = Math.min(12, player.clappers + 2);
+    } else {
+      player.passives[def.id] = Math.min(def.maxLevel, (player.passives[def.id] || 0) + 1);
+      if (def.id === 'crown') {
+        player.maxHp += 25;
+        player.hp = Math.min(player.maxHp, player.hp + 35);
+        player.helmet = true;
+        run.droppedHelmet = null;
+        player.crownRegen = 0;
+      }
+    }
+    run.mods.add(def.id);
+    run.upgradeOffers = [];
+    notice(run, `${def.name} Lv ${def.kind === 'weapon' ? player.weapons[def.id] : player.passives[def.id]} aktiv!`, 2.2);
+    bark(run, player.x, 1.85, player.z, `${def.name.toUpperCase()}!`, def.tint, 1.15);
   }
-  run.mods.add(def.id);
-  run.upgradeOffers = [];
-  notice(run, `${def.name} Lv ${def.kind === 'weapon' ? player.weapons[def.id] : player.passives[def.id]} aktiv!`, 2.2);
-  bark(run, player.x, 1.85, player.z, `${def.name.toUpperCase()}!`, def.tint, 1.15);
 
   if (run.pendingLevelUps > 0) {
     const nextOffers = buildUpgradeOffers(run);
@@ -532,6 +741,7 @@ export function finishRunCashOut(run) {
 function releaseStolenCrown(run, tom) {
   if (!tom?.hasCrown) return;
   tom.hasCrown = false;
+  run.stats.crownsRecovered += 1;
   run.player.pfand += 450;
   const dx = run.player.x - tom.x;
   const dz = run.player.z - tom.z;
@@ -549,24 +759,47 @@ function releaseStolenCrown(run, tom) {
   bark(run, tom.x, 1.75, tom.z, 'KRONE ZURÜCKGEKLATSCHT!!', 'gold', 1.3);
 }
 
+const COMBO_MILESTONES = [
+  { n: 10, label: '10× IMBISS-SERIE!', bonus: 250, heal: 8 },
+  { n: 25, label: '25× DÖNER-GOTT!!', bonus: 600, heal: 14 },
+  { n: 50, label: '50× STAMMKUNDEN-SCHRECK!!', bonus: 1200, heal: 20 },
+  { n: 100, label: '100× MICHELIN-STERN!!', bonus: 2500, heal: 30 },
+];
+
 function registerKill(run, enemy) {
   if (enemy.dead) return;
   enemy.dead = true;
   const { player, stats } = run;
   stats.kills += 1;
   player.kills += 1;
-  player.combo = Math.min(99, player.combo + 1);
+  player.combo = Math.min(999, player.combo + 1);
   player.comboTimer = 3.2;
   player.maxCombo = Math.max(player.maxCombo, player.combo);
+
+  for (const m of COMBO_MILESTONES) {
+    if (player.combo >= m.n && player.comboTier < m.n) {
+      player.comboTier = m.n;
+      player.pfand += m.bonus;
+      player.hp = Math.min(player.maxHp, player.hp + m.heal);
+      emitEvent(run, 'combo_milestone', player.x, player.z);
+      emitVfx(run, { kind: 'coin_burst', x: player.x, z: player.z });
+      bark(run, player.x, 1.95, player.z, m.label, 'gold', 1.35);
+      notice(run, `${m.label} (+${m.bonus} ⚡ & +${m.heal} HP)`, 2.6);
+    }
+  }
 
   if (enemy.hasCrown) releaseStolenCrown(run, enemy);
 
   if (enemy.type === 'anton') {
     stats.antonKills += 1;
+    if (enemy.elite) stats.elites += 1;
     player.pfand += enemy.elite ? 280 : 90;
     const xpVal = enemy.elite ? 10 : run.wave >= 4 ? 3 : 1;
     const xpTone = enemy.elite ? 'gold' : run.wave >= 4 ? 'cyan' : 'jade';
     spawnPickup(run, 'xp', enemy.x, enemy.z, xpVal, xpTone);
+    if (run.chaosEvent?.id === 'doenerpreis' && run.rng() < 0.45) {
+      spawnPickup(run, 'xp', enemy.x + 0.25, enemy.z - 0.2, 4, 'gold');
+    }
     if (enemy.elite) {
       spawnPickup(run, run.rng() < 0.65 ? 'heal' : 'magnet_can', enemy.x + 0.35, enemy.z - 0.2, 25, 'vermilion');
       emitVfx(run, { kind: 'coin_burst', x: enemy.x, z: enemy.z });
@@ -574,6 +807,9 @@ function registerKill(run, enemy) {
       spawnPickup(run, 'dose', enemy.x + 0.15, enemy.z, 2, 'gold');
     } else if (run.rng() < 0.03) {
       spawnPickup(run, 'heal', enemy.x - 0.15, enemy.z, 25, 'vermilion');
+    }
+    if (!enemy.elite && run.rng() < 0.22) {
+      quip(run, enemy.x, 1.45, enemy.z, ANTON_KO_QUIPS, 'vermilion', 1.0, 2.8);
     }
   } else if (enemy.type === 'tom') {
     stats.tomKills += 1;
@@ -632,8 +868,8 @@ function damageEnemy(run, enemy, rawDmg, opts = {}) {
     releaseStolenCrown(run, enemy);
   } else if (opts.label) {
     bark(run, enemy.x, 1.45, enemy.z, opts.label, opts.tone ?? 'gold', 0.85);
-  } else if (enemy.type === 'anton' && run.rng() < 0.16) {
-    quip(run, enemy.x, 1.45, enemy.z, ANTON_QUIPS, 'gold', 0.95, 2.5);
+  } else if (enemy.type === 'anton' && run.rng() < 0.18) {
+    quip(run, enemy.x, 1.45, enemy.z, ANTON_QUIPS, 'gold', 0.95, 2.3);
   }
 
   if (enemy.type === 'hauke' && !enemy.enraged && enemy.hp > 0 && enemy.hp <= enemy.maxHp * 0.5) {
@@ -752,9 +988,10 @@ function hurtPlayer(run, amount, attacker) {
   if (player.hp <= 0) {
     run.state = 'caught';
     run.caughtBy = attacker?.type ?? 'anton';
-    run.deathReason = attacker?.type === 'hauke'
-      ? `Von Hauke in Welle ${run.wave} überrollt!`
-      : `In Welle ${run.wave} (Level ${player.level}) überwältigt.`;
+    const killerKey = DEATH_ROASTS[run.caughtBy] ? run.caughtBy : 'anton';
+    const pool = DEATH_ROASTS[killerKey];
+    const roast = pool[Math.floor(run.rng() * pool.length)];
+    run.deathReason = `${roast} (Welle ${run.wave} · Lv ${player.level})`;
     emitEvent(run, 'caught', player.x, player.z);
     return true;
   }
@@ -765,12 +1002,13 @@ function firePanSwing(run, isManual = false) {
   const { player } = run;
   const stats = getStats(run);
   const panLv = Math.max(1, player.weapons.pan || 0);
+  const hasEvo = player.evolutions.has('evo_pan');
   const isFinisher = isManual && player.comboStep === 2;
-  const radius = (2.4 + panLv * 0.16) * stats.areaMult * (isFinisher ? 1.28 : isManual ? 1.12 : 1.0);
-  const baseDmg = (11 + panLv * 4.5) * (isFinisher ? 1.6 : isManual ? 1.25 : 1.0);
+  const radius = (2.4 + panLv * 0.16) * stats.areaMult * (isFinisher ? 1.28 : isManual ? 1.12 : 1.0) * (hasEvo ? 1.32 : 1.0);
+  const baseDmg = (11 + panLv * 4.5) * (isFinisher ? 1.6 : isManual ? 1.25 : 1.0) * (hasEvo ? 1.45 : 1.0);
 
-  player.swing = isFinisher ? 0.42 : 0.32;
-  player.finisherSwing = isFinisher ? 0.42 : 0;
+  player.swing = isFinisher || hasEvo ? 0.44 : 0.32;
+  player.finisherSwing = isFinisher || hasEvo ? 0.44 : 0;
   player.novaRadius = radius;
   if (isManual) {
     run.stats.bonks += 1;
@@ -780,6 +1018,9 @@ function firePanSwing(run, isManual = false) {
 
   emitEvent(run, 'bonk', player.x, player.z);
   emitVfx(run, { kind: 'bonk_swing', x: player.x, z: player.z });
+  if (hasEvo) {
+    run.explosions.push({ x: player.x, z: player.z, radius, age: 0, maxAge: 0.32, color: 0xff5a2c });
+  }
 
   const fx = Math.cos(player.angle);
   const fz = Math.sin(player.angle);
@@ -791,17 +1032,17 @@ function firePanSwing(run, isManual = false) {
     const dz = enemy.z - player.z;
     const dist = Math.hypot(dx, dz);
     if (dist > radius + enemy.radius) continue;
-    if (!isFinisher && isManual && dist > radius * 0.65) {
+    if (!hasEvo && !isFinisher && isManual && dist > radius * 0.65) {
       const dot = (dx * fx + dz * fz) / (dist || 1);
       if (dot < -0.45) continue;
     }
     hitCount++;
     damageEnemy(run, enemy, baseDmg, {
-      knock: isFinisher ? 14 : 9.5,
-      stun: isFinisher ? 0.55 : 0.2,
-      burn: panLv >= 4,
-      label: isFinisher && hitCount === 1 ? 'MEGA-SCHELLE!' : null,
-      tone: 'gold',
+      knock: (isFinisher ? 14 : 9.5) * (hasEvo ? 1.45 : 1.0),
+      stun: isFinisher || hasEvo ? 0.55 : 0.2,
+      burn: hasEvo || panLv >= 4,
+      label: hasEvo && hitCount === 1 ? 'SCHELLEN-INFERNO!' : isFinisher && hitCount === 1 ? 'MEGA-SCHELLE!' : null,
+      tone: hasEvo ? 'vermilion' : 'gold',
     });
   }
 
@@ -828,9 +1069,10 @@ function firePanSwing(run, isManual = false) {
   }
 
   if (hitCount > 0) {
-    run.cameraShake = Math.max(run.cameraShake, isFinisher ? 0.36 : 0.18);
+    run.cameraShake = Math.max(run.cameraShake, isFinisher || hasEvo ? 0.36 : 0.18);
     if (isManual && hitCount >= 4) {
-      bark(run, player.x, 1.9, player.z, hitCount >= 6 ? 'ALLE IN DIE FRITTEUSE!!' : 'GRATIS SCHELLE FÜR ALLE!', 'gold', 1.15);
+      const line = SCHELLE_MULTI_QUIPS[Math.floor(run.rng() * SCHELLE_MULTI_QUIPS.length)];
+      bark(run, player.x, 1.9, player.z, line, 'gold', 1.15);
     }
   }
 }
@@ -843,9 +1085,10 @@ function fireSkewers(run) {
   if (alive.length === 0) return;
 
   alive.sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));
-  const count = 1 + lv;
-  const pierce = 1 + Math.floor(lv / 2);
-  const dmg = 10 + lv * 3.5;
+  const hasEvo = player.evolutions.has('evo_skewer');
+  const count = (hasEvo ? 3 : 1) + lv;
+  const pierce = (hasEvo ? 3 : 1) + Math.floor(lv / 2);
+  const dmg = (10 + lv * 3.5) * (hasEvo ? 1.3 : 1);
 
   for (let i = 0; i < count; i++) {
     const target = alive[i % alive.length];
@@ -854,10 +1097,11 @@ function fireSkewers(run) {
     const angle = baseAngle + spread;
     run.projectiles.push({
       kind: 'skewer',
+      evo: hasEvo,
       x: player.x + Math.cos(angle) * 0.45,
       z: player.z + Math.sin(angle) * 0.45,
-      vx: Math.cos(angle) * 16.5,
-      vz: Math.sin(angle) * 16.5,
+      vx: Math.cos(angle) * (hasEvo ? 19.5 : 16.5),
+      vz: Math.sin(angle) * (hasEvo ? 19.5 : 16.5),
       angle,
       damage: dmg,
       pierce,
@@ -898,6 +1142,15 @@ function fireSpeziAuto(run) {
   if (lv <= 0) return;
   const alive = run.enemies.filter((e) => !e.dead);
   if (alive.length === 0) return;
+  const hasEvo = run.player.evolutions.has('evo_spezi');
+  if (hasEvo) {
+    const pick = alive[Math.floor(run.rng() * alive.length)];
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + run.time;
+      launchSpeziBomb(run, pick.x + Math.cos(a) * 1.15, pick.z + Math.sin(a) * 1.15, 1.28, 1.3);
+    }
+    return;
+  }
   const count = 1 + Math.floor(lv / 3);
   for (let i = 0; i < count; i++) {
     const pick = alive[Math.floor(run.rng() * alive.length)];
@@ -967,6 +1220,7 @@ function fireKnobiAura(run) {
 }
 
 export function triggerDuckQuack(run, x = run.player.x, z = run.player.z) {
+  run.stats.ducks += 1;
   const radius = 7.5 * getStats(run).areaMult;
   emitEvent(run, 'duck_quack', x, z);
   emitVfx(run, { kind: 'coin_burst', x, z });
@@ -1007,6 +1261,7 @@ function throwCanProjectile(run, angleOverride = null, manual = false) {
     player.clappers -= 1;
   }
   const lv = Math.max(1, player.weapons.can || 0);
+  const hasEvo = player.evolutions.has('evo_can');
   let angle = angleOverride;
   if (angle === null) {
     const nearest = run.enemies
@@ -1014,18 +1269,19 @@ function throwCanProjectile(run, angleOverride = null, manual = false) {
       .sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z))[0];
     angle = nearest ? Math.atan2(nearest.z - player.z, nearest.x - player.x) : player.angle;
   }
-  const speed = 13.8 + lv * 0.8;
+  const speed = hasEvo ? 19.5 : 13.8 + lv * 0.8;
   run.throws.push({
     x: player.x + Math.cos(angle) * 0.4,
     z: player.z + Math.sin(angle) * 0.4,
     vx: Math.cos(angle) * speed,
     vz: Math.sin(angle) * speed,
-    bounces: (manual ? 3 : 2) + lv,
-    damage: (manual ? 22 : 12) + lv * 3.5,
+    bounces: hasEvo ? 8 : (manual ? 3 : 2) + lv,
+    damage: ((manual ? 22 : 12) + lv * 3.5) * (hasEvo ? 1.55 : 1),
     elapsed: 0,
-    duration: 2.1,
+    duration: hasEvo ? 2.8 : 2.1,
     hitCooldowns: new Map(),
     slapshot: false,
+    superCan: hasEvo,
   });
   emitEvent(run, 'throw', player.x, player.z);
   return true;
@@ -1045,38 +1301,45 @@ function updateAutoWeapons(run, dt) {
   if (player.weapons.skewer > 0) {
     player.timers.skewer -= dt;
     if (player.timers.skewer <= 0) {
-      player.timers.skewer = Math.max(0.36, (1.1 - player.weapons.skewer * 0.08) * stats.cdMult);
+      const evoMult = player.evolutions.has('evo_skewer') ? 0.62 : 1;
+      player.timers.skewer = Math.max(0.24, (1.1 - player.weapons.skewer * 0.08) * stats.cdMult * evoMult);
       fireSkewers(run);
     }
   }
   if (player.weapons.doner > 0) {
     const lv = player.weapons.doner;
-    player.donerAngle = (player.donerAngle + dt * (2.9 + lv * 0.42)) % (Math.PI * 2);
-    const count = 1 + lv;
-    const orbitR = (2.05 + lv * 0.14) * stats.areaMult;
+    const hasEvo = player.evolutions.has('evo_doner');
+    player.donerAngle = (player.donerAngle + dt * (2.9 + lv * 0.42) * (hasEvo ? 1.45 : 1)) % (Math.PI * 2);
+    const count = hasEvo ? 6 : 1 + lv;
+    const orbitR = (2.05 + lv * 0.14) * stats.areaMult * (hasEvo ? 1.28 : 1);
     for (let i = 0; i < count; i++) {
       const a = player.donerAngle + (i * Math.PI * 2) / count;
       const bx = player.x + Math.cos(a) * orbitR;
       const bz = player.z + Math.sin(a) * orbitR;
       for (const enemy of run.enemies) {
         if (enemy.dead || enemy.donerCd > 0) continue;
-        if (Math.hypot(enemy.x - bx, enemy.z - bz) <= 0.62 + enemy.radius) {
-          enemy.donerCd = 0.34;
-          damageEnemy(run, enemy, 8 + lv * 3, { knock: 4.5, knockX: enemy.x - player.x, knockZ: enemy.z - player.z });
+        if (Math.hypot(enemy.x - bx, enemy.z - bz) <= (hasEvo ? 0.8 : 0.62) + enemy.radius) {
+          enemy.donerCd = hasEvo ? 0.25 : 0.34;
+          damageEnemy(run, enemy, hasEvo ? 12 + lv * 4 : 8 + lv * 3, {
+            knock: hasEvo ? 6.5 : 4.5,
+            slow: hasEvo ? 0.85 : 0,
+            knockX: enemy.x - player.x,
+            knockZ: enemy.z - player.z,
+          });
         }
       }
       for (const crate of run.crates) {
-        if (!crate.broken && Math.hypot(crate.x - bx, crate.z - bz) <= 0.68) smashCrate(run, crate);
+        if (!crate.broken && Math.hypot(crate.x - bx, crate.z - bz) <= 0.72) smashCrate(run, crate);
       }
       for (const barrel of run.barrels) {
-        if (!barrel.exploded && Math.hypot(barrel.x - bx, barrel.z - bz) <= 0.62) detonateBarrel(run, barrel);
+        if (!barrel.exploded && Math.hypot(barrel.x - bx, barrel.z - bz) <= 0.68) detonateBarrel(run, barrel);
       }
     }
   }
   if (player.weapons.spezi > 0) {
     player.timers.spezi -= dt;
     if (player.timers.spezi <= 0) {
-      player.timers.spezi = Math.max(1.0, (2.6 - player.weapons.spezi * 0.2) * stats.cdMult);
+      player.timers.spezi = Math.max(0.85, (2.6 - player.weapons.spezi * 0.2) * stats.cdMult);
       fireSpeziAuto(run);
     }
   }
@@ -1090,8 +1353,8 @@ function updateAutoWeapons(run, dt) {
   if (player.weapons.can > 0) {
     player.timers.can -= dt;
     if (player.timers.can <= 0) {
-      player.timers.can = Math.max(0.95, (2.35 - player.weapons.can * 0.18) * stats.cdMult);
-      const shots = 1 + Math.floor(player.weapons.can / 2);
+      player.timers.can = Math.max(0.85, (2.35 - player.weapons.can * 0.18) * stats.cdMult);
+      const shots = 1 + Math.floor(player.weapons.can / 2) + (player.evolutions.has('evo_can') ? 1 : 0);
       for (let i = 0; i < shots; i++) {
         throwCanProjectile(run, i === 0 ? null : player.angle + i * 0.45, false);
       }
@@ -1123,6 +1386,9 @@ function advanceProjectilesAndBombs(run, dt) {
         p.hitIds.add(enemy.id);
         p.pierce -= 1;
         damageEnemy(run, enemy, p.damage, { knock: 4.0, knockX: p.vx, knockZ: p.vz });
+        if (p.evo && run.rng() < 0.35) {
+          spawnPickup(run, 'xp', enemy.x, enemy.z, 2, 'gold');
+        }
         if (p.pierce <= 0) break;
       }
     }
@@ -1233,6 +1499,62 @@ function advanceProjectilesAndBombs(run, dt) {
   }
 }
 
+export function triggerChaosEvent(run, eventId = null) {
+  const pick = eventId
+    ? (CHAOS_EVENTS.find((ev) => ev.id === eventId) ?? CHAOS_EVENTS[0])
+    : CHAOS_EVENTS[Math.floor(run.rng() * CHAOS_EVENTS.length)];
+  run.chaosEvent = { ...pick, timer: 12 };
+  run.stats.chaosEvents += 1;
+  emitEvent(run, 'chaos_event', run.player.x, run.player.z);
+  notice(run, `${pick.title} ${pick.sub}`, 3.4);
+  bark(run, run.player.x, 1.95, run.player.z, pick.title, 'cyan', 1.35);
+
+  if (pick.id === 'ordnungsamt') {
+    for (const e of run.enemies) {
+      if (!e.dead && e.type === 'anton') e.panicked = Math.max(e.panicked, 5.5);
+    }
+    const sample = run.enemies.find((e) => !e.dead && e.type === 'anton');
+    if (sample) bark(run, sample.x, 1.5, sample.z, 'HAB KEIN GEWERBE!!', 'vermilion', 1.2);
+  } else if (pick.id === 'happy_hour') {
+    run.player.clappers = Math.min(12, run.player.clappers + 3);
+    for (let i = 0; i < 2; i++) {
+      const bx = 3 + run.rng() * (run.map.width - 6);
+      const bz = 3 + run.rng() * (run.map.depth - 6);
+      if (run.map.walkable(bx, bz, 0.5) && run.barrels.length < 14) {
+        run.barrels.push({ x: bx, z: bz, exploded: false, fuse: 0 });
+      }
+    }
+  } else if (pick.id === 'fettbahn') {
+    bark(run, run.player.x, 1.55, run.player.z, 'ACHTUNG ÖL-TEPPICH!', 'gold', 1.15);
+  } else if (pick.id === 'kartenzahlung') {
+    emitEvent(run, 'ka_ching', run.player.x, run.player.z);
+    for (const e of run.enemies) {
+      if (!e.dead && e.type === 'anton') e.stunned = Math.max(e.stunned, 2.0);
+    }
+    const sample = run.enemies.find((e) => !e.dead && e.type === 'anton');
+    if (sample) bark(run, sample.x, 1.5, sample.z, 'WAS?! KEIN APPLE PAY?!', 'cyan', 1.25);
+  } else if (pick.id === 'doenerpreis') {
+    const sample = run.enemies.find((e) => !e.dead && e.type === 'anton');
+    if (sample) bark(run, sample.x, 1.5, sample.z, '9,50 €?! FRECHHEIT!!', 'vermilion', 1.25);
+    for (let i = 0; i < 3; i++) {
+      const gx = 3 + run.rng() * (run.map.width - 6);
+      const gz = 3 + run.rng() * (run.map.depth - 6);
+      if (run.map.walkable(gx, gz, 0.4)) spawnPickup(run, 'xp', gx, gz, 5, 'gold');
+    }
+  } else if (pick.id === 'enten_regen') {
+    let spawned = 0;
+    for (let attempt = 0; attempt < 24 && spawned < 3; attempt++) {
+      const dx = 3 + run.rng() * (run.map.width - 6);
+      const dz = 3 + run.rng() * (run.map.depth - 6);
+      if (run.map.walkable(dx, dz, 0.5)) {
+        spawnPickup(run, 'duck', dx, dz, 1, 'gold');
+        spawned++;
+      }
+    }
+  }
+  return run.chaosEvent;
+}
+
 function advanceWaveDirector(run, dt) {
   run.waveTimer += dt;
   const mut = run.map.mutator ?? {};
@@ -1245,9 +1567,13 @@ function advanceWaveDirector(run, dt) {
 
     const isBossWave = run.wave % bossInterval === 0;
     if (isBossWave) {
-      spawnEnemy(run, 'hauke');
+      const boss = spawnEnemy(run, 'hauke');
       notice(run, `WELLE ${run.wave}: MASSIV-RUND HAUKE ROLLT AN!`, 3.5);
       bark(run, run.player.x, 1.85, run.player.z, `BOSS WELLE ${run.wave}!`, 'vermilion', 1.4);
+      if (boss) {
+        const line = HAUKE_SPAWN_QUIPS[Math.floor(run.rng() * HAUKE_SPAWN_QUIPS.length)];
+        bark(run, boss.x, 2.05, boss.z, line, 'gold', 1.45);
+      }
     } else if (run.wave % 2 === 0 || mut.extraTom) {
       spawnEnemy(run, 'tom');
       notice(run, `WELLE ${run.wave}: Zechpreller Tom & Anton-Schwarm!`, 2.8);
@@ -1328,36 +1654,15 @@ function advanceWaveDirector(run, dt) {
     }
   }
 
-  // Imbiss-Chaos-Durchsagen (alle ~38s ein 12s-Event!)
+  // Imbiss-Chaos-Durchsagen (alle ~34s ein 12s-Event!)
   if (run.chaosEvent) {
     run.chaosEvent.timer -= dt;
     if (run.chaosEvent.timer <= 0) run.chaosEvent = null;
   } else {
     run.chaosTimer -= dt;
     if (run.chaosTimer <= 0) {
-      run.chaosTimer = 36 + run.rng() * 10;
-      const pick = CHAOS_EVENTS[Math.floor(run.rng() * CHAOS_EVENTS.length)];
-      run.chaosEvent = { ...pick, timer: 12 };
-      emitEvent(run, 'chaos_event', run.player.x, run.player.z);
-      notice(run, `${pick.title} ${pick.sub}`, 3.4);
-      bark(run, run.player.x, 1.95, run.player.z, pick.title, 'cyan', 1.35);
-
-      if (pick.id === 'ordnungsamt') {
-        for (const e of run.enemies) {
-          if (!e.dead && e.type === 'anton') e.panicked = Math.max(e.panicked, 5.5);
-        }
-        const sample = run.enemies.find((e) => !e.dead && e.type === 'anton');
-        if (sample) bark(run, sample.x, 1.5, sample.z, 'HAB KEIN GEWERBE!!', 'vermilion', 1.2);
-      } else if (pick.id === 'happy_hour') {
-        run.player.clappers = Math.min(12, run.player.clappers + 3);
-        for (let i = 0; i < 2; i++) {
-          const bx = 3 + run.rng() * (run.map.width - 6);
-          const bz = 3 + run.rng() * (run.map.depth - 6);
-          if (run.map.walkable(bx, bz, 0.5) && run.barrels.length < 14) {
-            run.barrels.push({ x: bx, z: bz, exploded: false, fuse: 0 });
-          }
-        }
-      }
+      run.chaosTimer = 32 + run.rng() * 10;
+      triggerChaosEvent(run);
     }
   }
 }
@@ -1367,6 +1672,7 @@ function advanceEnemies(run, dt) {
   const stats = getStats(run);
   const alive = run.enemies.filter((e) => !e.dead);
   const slipperyFloor = run.chaosEvent?.id === 'fettbahn';
+  const inflationRage = run.chaosEvent?.id === 'doenerpreis';
 
   for (const enemy of alive) {
     enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
@@ -1439,7 +1745,7 @@ function advanceEnemies(run, dt) {
             gem.collected = true;
             enemy.lootBank += gem.value;
             emitEvent(run, 'steal', enemy.x, enemy.z);
-            if (run.rng() < 0.35) quip(run, enemy.x, 1.45, enemy.z, TOM_QUIPS, 'jade', 0.9, 2.5);
+            if (run.rng() < 0.4) quip(run, enemy.x, 1.45, enemy.z, TOM_QUIPS, 'jade', 0.9, 2.3);
           }
         }
       }
@@ -1462,11 +1768,13 @@ function advanceEnemies(run, dt) {
             enemy.stuffed = (enemy.stuffed || 0) + 1;
             enemy.hp = Math.min(enemy.maxHp, enemy.hp + 12);
             emitEvent(run, 'steal', enemy.x, enemy.z);
-            bark(run, enemy.x, 1.95, enemy.z, 'HAPS! LECKER SPEZI!', 'gold', 1.15);
+            const snackLine = HAUKE_SNACK_QUIPS[Math.floor(run.rng() * HAUKE_SNACK_QUIPS.length)];
+            bark(run, enemy.x, 1.95, enemy.z, snackLine, 'gold', 1.15);
             if (enemy.stuffed >= 3) {
               enemy.stuffed = 0;
               enemy.coma = 2.6;
               enemy.exposed = 2.6;
+              run.stats.fresskomas += 1;
               emitEvent(run, 'ko', enemy.x, enemy.z);
               bark(run, enemy.x, 2.05, enemy.z, 'Zzz... FRESSKOMA!!', 'jade', 1.5);
               for (let k = 0; k < 3; k++) {
@@ -1484,11 +1792,13 @@ function advanceEnemies(run, dt) {
         enemy.burpCd -= dt;
         if (enemy.burpCd <= 0) {
           enemy.burpCd = enemy.enraged ? 5.0 : 7.0;
+          run.stats.burps += 1;
           const burpR = 4.6;
           emitEvent(run, 'hauke_burp', enemy.x, enemy.z);
           run.explosions.push({ x: enemy.x, z: enemy.z, radius: burpR, age: 0, maxAge: 0.45, color: 0x38f2af });
           run.cameraShake = Math.max(run.cameraShake, 0.34);
-          bark(run, enemy.x, 2.0, enemy.z, 'BÖÖÖRPS!!', 'jade', 1.2);
+          const burpLine = HAUKE_BURP_QUIPS[Math.floor(run.rng() * HAUKE_BURP_QUIPS.length)];
+          bark(run, enemy.x, 2.0, enemy.z, burpLine, 'jade', 1.2);
           for (const ally of alive) {
             if (ally === enemy || ally.dead) continue;
             if (Math.hypot(ally.x - enemy.x, ally.z - enemy.z) <= burpR) {
@@ -1515,6 +1825,8 @@ function advanceEnemies(run, dt) {
           enemy.chargeDir = { x: Math.cos(a), z: Math.sin(a) };
           enemy.angle = a;
           emitEvent(run, 'charge_windup', enemy.x, enemy.z);
+          const chargeLine = HAUKE_CHARGE_QUIPS[Math.floor(run.rng() * HAUKE_CHARGE_QUIPS.length)];
+          bark(run, enemy.x, 2.0, enemy.z, chargeLine, 'vermilion', 1.15);
         }
       } else if (enemy.chargeState === 'windup') {
         enemy.chargeTimer -= dt;
@@ -1537,6 +1849,8 @@ function advanceEnemies(run, dt) {
             enemy.stunned = 0.7;
             run.cameraShake = Math.max(run.cameraShake, 0.35);
             emitEvent(run, 'wall_slam', enemy.x, enemy.z);
+            const slamLine = HAUKE_SLAM_QUIPS[Math.floor(run.rng() * HAUKE_SLAM_QUIPS.length)];
+            bark(run, enemy.x, 2.0, enemy.z, slamLine, 'gold', 1.15);
           }
         }
         if (Math.hypot(enemy.x - player.x, enemy.z - player.z) <= enemy.radius + 0.38) {
@@ -1570,7 +1884,8 @@ function advanceEnemies(run, dt) {
     const coneSlow = player.lamp && isEnemyInPlayerCone(player, enemy) ? 0.76 : 1.0;
     const slowMult = enemy.slowed > 0 ? 0.55 : coneSlow;
     const crownBoost = enemy.hasCrown ? 1.32 : 1.0;
-    const spd = enemy.speed * slowMult * crownBoost * (enemy.enraged ? 1.18 : 1.0);
+    const inflationBoost = inflationRage && enemy.type === 'anton' ? 1.22 : 1.0;
+    const spd = enemy.speed * slowMult * crownBoost * inflationBoost * (enemy.enraged ? 1.18 : 1.0);
     const goalVx = (vx / vLen) * spd;
     const goalVz = (vz / vLen) * spd;
 
@@ -1683,6 +1998,17 @@ export function interaction(run) {
   return null;
 }
 
+function checkChallengeBeat(run) {
+  if (!run.challenge || run.challenge.beaten) return;
+  if (run.player.pfand > run.challenge.score) {
+    run.challenge.beaten = true;
+    emitEvent(run, 'ka_ching', run.player.x, run.player.z);
+    emitVfx(run, { kind: 'coin_burst', x: run.player.x, z: run.player.z });
+    bark(run, run.player.x, 1.98, run.player.z, 'REKORD GEKNACKT!!', 'gold', 1.5);
+    notice(run, `DU HAST ${run.challenge.from.toUpperCase()} (${run.challenge.score} ⚡) ÜBERHOLT!!`, 3.6);
+  }
+}
+
 export function advance(run, input = {}, dt = STEP) {
   if (!run || run.state !== 'playing') return run;
   run.events = [];
@@ -1715,7 +2041,10 @@ export function advance(run, input = {}, dt = STEP) {
   }
   if (player.comboTimer > 0) {
     player.comboTimer = Math.max(0, player.comboTimer - dt);
-    if (player.comboTimer === 0) player.combo = 1;
+    if (player.comboTimer === 0) {
+      player.combo = 1;
+      player.comboTier = 0;
+    }
   }
   if (!player.helmet && player.crownRegen > 0) {
     player.crownRegen = Math.max(0, player.crownRegen - dt);
@@ -1752,7 +2081,8 @@ export function advance(run, input = {}, dt = STEP) {
       player.clappers = Math.min(12, player.clappers + 2);
       player.beanBoost = Math.max(player.beanBoost, 5.0);
       emitEvent(run, 'chest_gold', player.x, player.z);
-      bark(run, player.x, 1.75, player.z, 'SPÄTI-REFILL! +30 HP', 'jade', 1.1);
+      const vLine = VENDING_QUIPS[Math.floor(run.rng() * VENDING_QUIPS.length)];
+      bark(run, player.x, 1.75, player.z, vLine, 'jade', 1.1);
     }
   }
 
@@ -1789,7 +2119,8 @@ export function advance(run, input = {}, dt = STEP) {
       run.stats.dodges += 1;
       player.bonkCooldown = 0;
       emitEvent(run, 'dodge', player.x, player.z);
-      bark(run, player.x, 1.6, player.z, 'PERFECT DODGE!', 'cyan', 0.9);
+      const dLine = DODGE_QUIPS[Math.floor(run.rng() * DODGE_QUIPS.length)];
+      bark(run, player.x, 1.6, player.z, dLine, 'cyan', 0.9);
     }
   }
 
@@ -1811,9 +2142,10 @@ export function advance(run, input = {}, dt = STEP) {
   } else if (mLen > 0.04) {
     if (isInPool(map, player.x, player.z) && player.sliding <= 0) {
       player.sliding = 0.6;
+      emitEvent(run, 'slip', player.x, player.z);
       emitVfx(run, { kind: 'water_slip', x: player.x, z: player.z });
       run.pulses.push({ x: player.x, z: player.z, age: 0, kind: 'splash' });
-      quip(run, player.x, 1.5, player.z, ['NASSER SOCKE!!', 'RUTSCH-TURBO!', 'FETT-GLITZE!'], 'cyan', 0.9, 4.0);
+      quip(run, player.x, 1.5, player.z, SLIP_QUIPS, 'cyan', 0.9, 3.6);
     }
     const moveSpd = stats.speed;
     moveBody(run, player, mx * moveSpd * dt, mz * moveSpd * dt, 0.28, true);
@@ -1857,6 +2189,7 @@ export function advance(run, input = {}, dt = STEP) {
   advanceWaveDirector(run, dt);
   advanceEnemies(run, dt);
   advancePickups(run, dt);
+  checkChallengeBeat(run);
   triggerPendingLevelUp(run);
 
   return run;

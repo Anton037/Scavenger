@@ -75,21 +75,21 @@ export function surfaceTexture() {
   ctx.imageSmoothingEnabled = false;
   const random = randomFrom(1337);
 
-  ctx.fillStyle = '#9aa8c7';
+  ctx.fillStyle = '#aebcd9';
   ctx.fillRect(0, 0, size, size);
 
-  const shades = ['#8594b5', '#aebce0', '#7482a3', '#c2d0f0', '#63708f'];
+  const shades = ['#9aaac9', '#c1ceeb', '#8898b8', '#d2def7', '#7b8aa8'];
   for (let y = 0; y < size; y += 2) {
     for (let x = 0; x < size; x += 2) {
-      if (random() < 0.58) {
+      if (random() < 0.56) {
         ctx.fillStyle = shades[Math.floor(random() * shades.length)];
         ctx.fillRect(x, y, 2, 2);
       }
     }
   }
 
-  // Tiefe dunkle Pixel-Fugen
-  ctx.fillStyle = '#252b3d';
+  // Klare Pixel-Fugen
+  ctx.fillStyle = '#333b52';
   ctx.fillRect(0, 0, size, 3);
   ctx.fillRect(0, 0, 3, size);
   ctx.fillRect(0, 31, size, 2);
@@ -97,14 +97,14 @@ export function surfaceTexture() {
   ctx.fillRect(15, 32, 2, 32);
 
   // Helle Pixel-Kanten-Highlights (oben/links an jedem Steinblock)
-  ctx.fillStyle = '#dce6ff';
+  ctx.fillStyle = '#ebf1ff';
   ctx.fillRect(3, 3, 27, 1);
   ctx.fillRect(3, 3, 1, 27);
   ctx.fillRect(33, 3, 29, 1);
   ctx.fillRect(3, 33, 11, 1);
   ctx.fillRect(17, 33, 44, 1);
 
-  // Leuchtende Moos-/Runen-Pixel in den Fugen
+  // Leuchtende Nachtmarkt-Akzentpixel in den Fugen
   ctx.fillStyle = '#38f2af';
   for (let i = 0; i < 6; i++) {
     const px = Math.floor(random() * 30) * 2;
@@ -254,11 +254,11 @@ export function diver() {
 export function dredged() {
   // Anton: Extrem groß & dürr (Slenderman-Statur), Nadelstreifen-Kontrast & schwebendes Gelb-'?' wenn lost!
   const root = new THREE.Group();
-  const darkSuit = material(0x1f2538, 0.48, 0.18);
-  const pinstripe = material(0x526188, 0.45, 0.2);
-  const shirtMat = material(0xdce6f5, 0.42, 0.08);
-  const paleSkin = material(0xdce8f4, 0.36, 0.08);
-  const tieMat = material(0xd42240, 0.35, 0.12);
+  const darkSuit = material(0x28314a, 0.45, 0.18);
+  const pinstripe = material(0x6c7eb0, 0.42, 0.2);
+  const shirtMat = material(0xeef4ff, 0.38, 0.08);
+  const paleSkin = material(0xe6effa, 0.34, 0.08);
+  const tieMat = material(0xff2c4f, 0.32, 0.12);
   const eyeGlow = emissive(0xff2644);
   const goldMark = emissive(0xffd04d);
   const voidMouth = material(0x07080d, 0.9, 0);
@@ -571,3 +571,31 @@ export function rubberDuck(parent) {
   return can;
 }
 
+export function megaDuckModel(parent) {
+  // Echte leuchtend gelbe Mega-Quietscheente mit orangem Schnabel, Flügeln & Gold-Halo!
+  const duck = new THREE.Group();
+  const yellow = material(0xffe135, 0.32, 0.08);
+  const yellowGlow = emissive(0xffea59);
+  const beak = emissive(0xff6b1a);
+  const eyeMat = material(0x0b0c14, 0.2, 0.1);
+  const halo = emissive(0xffe082);
+
+  // Runder Entenkörper & Schwanzspitze
+  piece(duck, orb, yellow, 0, 0.2, 0, 0.28, 0.22, 0.34);
+  piece(duck, tapered, yellow, 0, 0.3, -0.28, 0.1, 0.16, 0.12).rotation.x = -0.65;
+  // Flügelchen links & rechts
+  for (const side of [-1, 1]) {
+    piece(duck, orb, yellowGlow, side * 0.25, 0.22, -0.02, 0.09, 0.12, 0.2);
+  }
+  // Runder Kopf, Kulleraugen & breiter Entenschnabel
+  piece(duck, orb, yellowGlow, 0, 0.44, 0.16, 0.2, 0.19, 0.2);
+  piece(duck, solid, beak, 0, 0.41, 0.36, 0.16, 0.075, 0.14);
+  piece(duck, solid, beak, 0, 0.37, 0.34, 0.13, 0.04, 0.11);
+  for (const side of [-1, 1]) {
+    piece(duck, orb, eyeMat, side * 0.11, 0.49, 0.29, 0.04, 0.04, 0.04);
+  }
+  // Goldener Boden-Halo damit die Ente im Gewühl sofort leuchtet
+  band(duck, halo, 0, 0.04, 0, 0.44);
+  if (parent) parent.add(duck);
+  return duck;
+}

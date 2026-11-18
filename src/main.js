@@ -1,8 +1,9 @@
 import './style.css';
 import { Soundscape } from './audio.js';
 import { Controls } from './controls.js';
-import { advance, applyUpgrade, finishRunCashOut, newRun, STEP } from './game.js';
-import { get, Hud, write } from './hud.js';
+import { advance, applyUpgrade, finishRunCashOut, newRun, rerollUpgrades, STEP, TITLE_TICKERS } from './game.js';
+import { formatShareReceipt, get, Hud, write } from './hud.js';
+import { getDailySeed } from './level.js';
 
 const canvas = get('arena');
 const title = get('title-screen');
@@ -19,7 +20,17 @@ function parseSeed(raw) {
   return Number.isFinite(n) && n > 0 ? Math.min(999999, n) : null;
 }
 
-const urlSeed = parseSeed(new URLSearchParams(window.location.search).get('seed'));
+const urlParams = new URLSearchParams(window.location.search);
+const urlSeed = parseSeed(urlParams.get('seed'));
+const rawBeat = Math.floor(Number(urlParams.get('beat')));
+const activeChallenge = Number.isFinite(rawBeat) && rawBeat > 0
+  ? {
+      score: Math.min(99999999, rawBeat),
+      from: String(urlParams.get('from') || 'Kumpel').trim().slice(0, 18) || 'Kumpel',
+      seed: urlSeed,
+    }
+  : null;
+
 let previewSeed = urlSeed ?? freshSeed();
 let selectedLoadout = 'classic';
 let titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
@@ -29,13 +40,44 @@ let stage = 'title';
 let last = 0;
 let lag = 0;
 
+function syncDailyButton() {
+  const btn = get('daily-seed');
+  if (btn) btn.setAttribute('aria-pressed', String(previewSeed === getDailySeed()));
+}
+
+function syncChallengeBanner() {
+  const el = get('challenge-banner');
+  if (!el) return;
+  if (activeChallenge) {
+    const seedPart = activeChallenge.seed ? ` · Seed #${String(activeChallenge.seed).padStart(4, '0')}` : '';
+    write(el, `HERAUSFORDERUNG: Knacke ${activeChallenge.from} (${activeChallenge.score.toLocaleString('de-DE')} ⚡${seedPart})!`);
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+  }
+}
+
 function updateSeedBadge() {
   const input = get('seed-input');
   if (input && input.value !== String(previewSeed)) {
     input.value = String(previewSeed);
   }
+  syncDailyButton();
 }
 updateSeedBadge();
+syncChallengeBanner();
+
+let tickerIdx = previewSeed % TITLE_TICKERS.length;
+function paintTitleTicker() {
+  const el = get('title-ticker');
+  if (el) write(el, `📢 ${TITLE_TICKERS[tickerIdx % TITLE_TICKERS.length]}`);
+}
+paintTitleTicker();
+setInterval(() => {
+  if (stage !== 'title') return;
+  tickerIdx = (tickerIdx + 1) % TITLE_TICKERS.length;
+  paintTitleTicker();
+}, 4500);
 
 function refreshTitlePreview() {
   titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
@@ -66,6 +108,7 @@ get('seed-input')?.addEventListener('input', (event) => {
   const parsed = parseSeed(event.target.value);
   if (parsed !== null) {
     previewSeed = parsed;
+    syncDailyButton();
     refreshTitlePreview();
   }
 });
@@ -80,7 +123,13 @@ get('shuffle-seed')?.addEventListener('click', () => {
   refreshTitlePreview();
 });
 
-async function copyShareUrl(text) {
+get('daily-seed')?.addEventListener('click', () => {
+  previewSeed = getDailySeed();
+  updateSeedBadge();
+  refreshTitlePreview();
+});
+
+async function copyShareUrl(text, shareTitle = 'Imbiss-Survival') {
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
@@ -105,7 +154,7 @@ async function copyShareUrl(text) {
   }
   if (navigator.share) {
     try {
-      await navigator.share({ title: 'Scavenger Seed', url: text });
+      await navigator.share({ title: shareTitle, text });
       return true;
     } catch {
       return false;
@@ -116,7 +165,7 @@ async function copyShareUrl(text) {
 
 get('copy-seed')?.addEventListener('click', async () => {
   const shareUrl = `${window.location.origin}${window.location.pathname}?seed=${previewSeed}`;
-  const ok = await copyShareUrl(shareUrl);
+  const ok = await copyShareUrl(shareUrl, 'Imbiss-Survival Seed');
   const btn = get('copy-seed');
   if (btn && ok) {
     btn.classList.add('copied');
@@ -128,17 +177,19 @@ let lastHapticAt = 0;
 function pulseHaptic(event) {
   if (!controls.touch || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
   const now = performance.now();
-  const urgent = event.kind === 'ko' || event.kind === 'wall_slam' || event.kind === 'crown_drop' || event.kind === 'caught' || event.kind === 'levelup';
+  const urgent = event.kind === 'ko' || event.kind === 'wall_slam' || event.kind === 'crown_drop' || event.kind === 'caught' || event.kind === 'levelup' || event.kind === 'evolve';
   if (!urgent && now - lastHapticAt < 90) return;
-  const pattern = event.kind === 'wall_slam' || event.kind === 'ko'
-    ? [24, 28, 36]
-    : event.kind === 'crown_drop' || event.kind === 'caught'
-      ? [40, 35, 55]
-      : event.kind === 'levelup' || event.kind === 'chest_gold' || event.kind === 'wave' || event.kind === 'escaped'
-        ? [18, 22, 24]
-        : event.kind === 'bonk' || event.kind === 'dodge' || event.kind === 'spezi_boom'
-          ? 14
-          : 0;
+  const pattern = event.kind === 'evolve'
+    ? [20, 24, 30, 24, 48]
+    : event.kind === 'wall_slam' || event.kind === 'ko'
+      ? [24, 28, 36]
+      : event.kind === 'crown_drop' || event.kind === 'caught'
+        ? [40, 35, 55]
+        : event.kind === 'levelup' || event.kind === 'chest_gold' || event.kind === 'wave' || event.kind === 'escaped' || event.kind === 'combo_milestone' || event.kind === 'ka_ching'
+          ? [18, 22, 24]
+          : event.kind === 'bonk' || event.kind === 'dodge' || event.kind === 'spezi_boom'
+            ? 14
+            : 0;
   if (!pattern) return;
   lastHapticAt = now;
   try {
@@ -180,6 +231,14 @@ function armTouchTapGuard(container, ms = 420) {
 
 window.addEventListener('keydown', (event) => {
   if (stage !== 'lift' || event.repeat) return;
+  if (event.code === 'KeyR') {
+    const rerollBtn = get('lift-reroll');
+    if (rerollBtn && !rerollBtn.disabled) {
+      event.preventDefault();
+      rerollBtn.click();
+    }
+    return;
+  }
   const idx = event.code === 'Digit1' ? 0 : event.code === 'Digit2' ? 1 : event.code === 'Digit3' ? 2 : -1;
   if (idx >= 0) {
     const btn = get('mod-list')?.children[idx];
@@ -222,15 +281,27 @@ function restart(explicitSeed = null) {
   const seed = explicitSeed ?? freshSeed();
   previewSeed = seed;
   updateSeedBadge();
-  run = newRun({ seed, floor: 1, loadout: selectedLoadout });
-  if (run.map?.mutator && run.map.mutator.id !== 'classic') {
+  const useChallenge = activeChallenge && (!activeChallenge.seed || activeChallenge.seed === seed);
+  run = newRun({
+    seed,
+    floor: 1,
+    loadout: selectedLoadout,
+    beatScore: useChallenge ? activeChallenge.score : 0,
+    beatFrom: useChallenge ? activeChallenge.from : '',
+  });
+  if (run.challenge) {
+    run.notices.push({
+      message: `CHALLENGE: Knacke ${run.challenge.from} (${run.challenge.score.toLocaleString('de-DE')} ⚡) auf #${String(seed).padStart(4, '0')}!`,
+      until: 3.6,
+    });
+  } else if (run.map?.mutator && run.map.mutator.id !== 'classic') {
     run.notices.push({
       message: `${run.map.mutator.name}: ${run.map.mutator.hint}`,
       until: 3.4,
     });
   } else {
     run.notices.push({
-      message: 'Welle 1 gestartet! Pfand-XP sammeln für Upgrades · Auto-Waffen aktiv!',
+      message: 'Welle 1 gestartet! Pfand-XP sammeln · Auto-Waffen feuern von selbst!',
       until: 3.2,
     });
   }
@@ -290,7 +361,7 @@ function resume() {
   canvas.focus({ preventScroll: true });
 }
 
-function showLevelChoices() {
+function showLevelChoices({ isReroll = false } = {}) {
   stage = 'lift';
   controls.enable(false);
   sound.setActivity('pause');
@@ -298,22 +369,40 @@ function showLevelChoices() {
   hud.clearFloating();
   get('vignette')?.classList.remove('alert');
   get('hud').inert = true;
-  hud.showLevelChoices(run, (upgradeId) => {
-    applyUpgrade(run, upgradeId);
-    view.resize();
-    view.draw(run, 0, true);
-    hud.paint(run, view);
-    if (run.state === 'levelup') {
-      showLevelChoices();
-    } else {
-      resume();
-    }
-  });
-  armTouchTapGuard(liftScreen, 420);
+  hud.showLevelChoices(
+    run,
+    (upgradeId) => {
+      applyUpgrade(run, upgradeId);
+      if (String(upgradeId).startsWith('evo_')) {
+        const ev = { kind: 'evolve', x: run.player.x, z: run.player.z };
+        sound.play(ev, run.player);
+        pulseHaptic(ev);
+      }
+      view.resize();
+      view.draw(run, 0, true);
+      hud.paint(run, view);
+      if (run.state === 'levelup') {
+        showLevelChoices();
+      } else {
+        resume();
+      }
+    },
+    () => {
+      if (rerollUpgrades(run)) {
+        sound.play({ kind: 'reroll', x: run.player.x, z: run.player.z }, run.player);
+        showLevelChoices({ isReroll: true });
+      }
+    },
+  );
+  armTouchTapGuard(liftScreen, isReroll ? 120 : 420);
 }
 
 function showOverlay(kind) {
-  const caughtTitle = run?.caughtBy === 'hauke' ? 'Von Hauke überrollt!' : 'Schicht beendet!';
+  const caughtTitle = run?.caughtBy === 'hauke'
+    ? 'Von Hauke überrollt!'
+    : run?.caughtBy === 'tom'
+      ? 'Von Tom geschnorrt!'
+      : 'Schicht beendet!';
   const mutLabel = run?.map?.mutator?.id && run.map.mutator.id !== 'classic' ? ` · ${run.map.mutator.name}` : '';
   const details = {
     pause: ['Pause', `Welle ${run?.wave ?? 1} · Stufe ${run?.player?.level ?? 1}${mutLabel} · Seed #${String(run?.seed ?? previewSeed).padStart(4, '0')}`, 'Weitermachen'],
@@ -338,6 +427,12 @@ function showOverlay(kind) {
   hud.renderOverlayMods(run);
   const sameSeedBtn = get('overlay-same-seed');
   if (sameSeedBtn) sameSeedBtn.hidden = kind === 'pause';
+  const shareBtn = get('overlay-share');
+  if (shareBtn) {
+    shareBtn.hidden = kind === 'pause';
+    shareBtn.classList.remove('copied');
+    write(get('overlay-share-label'), 'Kassenbon teilen');
+  }
   const receipt = get('overlay-receipt');
   if (kind === 'pause') {
     if (receipt) receipt.hidden = true;
@@ -396,6 +491,22 @@ get('chart-close')?.addEventListener('click', () => {
 get('menu').addEventListener('click', showTitle);
 get('overlay-same-seed')?.addEventListener('click', () => {
   restart(run?.seed ?? previewSeed);
+});
+get('overlay-share')?.addEventListener('click', async () => {
+  if (!run) return;
+  const score = Math.round(run.player?.pfand ?? 0);
+  const shareUrl = `${window.location.origin}${window.location.pathname}?seed=${run.seed}&beat=${score}`;
+  const text = formatShareReceipt(run, shareUrl);
+  const ok = await copyShareUrl(text, 'Imbiss-Survival Kassenbon');
+  const btn = get('overlay-share');
+  if (btn && ok) {
+    btn.classList.add('copied');
+    write(get('overlay-share-label'), 'Kopiert! ✓');
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      write(get('overlay-share-label'), 'Kassenbon teilen');
+    }, 1800);
+  }
 });
 get('overlay-primary').addEventListener('click', () => {
   if (stage === 'pause') resume();

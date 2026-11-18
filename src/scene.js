@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { LIFT_WAIT } from './game.js';
 import {
   PALETTE, TAU, band, batchScenery, barrelMesh, brassMaterial, color, crateMesh, crownMesh,
-  diver, doenerModel, dredged, emissive, greedyTom, haukeBoss, haukeSnack, hoop, material, octa, orb,
-  piece, randomFrom, round, rubberDuck, skewerModel, solid, speziModel, surfaceTexture, tapered,
+  diver, doenerModel, dredged, emissive, greedyTom, haukeBoss, haukeSnack, hoop, material, megaDuckModel,
+  octa, orb, piece, randomFrom, round, rubberDuck, skewerModel, solid, speziModel, surfaceTexture, tapered,
 } from './art.js';
 
 const brass = brassMaterial(PALETTE.brass);
@@ -74,8 +74,8 @@ function installFloor(world, map, texture) {
 
   for (const room of map.rooms) {
     const r = Math.min(room.w, room.d) * 0.36;
-    placeInlayRing(world, map.biome.accent, room.cx, room.cz, r, 0.32);
-    placeInlayRing(world, PALETTE.copper, room.cx, room.cz, r * 0.58, 0.22);
+    placeInlayRing(world, map.biome.accent, room.cx, room.cz, r, 0.15);
+    placeInlayRing(world, PALETTE.copper, room.cx, room.cz, r * 0.58, 0.10);
   }
 
   const sidesFinish = new THREE.MeshStandardMaterial({
@@ -157,47 +157,74 @@ void main() {
 
 function installMachinery(world, map) {
   const group = new THREE.Group();
+  const steel = material(0x9fb2c7, 0.34, 0.45);
+  const redAwning = material(0xe34039, 0.45, 0.08);
+  const warmWood = material(0x8a5730, 0.65, 0.06);
+  const neonCyan = emissive(0x63e6ff);
+  const neonAmber = emissive(0xffb84d);
+  const neonRed = emissive(0xff4c5e);
+  const neonJade = emissive(0x38f2af);
+
   for (const { x, z, w, d, kind } of map.blocks) {
     const detail = new THREE.Group();
     detail.position.set(x, 0, z);
     group.add(detail);
-    piece(detail, round, ink, 0, 0.05, 0, Math.min(w, d) * 0.54, 0.1, Math.min(w, d) * 0.54);
-    if (kind === 'pump' || kind === 'coil') {
-      const radius = Math.min(w, d) * 0.44;
-      const height = kind === 'pump' ? 0.88 : 0.62;
-      piece(detail, tapered, enamel, 0, height * 0.5, 0, radius, height, radius);
-      piece(detail, round, brass, 0, 0.18, 0, radius * 1.05, 0.08, radius * 1.05);
-      band(detail, brass, 0, height * 0.88, 0, radius * 0.89);
-      piece(detail, orb, enamel, 0, height * 0.98, 0, radius * 0.86, 0.22, radius * 0.86);
-      piece(detail, round, brass, 0, height + 0.18, 0, 0.14, 0.07, 0.14);
-    } else if (kind === 'turbine') {
-      piece(detail, solid, clay, 0, 0.29, 0, w * 0.91, 0.47, d * 0.87);
-      const barrel = piece(detail, round, enamel, 0, 0.89, 0, d * 0.45, w * 0.9, d * 0.45);
-      barrel.rotation.z = Math.PI / 2;
-      for (let i = -1; i <= 1; i++) {
-        piece(detail, round, brass, i * w * 0.38, 0.89, 0, d * 0.47, 0.085, d * 0.47).rotation.z = Math.PI / 2;
-      }
-    } else if (kind === 'shelves') {
-      piece(detail, solid, clay, 0, 0.52, 0, w * 0.92, 0.96, d * 0.92);
-      piece(detail, solid, brass, 0, 1.02, 0, w * 0.96, 0.06, d * 0.96);
-      for (let tier = 0; tier < 2; tier++) {
-        const y = 0.32 + tier * 0.38;
-        piece(detail, solid, tier === 1 ? enamel : jadeMat, 0, y, 0, w * 0.78, 0.22, d * 0.78);
-      }
+    piece(detail, round, ink, 0, 0.04, 0, Math.min(w, d) * 0.55, 0.08, Math.min(w, d) * 0.55);
+
+    if (kind === 'fridge' || kind === 'pump') {
+      // Späti-Getränkekühlschrank
+      piece(detail, solid, steel, 0, 0.66, 0, w * 0.84, 1.24, d * 0.78);
+      piece(detail, solid, ink, 0, 0.64, d * 0.39, w * 0.68, 0.92, 0.06);
+      piece(detail, solid, neonCyan, 0, 0.86, d * 0.42, w * 0.58, 0.14, 0.04);
+      piece(detail, solid, neonAmber, 0, 0.58, d * 0.42, w * 0.58, 0.14, 0.04);
+      piece(detail, solid, neonRed, 0, 0.32, d * 0.42, w * 0.58, 0.14, 0.04);
+      piece(detail, solid, redAwning, 0, 1.34, 0, w * 0.88, 0.14, d * 0.82);
+      piece(detail, solid, neonAmber, 0, 1.34, d * 0.42, w * 0.52, 0.07, 0.04);
+    } else if (kind === 'fryer' || kind === 'turbine') {
+      // Edelstahl-Fritteuse & Grillstation
+      piece(detail, solid, steel, 0, 0.46, 0, w * 0.9, 0.84, d * 0.84);
+      piece(detail, solid, brass, 0, 0.9, 0, w * 0.94, 0.06, d * 0.88);
+      piece(detail, solid, neonAmber, -0.2, 0.94, 0, w * 0.36, 0.05, d * 0.56);
+      piece(detail, solid, neonRed, 0.24, 0.94, 0, w * 0.34, 0.05, d * 0.56);
+      piece(detail, solid, ink, -0.2, 1.06, 0.28, 0.07, 0.22, 0.07);
+      piece(detail, solid, brass, -0.2, 1.14, 0.38, 0.09, 0.06, 0.24);
+    } else if (kind === 'table' || kind === 'coil') {
+      // Imbiss-Stehtisch mit Soßenflaschen
+      piece(detail, round, ink, 0, 0.46, 0, 0.14, 0.84, 0.14);
+      piece(detail, round, warmWood, 0, 0.9, 0, w * 0.48, 0.09, d * 0.48);
+      band(detail, brass, 0, 0.9, 0, w * 0.49);
+      // Ketchup & Mayo Flaschen
+      piece(detail, tapered, redAwning, -0.18, 1.06, 0.08, 0.07, 0.24, 0.07);
+      piece(detail, tapered, ivoryMat, 0.16, 1.06, -0.06, 0.07, 0.24, 0.07);
+      piece(detail, solid, neonAmber, 0, 1.0, 0.14, 0.18, 0.08, 0.12);
     } else {
-      piece(detail, solid, enamel, 0, 0.32, 0, w * 0.9, 0.54, d * 0.88);
-      piece(detail, solid, brass, 0, 0.61, 0, w * 0.95, 0.07, d * 0.92);
+      // Gestapelte Spezi- & Getränkekisten
+      piece(detail, solid, redAwning, 0, 0.26, 0, w * 0.86, 0.44, d * 0.82);
+      piece(detail, solid, brass, 0, 0.49, 0, w * 0.9, 0.05, d * 0.86);
+      piece(detail, solid, jadeMat, 0.05, 0.74, -0.04, w * 0.74, 0.42, d * 0.72);
+      piece(detail, solid, neonAmber, 0.05, 0.98, -0.04, w * 0.54, 0.07, d * 0.54);
     }
   }
 
-  // Späti-Automat
+  // Späti- & Döner-Bude (Nord-Zentrum)
   const vend = new THREE.Group();
   vend.position.set(map.vending.x, 0, map.vending.z);
-  piece(vend, tapered, enamel, 0, 0.64, 0, 0.44, 1.22, 0.44);
-  band(vend, brass, 0, 1.18, 0, 0.42);
-  piece(vend, orb, ivoryMat, 0, 1.26, 0, 0.36, 0.18, 0.36);
-  piece(vend, solid, emissive(PALETTE.jade), 0, 0.76, 0.36, 0.38, 0.42, 0.04);
-  piece(vend, octa, emissive(PALETTE.vermilion), 0, 1.48, 0, 0.13, 0.19, 0.13);
+  piece(vend, solid, steel, 0, 0.62, 0, 1.56, 1.16, 0.92);
+  piece(vend, solid, warmWood, 0, 0.34, 0.47, 1.52, 0.58, 0.08);
+  piece(vend, solid, brass, 0, 0.66, 0.52, 1.62, 0.08, 0.22);
+  piece(vend, solid, neonJade, 0, 0.92, 0.44, 1.24, 0.38, 0.06);
+  // Mini-Döner-Spieß in der Vitrine
+  piece(vend, tapered, copper, -0.28, 0.92, 0.48, 0.12, 0.34, 0.12);
+  piece(vend, solid, neonAmber, 0.28, 0.92, 0.48, 0.28, 0.28, 0.06);
+  // Gestreifte Markise (Rot / Elfenbein)
+  for (let i = -2; i <= 2; i++) {
+    const stripe = piece(vend, solid, i % 2 === 0 ? redAwning : ivoryMat, i * 0.34, 1.32, 0.34, 0.33, 0.1, 0.82);
+    stripe.rotation.x = 0.28;
+  }
+  // Leuchtendes Neon-Dachschild
+  piece(vend, solid, ink, 0, 1.58, 0.08, 1.36, 0.28, 0.16);
+  piece(vend, solid, neonAmber, 0, 1.58, 0.18, 1.18, 0.16, 0.04);
+  piece(vend, octa, neonRed, 0, 1.84, 0.1, 0.13, 0.18, 0.13);
   group.add(vend);
 
   batchScenery(world, group);
@@ -587,6 +614,8 @@ function createPixelPostPass() {
     uLampOn: { value: 1.0 },
     uWideBeam: { value: 0.0 },
     uTitleMode: { value: 0.0 },
+    uChaosTint: { value: new THREE.Vector3(0.0, 0.0, 0.0) },
+    uChaosPulse: { value: 0.0 },
   };
 
   const mat = new THREE.ShaderMaterial({
@@ -613,6 +642,8 @@ function createPixelPostPass() {
       uniform float uLampOn;
       uniform float uWideBeam;
       uniform float uTitleMode;
+      uniform vec3 uChaosTint;
+      uniform float uChaosPulse;
       varying vec2 vUv;
 
       float bayer2x2(vec2 pixel) {
@@ -650,42 +681,43 @@ function createPixelPostPass() {
         float coneReach = (1.0 - smoothstep(0.28, 0.84 + uWideBeam * 0.16, dist)) * smoothstep(0.01, 0.06, dist);
         float coneLight = (coneOuter * 0.95 + coneCore * 0.45) * coneReach * uLampOn;
 
-        float auraRadius = uLampOn > 0.5 ? 0.23 : 0.16;
-        float personalAura = (1.0 - smoothstep(0.04, auraRadius, dist)) * (uLampOn > 0.5 ? 0.85 : 0.58);
+        float auraRadius = uLampOn > 0.5 ? 0.28 : 0.22;
+        float personalAura = (1.0 - smoothstep(0.04, auraRadius, dist)) * (uLampOn > 0.5 ? 0.88 : 0.65);
 
-        float titleLight = uTitleMode * (1.0 - smoothstep(0.28, 0.98, length((vUv - vec2(0.55, 0.52)) * vec2(uAspect, 1.0)))) * 1.1;
+        float titleLight = uTitleMode * (1.0 - smoothstep(0.32, 1.08, length((vUv - vec2(0.52, 0.50)) * vec2(uAspect, 1.0)))) * 1.15;
 
         float rawLight = max(max(coneLight, personalAura), titleLight);
-        float dither = bayer2x2(vUv * uResolution) * 0.075;
+        float dither = bayer2x2(vUv * uResolution) * 0.065;
         float lit = rawLight + dither;
 
         float celBand;
-        if (lit > 0.82) celBand = 1.36;
-        else if (lit > 0.46) celBand = 1.1;
-        else if (lit > 0.18) celBand = 0.8;
-        else celBand = 0.56;
+        if (lit > 0.80) celBand = 1.38;
+        else if (lit > 0.45) celBand = 1.18;
+        else if (lit > 0.16) celBand = 1.0;
+        else celBand = 0.86;
 
-        vec3 darkIndigoTint = vec3(0.62, 0.72, 1.16);
-        vec3 warmBeamTint = vec3(1.12, 1.01, 0.86);
-        vec3 lightTint = mix(darkIndigoTint, warmBeamTint, clamp(rawLight * 1.25, 0.0, 1.0));
+        vec3 nightMarketTint = vec3(0.84, 0.90, 1.08);
+        vec3 warmBeamTint = vec3(1.14, 1.03, 0.88);
+        vec3 lightTint = mix(nightMarketTint, warmBeamTint, clamp(rawLight * 1.25, 0.0, 1.0));
 
-        vec3 quantAlbedo = floor(col * 13.0 + 0.5) / 13.0;
+        vec3 quantAlbedo = floor(col * 14.0 + 0.5) / 14.0;
         vec3 shaded = quantAlbedo * celBand * lightTint;
 
-        float beamGlow = coneOuter * coneReach * uLampOn * 0.14;
+        float beamGlow = coneOuter * coneReach * uLampOn * 0.15;
         shaded += vec3(1.0, 0.88, 0.54) * beamGlow;
 
         float maxC = max(col.r, max(col.g, col.b));
         float minC = min(col.r, min(col.g, col.b));
-        float isNeon = smoothstep(0.60, 0.88, maxC) * smoothstep(0.20, 0.42, maxC - minC);
-        shaded = max(shaded, col * isNeon * 1.22);
+        float isNeon = smoothstep(0.58, 0.86, maxC) * smoothstep(0.18, 0.40, maxC - minC);
+        shaded = max(shaded, col * isNeon * 1.25);
 
-        vec3 outlineColor = vec3(0.02, 0.02, 0.06);
-        vec3 finalCol = mix(shaded, outlineColor, isOutline * clamp(celBand * 0.85 + isNeon, 0.28, 0.88));
+        vec3 outlineColor = vec3(0.03, 0.03, 0.08);
+        vec3 finalCol = mix(shaded, outlineColor, isOutline * clamp(celBand * 0.72 + isNeon, 0.32, 0.84));
 
         float vigDist = length(vUv - 0.5) * 1.42;
         float pulse = (0.5 + 0.5 * sin(uTime * 8.0)) * uDanger;
         finalCol += vec3(0.55, 0.05, 0.12) * smoothstep(0.52, 1.05, vigDist) * pulse * 0.42;
+        finalCol += uChaosTint * (smoothstep(0.45, 1.08, vigDist) * 0.46 + 0.07) * uChaosPulse;
         finalCol += vec3(0.6, 0.18, 0.14) * uHitFlash * 0.35;
 
         gl_FragColor = vec4(finalCol, 1.0);
@@ -718,9 +750,9 @@ export class SceneView {
     this.projTempA = new THREE.Vector3();
     this.projTempB = new THREE.Vector3();
 
-    this.ambient = new THREE.HemisphereLight(0xdce6ff, 0x262f4d, 1.25);
+    this.ambient = new THREE.HemisphereLight(0xe8f0ff, 0x384366, 1.58);
     this.scene.add(this.ambient);
-    const key = new THREE.DirectionalLight(0xfff0d4, 0.95);
+    const key = new THREE.DirectionalLight(0xfff2dc, 1.22);
     key.position.set(14, 22, 14);
     this.scene.add(key);
 
@@ -730,7 +762,7 @@ export class SceneView {
     this.loadedMap = null;
     this.torches = [];
     this.torchLights = Array.from({ length: 8 }, () => {
-      const light = new THREE.PointLight(0xffe082, 0, 5.4, 2.0);
+      const light = new THREE.PointLight(0xffe082, 0, 6.4, 1.8);
       this.scene.add(light);
       return light;
     });
@@ -855,9 +887,9 @@ export class SceneView {
       m.visible = false;
       return m;
     });
-    this.duckPickups = Array.from({ length: 3 }, () => {
-      const m = rubberDuck(this.scene);
-      m.scale.setScalar(2.15);
+    this.duckPickups = Array.from({ length: 5 }, () => {
+      const m = megaDuckModel(this.scene);
+      m.scale.setScalar(1.35);
       m.visible = false;
       return m;
     });
@@ -1030,6 +1062,7 @@ export class SceneView {
     }
 
     const isFinisher = (player.finisherSwing || 0) > 0;
+    const hasEvoPan = player.evolutions?.has('evo_pan');
     const fever = (player.combo || 1) >= 6;
     if (this.novaRing) {
       this.novaRing.visible = player.swing > 0;
@@ -1039,8 +1072,8 @@ export class SceneView {
         const radius = 0.45 + progress * targetRadius;
         this.novaRing.position.set(player.x, floorY + 0.03, player.z);
         this.novaRing.scale.set(radius, 1, radius);
-        this.novaRing.material.color.setHex(isFinisher ? 0xffe082 : (player.weapons?.pan || 0) >= 4 ? 0xff5744 : PALETTE.brass);
-        this.novaRing.material.opacity = (1 - progress) * (isFinisher ? 1.0 : 0.9);
+        this.novaRing.material.color.setHex(hasEvoPan ? 0xff4c29 : isFinisher ? 0xffe082 : (player.weapons?.pan || 0) >= 4 ? 0xff5744 : PALETTE.brass);
+        this.novaRing.material.opacity = (1 - progress) * (isFinisher || hasEvoPan ? 1.0 : 0.9);
       }
     }
 
@@ -1064,25 +1097,26 @@ export class SceneView {
         const targetRadius = player.novaRadius || 2.45;
         const radiusScale = (targetRadius * 0.88) * (0.65 + progress * 0.45);
         this.slashArc.position.set(player.x, 0.56, player.z);
-        this.slashArc.rotation.y = -player.angle + (progress - 0.5) * (isFinisher ? 4.4 : 2.3);
+        this.slashArc.rotation.y = -player.angle + (progress - 0.5) * (isFinisher || hasEvoPan ? 5.2 : 2.3);
         this.slashArc.scale.setScalar(radiusScale);
-        this.slashArc.material.color.setHex(isFinisher ? 0xfff3b0 : 0xffe082);
+        this.slashArc.material.color.setHex(hasEvoPan ? 0xff6238 : isFinisher ? 0xfff3b0 : 0xffe082);
         this.slashArc.material.opacity = (1 - progress) * 0.95;
       }
     }
 
     // Döner-Orbit Klingen um Chef Torge
     const donerLv = player.weapons?.doner || 0;
-    const donerCount = donerLv > 0 ? 1 + donerLv : 0;
-    const donerRadius = (2.05 + donerLv * 0.14) * (1 + (player.passives?.chili || 0) * 0.12);
+    const hasEvoDoner = player.evolutions?.has('evo_doner');
+    const donerCount = donerLv > 0 ? (hasEvoDoner ? 6 : 1 + donerLv) : 0;
+    const donerRadius = (2.05 + donerLv * 0.14) * (1 + (player.passives?.chili || 0) * 0.12) * (hasEvoDoner ? 1.28 : 1);
     for (let i = 0; i < this.donerOrbiters.length; i++) {
       const orb = this.donerOrbiters[i];
       orb.visible = i < donerCount;
       if (!orb.visible) continue;
       const a = (player.donerAngle || time * 3) + (i * TAU) / donerCount;
       orb.position.set(player.x + Math.cos(a) * donerRadius, 0.45 + Math.sin(time * 5 + i) * 0.06, player.z + Math.sin(a) * donerRadius);
-      orb.rotation.y = -a + time * 6.5;
-      orb.scale.setScalar(0.95);
+      orb.rotation.y = -a + time * (hasEvoDoner ? 9.5 : 6.5);
+      orb.scale.setScalar(hasEvoDoner ? 1.18 : 0.95);
     }
 
     if (player.dash > 0 || player.sliding > 0 || (fever && Math.random() < 0.22)) {
@@ -1477,10 +1511,10 @@ export class SceneView {
       const tossed = run.throws?.[i];
       clapper.visible = Boolean(tossed);
       if (tossed) {
-        const py = 0.28 + Math.abs(Math.sin(tossed.elapsed * (tossed.slapshot ? 16 : 10))) * 0.24;
+        const py = 0.28 + Math.abs(Math.sin(tossed.elapsed * (tossed.slapshot || tossed.superCan ? 16 : 10))) * 0.24;
         clapper.position.set(tossed.x, py, tossed.z);
-        clapper.rotation.y = tossed.elapsed * (tossed.slapshot ? 22 : 12);
-        clapper.scale.setScalar(tossed.slapshot ? 1.25 : 1.0);
+        clapper.rotation.y = tossed.elapsed * (tossed.slapshot || tossed.superCan ? 22 : 12);
+        clapper.scale.setScalar(tossed.superCan ? 1.52 : tossed.slapshot ? 1.25 : 1.0);
       }
     }
 
@@ -1514,6 +1548,29 @@ export class SceneView {
     u.uWideBeam.value = (player.weapons?.beam || 0) > 0 ? 1.0 : 0.0;
     u.uTitleMode.value = isTitle ? 1.0 : 0.0;
     u.uHitFlash.value = isTitle ? 0.0 : Math.min(1, (hitFlash || 0) * 2.4);
+
+    if (!isTitle && run.chaosEvent) {
+      const ev = run.chaosEvent.id;
+      const pulse = 0.55 + 0.45 * Math.sin(time * (ev === 'ordnungsamt' ? 14 : 6));
+      u.uChaosPulse.value = pulse;
+      if (ev === 'ordnungsamt') {
+        if (Math.sin(time * 14) >= 0) u.uChaosTint.value.set(0.12, 0.42, 1.0);
+        else u.uChaosTint.value.set(1.0, 0.14, 0.22);
+      } else if (ev === 'happy_hour') {
+        u.uChaosTint.value.set(1.0, 0.76, 0.18);
+      } else if (ev === 'fettbahn') {
+        u.uChaosTint.value.set(0.65, 0.95, 0.24);
+      } else if (ev === 'kartenzahlung') {
+        u.uChaosTint.value.set(0.22, 0.86, 1.0);
+      } else if (ev === 'doenerpreis') {
+        u.uChaosTint.value.set(1.0, 0.25, 0.2);
+      } else {
+        u.uChaosTint.value.set(1.0, 0.92, 0.2);
+      }
+    } else {
+      u.uChaosPulse.value = 0.0;
+      u.uChaosTint.value.set(0.0, 0.0, 0.0);
+    }
 
     this.projTempA.set(player.x, 0.35, player.z).project(this.camera);
     const px = this.projTempA.x * 0.5 + 0.5;
@@ -1550,36 +1607,36 @@ export class SceneView {
     const cz = run.map.start.z;
 
     run.time = time;
-    run.player.x = cx - 0.5;
-    run.player.z = cz + 0.35;
-    run.player.angle = -0.35;
+    run.player.x = cx - 0.85;
+    run.player.z = cz + 0.25;
+    run.player.angle = -0.25;
     run.player.lamp = true;
     run.player.donerAngle = time * 2.4;
 
     if (!run.hauke) {
       run.hauke = {
-        id: 99, type: 'hauke', x: cx + 2.2, z: cz - 1.1, angle: Math.PI + 0.4,
+        id: 99, type: 'hauke', x: cx + 1.55, z: cz - 0.85, angle: Math.PI + 0.35,
         dead: false, moving: false, chargeState: 'none', enraged: false,
       };
     }
     if (!run.tom) {
       run.tom = {
-        id: 98, type: 'tom', x: cx + 1.1, z: cz + 2.2, angle: -1.2,
+        id: 98, type: 'tom', x: cx + 0.85, z: cz + 1.65, angle: -1.2,
         dead: false, moving: true,
       };
     }
 
     const orbit = time * 0.22;
     const isPortrait = this.camera.aspect < 0.95;
-    const pull = isPortrait ? (0.95 - this.camera.aspect) * 3.8 : 0;
-    const ox = cx + Math.sin(orbit) * (isPortrait ? 0.8 : 1.2);
-    const oz = cz + Math.cos(orbit) * 0.85;
+    const pull = isPortrait ? (0.95 - this.camera.aspect) * 4.4 : 0;
+    const ox = cx + Math.sin(orbit) * (isPortrait ? 0.55 : 1.15);
+    const oz = cz + Math.cos(orbit) * 0.75;
     if (isPortrait) {
-      this.camera.position.set(ox + 0.35, 8.9 + pull, oz + 7.2 + pull * 0.75);
-      this.camera.lookAt(cx - 0.1, 0.3, cz + 1.55 + pull * 0.35);
+      this.camera.position.set(ox + 0.3, 9.6 + pull, oz + 7.9 + pull * 0.8);
+      this.camera.lookAt(cx + 0.25, 0.35, cz + 1.25 + pull * 0.25);
     } else {
-      this.camera.position.set(ox + 1.4, 8.1, oz + 6.8);
-      this.camera.lookAt(cx - 0.4, 0.55, cz - 0.3);
+      this.camera.position.set(ox + 1.3, 8.2, oz + 6.9);
+      this.camera.lookAt(cx - 0.2, 0.55, cz - 0.2);
     }
     this.camera.updateMatrixWorld();
 

@@ -1,6 +1,6 @@
-import { BONK_COOLDOWN, DASH_COOLDOWN, getStats, interaction, WAVE_DURATION } from './game.js';
+import { BONK_COOLDOWN, DASH_COOLDOWN, getStats, interaction, RECEIPT_FOOTERS, WAVE_DURATION } from './game.js';
 import { ICONS } from './icons.js';
-import { UPGRADE_POOL } from './level.js';
+import { EVOLUTIONS, LOADOUTS, UPGRADE_POOL } from './level.js';
 
 export const get = (id) => document.getElementById(id);
 export function write(element, text) {
@@ -10,6 +10,7 @@ export function write(element, text) {
 const mapColors = ['#121524', '#232942', '#283150', '#313a59', '#2b2447'];
 const HIGHSCORE_KEY = 'imbiss_survival_highscore_2026';
 const BEST_WAVE_KEY = 'imbiss_survival_bestwave_2026';
+const TOP3_KEY = 'imbiss_survival_top3_2026';
 
 export function getBestStats() {
   try {
@@ -35,6 +36,42 @@ export function saveBestStats(score, wave) {
   return { score: bestScore, wave: bestWave };
 }
 
+export function getTopRuns() {
+  try {
+    const raw = localStorage.getItem(TOP3_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((r) => r && Number.isFinite(Number(r.score)))
+      .slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
+export function saveTopRun(run) {
+  const score = Math.round(run?.player?.pfand ?? 0);
+  const entry = {
+    score,
+    wave: run?.wave ?? 1,
+    seed: run?.seed ?? 2026,
+    loadout: LOADOUTS[run?.loadoutId]?.name ?? 'Pfannen-Chef',
+    time: Math.floor(run?.time ?? 0),
+    stamp: Date.now(),
+  };
+  const next = [...getTopRuns(), entry]
+    .sort((a, b) => b.score - a.score || b.wave - a.wave)
+    .slice(0, 3);
+  try {
+    localStorage.setItem(TOP3_KEY, JSON.stringify(next));
+  } catch {
+    // ignore storage limits
+  }
+  const currentIndex = next.findIndex((r) => r.stamp === entry.stamp);
+  return { list: next, currentIndex };
+}
+
 function formatAura(amount) {
   return Math.round(amount).toLocaleString('de-DE');
 }
@@ -47,6 +84,8 @@ function formatClock(sec) {
 }
 
 function upgradeMeta(id) {
+  const evo = EVOLUTIONS.find((e) => e.id === id);
+  if (evo) return { ...evo, isEvo: true };
   return UPGRADE_POOL.find((u) => u.id === id) ?? { id, name: id, icon: 'bolt', tint: 'gold', descForLevel: () => '' };
 }
 
@@ -55,13 +94,58 @@ function upgradeIcon(id) {
   return ICONS[meta.icon] ?? ICONS.bolt;
 }
 
+export function computeBadges(run) {
+  const stats = run?.stats ?? {};
+  const player = run?.player ?? {};
+  const evoCount = Math.max(stats.evolutions || 0, player.evolutions?.size || 0);
+  const badges = [];
+  if (evoCount >= 1) badges.push({ label: '★ EVOLUTIONS-CHEF', tone: 'gold' });
+  if ((stats.fresskomas || 0) >= 1) badges.push({ label: 'HAUKE-FÜTTERER', tone: 'jade' });
+  if ((stats.haukeKills || 0) >= 1) badges.push({ label: 'HAUKE-BEZWINGER', tone: 'crimson' });
+  if ((stats.ducks || 0) >= 1) badges.push({ label: 'ENTEN-FLÜSTERER', tone: 'gold' });
+  if ((player.maxCombo || 1) >= 15) badges.push({ label: `${player.maxCombo}× KOMBO-MONSTER`, tone: 'crimson' });
+  if ((stats.crownsRecovered || 0) >= 1) badges.push({ label: 'KRONEN-BOXER', tone: 'gold' });
+  if ((stats.chaosEvents || 0) >= 2) badges.push({ label: 'CHAOS-PROFI', tone: 'cyan' });
+  if ((stats.wallSlams || 0) >= 4) badges.push({ label: 'WAND-KLATSCHER', tone: 'cyan' });
+  if ((stats.dodges || 0) >= 3) badges.push({ label: 'ANKLE-BREAKER', tone: 'cyan' });
+  if (badges.length === 0) badges.push({ label: 'SPÄTSCHICHT-HELD', tone: 'jade' });
+  return badges.slice(0, 4);
+}
+
+export function formatShareReceipt(run, shareUrl) {
+  const stats = run?.stats ?? {};
+  const player = run?.player ?? {};
+  const score = Math.round(player.pfand ?? 0);
+  const loadoutName = LOADOUTS[run?.loadoutId]?.name ?? 'Pfannen-Chef';
+  const seedStr = String(run?.seed ?? 2026).padStart(4, '0');
+  const badges = computeBadges(run).map((b) => b.label).join(' · ');
+  const evoNames = [...(player.evolutions || [])].map((id) => upgradeMeta(id).name);
+
+  const lines = [
+    `IMBISS-SURVIVAL KASSENBON (#${seedStr})`,
+    `${loadoutName} · Welle ${run?.wave ?? 1} · ${formatClock(run?.time ?? 0)} · Lv ${player.level ?? 1}`,
+    `Score: ${formatAura(score)} ⚡ · ${player.kills ?? 0} Kills · ${player.maxCombo || 1}× Max-Kombo`,
+    `Antons: ${stats.antonKills || 0} | Toms: ${stats.tomKills || 0} | Haukes: ${stats.haukeKills || 0}`,
+  ];
+  if (evoNames.length > 0) lines.push(`★ Evolutionen: ${evoNames.join(', ')}`);
+  if (badges) lines.push(`Orden: ${badges}`);
+  if (run?.challenge) {
+    lines.push(run.challenge.beaten
+      ? `Rekord von ${run.challenge.from} (${formatAura(run.challenge.score)} ⚡) GEKNACKT!`
+      : `Ziel von ${run.challenge.from}: ${formatAura(run.challenge.score)} ⚡`);
+  }
+  lines.push('Kannst du meine Schicht toppen?');
+  if (shareUrl) lines.push(shareUrl);
+  return lines.join('\n');
+}
+
 export class Hud {
   constructor() {
     for (const slot of document.querySelectorAll('.ico-slot[data-ico]')) {
       slot.innerHTML = ICONS[slot.dataset.ico] ?? '';
     }
     this.elements = Object.fromEntries([
-      'hud', 'floor-badge', 'location', 'mutator-pill', 'crown-badge', 'crown-label',
+      'hud', 'floor-badge', 'location', 'mutator-pill', 'challenge-pill', 'crown-badge', 'crown-label',
       'hp-fill', 'hp-text', 'xp-fill', 'xp-text',
       'active-mods', 'record-counter', 'pfand-counter', 'noise-label', 'noise-meter', 'lamp-state', 'lamp-label',
       'interact', 'interact-key', 'interact-label', 'notice', 'clapper-count', 'dash-state', 'bonk-state',
@@ -71,7 +155,7 @@ export class Hud {
       'touch-bonk', 'touch-bonk-label', 'touch-bonk-fill',
       'orb-bonk', 'orb-dash', 'slot-lamp', 'slot-lure', 'menu-best', 'vignette', 'chart', 'chart-map',
       'chart-toggle', 'chart-seed', 'overlay-mods', 'overlay-receipt', 'lift-screen', 'lift-eyebrow',
-      'lift-copy', 'mod-list',
+      'lift-copy', 'mod-list', 'lift-reroll', 'lift-reroll-label',
     ].map((id) => [id, get(id)]));
 
     const mapCanvas = this.elements['chart-map'];
@@ -82,6 +166,7 @@ export class Hud {
     this.planMap = null;
     this.scale = 1;
     this.barkNodes = new Map();
+    this.hpBarNodes = new Map();
     this.lastModsKey = '';
     this.syncMenuHighscore();
   }
@@ -96,6 +181,7 @@ export class Hud {
   clearFloating() {
     if (this.elements['world-barks']) this.elements['world-barks'].innerHTML = '';
     this.barkNodes.clear();
+    this.hpBarNodes.clear();
     if (this.elements.notice) this.elements.notice.hidden = true;
     if (this.elements.interact) this.elements.interact.hidden = true;
   }
@@ -135,6 +221,7 @@ export class Hud {
 
   toggleChart(run, show = this.elements.chart.hidden) {
     this.elements.chart.hidden = !show;
+    this.elements.hud?.classList.toggle('chart-open', Boolean(show));
     this.elements['chart-toggle'].setAttribute('aria-expanded', String(show));
     if (show && run) this.drawChart(run);
   }
@@ -172,7 +259,9 @@ export class Hud {
     }
     for (const pk of run.pickups ?? []) {
       if (pk.collected) continue;
-      if (pk.kind === 'chest' || pk.kind === 'heal' || pk.kind === 'magnet_can') {
+      if (pk.kind === 'duck') {
+        place(pk, '#ffe63b', 5.0, 'circle');
+      } else if (pk.kind === 'chest' || pk.kind === 'heal' || pk.kind === 'magnet_can') {
         place(pk, pk.kind === 'chest' ? '#ffe082' : '#ffb84d', 4.4, 'circle');
       }
     }
@@ -197,11 +286,13 @@ export class Hud {
     }
   }
 
-  showLevelChoices(run, onPick) {
+  showLevelChoices(run, onPick, onReroll) {
     const lift = this.elements['lift-screen'];
     const eyebrow = this.elements['lift-eyebrow'];
     const copy = this.elements['lift-copy'];
     const list = this.elements['mod-list'];
+    const rerollBtn = this.elements['lift-reroll'];
+    const rerollLabel = this.elements['lift-reroll-label'];
     if (!lift || !list) return;
     write(eyebrow, `LEVEL UP! · STUFE ${run.player.level}`);
     write(copy, `Welle ${run.wave} · ${formatClock(run.time)} überlebt · ${run.player.kills} Kills`);
@@ -209,11 +300,13 @@ export class Hud {
     for (const [idx, offer] of (run.upgradeOffers ?? []).entries()) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = `mod-switch tone-${offer.tint}`;
+      btn.className = `mod-switch tone-${offer.tint}${offer.isEvo ? ' is-evo' : ''}`;
       btn.dataset.modIndex = String(idx);
-      const lvLabel = offer.isNew
-        ? '<span class="mod-tag-new">NEU!</span>'
-        : ` <small style="color:var(--gold)">LV ${offer.nextLevel}</small>`;
+      const lvLabel = offer.isEvo
+        ? '<span class="mod-tag-evo">★ EVOLUTION</span>'
+        : offer.isNew
+          ? '<span class="mod-tag-new">NEU!</span>'
+          : ` <small style="color:var(--gold)">LV ${offer.nextLevel}</small>`;
       btn.innerHTML = `
         <span class="mod-ico">${upgradeIcon(offer.id)}</span>
         <span class="mod-text"><b>${offer.name}${lvLabel}</b><small>${offer.desc}</small></span>
@@ -222,6 +315,12 @@ export class Hud {
       `;
       btn.addEventListener('click', () => onPick(offer.id));
       list.appendChild(btn);
+    }
+    if (rerollBtn) {
+      const left = Math.max(0, run.player.rerolls || 0);
+      rerollBtn.disabled = left <= 0;
+      write(rerollLabel, left > 0 ? `Neu würfeln (${left})` : 'Keine Würfel');
+      rerollBtn.onclick = () => onReroll?.();
     }
     lift.hidden = false;
     if (!document.body.classList.contains('touch-input')) {
@@ -238,6 +337,9 @@ export class Hud {
       return;
     }
     const items = [];
+    for (const evoId of run.player.evolutions || []) {
+      items.push({ ...upgradeMeta(evoId), isEvo: true });
+    }
     for (const [id, lv] of Object.entries(run.player.weapons || {})) {
       if (lv > 0) items.push({ ...upgradeMeta(id), lv });
     }
@@ -250,7 +352,9 @@ export class Hud {
       return;
     }
     box.innerHTML = items.map((m) => (
-      `<span class="overlay-mod-pill tone-${m.tint}">${upgradeIcon(m.id)}<span>${m.name} Lv ${m.lv}</span></span>`
+      m.isEvo
+        ? `<span class="overlay-mod-pill is-evo">${ICONS.star}<span>${m.name}</span></span>`
+        : `<span class="overlay-mod-pill tone-${m.tint}">${upgradeIcon(m.id)}<span>${m.name} Lv ${m.lv}</span></span>`
     )).join('');
     box.hidden = false;
   }
@@ -258,18 +362,46 @@ export class Hud {
   renderReceipt(run) {
     const box = this.elements['overlay-receipt'];
     if (!box || !run) return;
+    const esc = (str) => String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
     const stats = run.stats ?? {};
     const score = Math.round(run.player.pfand ?? 0);
     const best = saveBestStats(score, run.wave);
+    const top = saveTopRun(run);
     this.syncMenuHighscore();
 
-    const rank = run.wave >= 6 || stats.haukeKills >= 2
+    const rank = run.wave >= 6 || stats.haukeKills >= 2 || (run.player.evolutions?.size || 0) >= 2
       ? 'IMBISS-LEGENDE · TORGE SUPREME'
-      : run.wave >= 3 || stats.haukeKills >= 1
+      : run.wave >= 3 || stats.haukeKills >= 1 || (run.player.evolutions?.size || 0) >= 1
         ? 'MEISTER DES MITTERNACHTS-GRILLS'
         : run.player.level >= 4
           ? 'FLINKER PFANNEN-PROFI'
           : 'SPÄTSCHICHT-NEULING';
+
+    const badgesHtml = computeBadges(run)
+      .map((b) => `<span class="receipt-badge ${b.tone}">${esc(b.label)}</span>`)
+      .join('');
+
+    const challengeHtml = run.challenge
+      ? `<div class="receipt-challenge${run.challenge.beaten ? ' beaten' : ''}">${
+        run.challenge.beaten
+          ? `✓ DU HAST ${esc(run.challenge.from.toUpperCase())} (${formatAura(run.challenge.score)} ⚡) GEKNACKT!`
+          : `Ziel von ${esc(run.challenge.from)}: ${formatAura(run.challenge.score)} ⚡ — noch ${formatAura(Math.max(1, run.challenge.score + 1 - score))} ⚡!`
+      }</div>`
+      : '';
+
+    const topHtml = top.list.length > 0
+      ? `<div class="receipt-top3"><div class="receipt-top3-title">LOKALE TOP-3 SCHICHTEN</div>${top.list.map((entry, idx) => (
+        `<div class="receipt-top3-row${idx === top.currentIndex ? ' current' : ''}">`
+        + `<span>#${idx + 1} ${esc(entry.loadout)} · W${entry.wave} (#${String(entry.seed).padStart(4, '0')})</span>`
+        + `<span>${formatAura(entry.score)} ⚡</span></div>`
+      )).join('')}</div>`
+      : '';
+
+    const footerIdx = Math.abs(Math.floor((run.seed || 2026) + score + (run.player.kills || 0))) % RECEIPT_FOOTERS.length;
+    const footerLine = RECEIPT_FOOTERS[footerIdx];
 
     box.innerHTML = `
       <div class="receipt-row"><span>Zeit ${formatClock(run.time)} · Welle ${run.wave} · Stufe ${run.player.level}</span><span>#${String(run.seed).padStart(4, '0')}</span></div>
@@ -277,6 +409,10 @@ export class Hud {
       <div class="receipt-row"><span>Schellen (${stats.bonks || 0}) · Wand-Klatscher (${stats.wallSlams || 0}) · Fässer (${stats.barrels || 0})</span><span>${run.player.maxCombo || 1}× Max-Kombo</span></div>
       <div class="receipt-row total"><span>Score (Rekord: W${best.wave} · ${formatAura(best.score)})</span><span>${formatAura(score)} ⚡</span></div>
       <div class="receipt-rank"><strong>${rank}</strong></div>
+      ${challengeHtml}
+      <div class="receipt-badges">${badgesHtml}</div>
+      ${topHtml}
+      <div class="receipt-footer">„${esc(footerLine)}“</div>
     `;
     box.hidden = false;
   }
@@ -311,6 +447,37 @@ export class Hud {
     }
   }
 
+  paintEnemyBars(run, view) {
+    const layer = this.elements['world-barks'];
+    if (!layer || !view || !run.enemies) return;
+    const activeIds = new Set();
+    for (const enemy of run.enemies) {
+      if (enemy.dead || enemy.type === 'hauke') continue;
+      if (!enemy.elite && enemy.type !== 'tom') continue;
+      if (enemy.hp >= enemy.maxHp - 0.1) continue;
+      const screen = view.projectPoint(enemy.x, enemy.elite ? 1.84 : 1.5, enemy.z);
+      if (!screen) continue;
+      activeIds.add(enemy.id);
+      let el = this.hpBarNodes.get(enemy.id);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = `enemy-hp${enemy.elite ? ' elite' : ''}${enemy.type === 'tom' ? ' tom' : ''}`;
+        el.innerHTML = '<i></i>';
+        layer.appendChild(el);
+        this.hpBarNodes.set(enemy.id, el);
+      }
+      const pct = Math.max(4, Math.min(100, (enemy.hp / Math.max(1, enemy.maxHp)) * 100));
+      el.firstChild.style.width = `${pct.toFixed(1)}%`;
+      el.style.transform = `translate3d(${screen.x.toFixed(1)}px, ${screen.y.toFixed(1)}px, 0) translate(-50%, -100%)`;
+    }
+    for (const [id, el] of this.hpBarNodes.entries()) {
+      if (!activeIds.has(id)) {
+        el.remove();
+        this.hpBarNodes.delete(id);
+      }
+    }
+  }
+
   paint(run, view) {
     const ui = this.elements;
     const { player, map, wave, waveTimer } = run;
@@ -331,11 +498,15 @@ export class Hud {
     if (ui['mutator-pill']) {
       if (run.chaosEvent) {
         ui['mutator-pill'].hidden = false;
-        const short = run.chaosEvent.id === 'ordnungsamt'
-          ? 'ORDNUNGSAMT'
-          : run.chaosEvent.id === 'happy_hour'
-            ? 'HAPPY HOUR'
-            : 'FETT-BAHN';
+        const chaosLabels = {
+          ordnungsamt: 'ORDNUNGSAMT',
+          happy_hour: 'HAPPY HOUR',
+          fettbahn: 'FETT-BAHN',
+          kartenzahlung: 'NUR BAR · 2×XP',
+          doenerpreis: 'DÖNER 9,50€',
+          enten_regen: 'ENTEN-ALARM',
+        };
+        const short = chaosLabels[run.chaosEvent.id] ?? 'CHAOS';
         write(ui['mutator-pill'], `${short} ${Math.ceil(run.chaosEvent.timer)}s`);
       } else {
         const showMut = map.mutator && map.mutator.id !== 'classic';
@@ -344,19 +515,40 @@ export class Hud {
       }
     }
 
+    if (ui['challenge-pill']) {
+      if (run.challenge) {
+        ui['challenge-pill'].hidden = false;
+        ui['challenge-pill'].classList.toggle('beaten', Boolean(run.challenge.beaten));
+        write(
+          ui['challenge-pill'],
+          run.challenge.beaten
+            ? '✓ GEKNACKT!'
+            : `Ziel: ${formatAura(run.challenge.score)} ⚡`,
+        );
+      } else {
+        ui['challenge-pill'].hidden = true;
+      }
+    }
+
     if (ui['active-mods']) {
+      const evoIds = [...(player.evolutions || [])];
       const activePairs = [
         ...Object.entries(player.weapons || {}).filter(([, lv]) => lv > 0),
         ...Object.entries(player.passives || {}).filter(([, lv]) => lv > 0),
       ];
-      const modsKey = activePairs.map(([id, lv]) => `${id}:${lv}`).join(',');
+      const modsKey = `${evoIds.join('|')}::${activePairs.map(([id, lv]) => `${id}:${lv}`).join(',')}`;
       if (modsKey !== this.lastModsKey) {
         this.lastModsKey = modsKey;
-        ui['active-mods'].innerHTML = activePairs.map(([id, lv]) => {
+        const evoHtml = evoIds.map((id) => {
+          const meta = upgradeMeta(id);
+          return `<span class="mod-badge is-evo" title="★ ${meta.name}">${upgradeIcon(id)}<em>★</em></span>`;
+        }).join('');
+        const regularHtml = activePairs.map(([id, lv]) => {
           const meta = upgradeMeta(id);
           return `<span class="mod-badge tone-${meta.tint}" title="${meta.name} Lv ${lv}">${upgradeIcon(id)}<em>${lv}</em></span>`;
         }).join('');
-        ui['active-mods'].hidden = activePairs.length === 0;
+        ui['active-mods'].innerHTML = evoHtml + regularHtml;
+        ui['active-mods'].hidden = evoIds.length === 0 && activePairs.length === 0;
       }
     }
 
@@ -407,7 +599,7 @@ export class Hud {
     const activeCount = Math.min(6, Math.ceil((run.enemies?.filter((e) => !e.dead).length || 0) / 4));
     for (const [index, line] of [...ui['noise-meter'].children].entries()) line.classList.toggle('active', index < activeCount);
     ui['noise-meter'].classList.toggle('high', activeCount >= 5);
-    write(ui['noise-label'], player.lamp ? 'Blend-Licht (+30% DMG)' : 'Schatten-Tempo (+14%)');
+    write(ui['noise-label'], player.lamp ? 'Blend +30%' : 'Tempo +14%');
 
     if (ui['lamp-state']) {
       ui['lamp-state'].classList.toggle('on', Boolean(player.lamp));
@@ -474,6 +666,7 @@ export class Hud {
     }
 
     this.paintBarks(run, view);
+    this.paintEnemyBars(run, view);
 
     const action = interaction(run);
     if (ui['touch-use']) {

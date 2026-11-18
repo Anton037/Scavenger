@@ -324,6 +324,34 @@ export class Soundscape {
         this.tone(523.25, 523.25, 0.24, 0.16, 0, 0.14, 'triangle');
         this.tone(880, 440, 0.18, 0.12, 0, 0.28, 'sine');
         break;
+      case 'ka_ching':
+        // Kassen-Klingeln (Rekord geknackt / Barzahlung!)
+        this.tone(1318.5, 1318.5, 0.08, 0.15, 0, 0, 'triangle');
+        this.tone(1760, 2093, 0.28, 0.18, 0, 0.07, 'sine');
+        this.rustle(3200, 2.2, 0.09, 0.08, 0);
+        break;
+      case 'slip':
+        // Cartoon-Rutsch-Pfeife auf Öl/Pfütze!
+        this.tone(320, 1280, 0.14, 0.12, pan, 0, 'sine');
+        this.tone(1180, 420, 0.15, 0.1, pan, 0.12, 'sine');
+        break;
+      case 'evolve':
+        // Legendäre Michelin-Stern Waffen-Evolution!
+        this.tone(523.25, 523.25, 0.11, 0.18, 0, 0, 'triangle');
+        this.tone(659.25, 659.25, 0.11, 0.18, 0, 0.07, 'triangle');
+        this.tone(783.99, 783.99, 0.13, 0.18, 0, 0.14, 'triangle');
+        this.tone(1046.5, 1046.5, 0.2, 0.2, 0, 0.21, 'sawtooth');
+        this.tone(1318.5, 1568, 0.42, 0.22, 0, 0.3, 'sine');
+        break;
+      case 'combo_milestone':
+        // Hype Kombo-Jingle!
+        this.tone(587.3, 880, 0.11, 0.15, 0, 0, 'triangle');
+        this.tone(880, 1174.6, 0.18, 0.16, 0, 0.09, 'sine');
+        break;
+      case 'reroll':
+        this.tone(420, 680, 0.07, 0.11, 0, 0, 'triangle');
+        this.rustle(1600, 1.4, 0.06, 0.07, 0);
+        break;
       case 'caught':
         this.tone(126, 29, 0.93, 0.27, 0, 0, 'triangle');
         this.rustle(550, 0.85, 0.89, 0.14);

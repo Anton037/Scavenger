@@ -28,6 +28,10 @@
           <span class="ico-slot gold" data-ico="bolt"></span>
         </div>
         <div class="title-top-actions">
+          <button id="daily-seed" class="btn-glass btn-daily" type="button" title="Tages-Schicht: Gleicher Arena-Seed für alle heute!" aria-pressed="false">
+            <span class="ico-slot gold" data-ico="calendar"></span>
+            <span>Heute</span>
+          </button>
           <div class="seed-pill">
             <span class="seed-hash" aria-hidden="true">#</span>
             <input id="seed-input" type="number" min="1" max="999999" value="2026" inputmode="numeric" aria-label="Arena-Seed">
@@ -41,7 +45,8 @@
       <div class="arcade-panel">
         <span class="arcade-kicker">ARENA HORDE-SURVIVAL · CHEF TORGE '26</span>
         <h1 id="title">IMBISS SURVIVAL</h1>
-        <p class="arcade-sub">Überlebe endlose Wellen aus <strong>Antons, Toms &amp; Boss Hauke</strong>! Sammle Pfand-XP, level auf &amp; stapel <strong>Döner-Orbits, Grillspieße &amp; Spezi-Granaten</strong>!</p>
+        <p id="challenge-banner" class="challenge-banner" hidden></p>
+        <p class="arcade-sub">Überlebe endlose Wellen aus <strong>Antons, Toms &amp; Boss Hauke</strong>! Sammle Pfand-XP, entwickle <strong>Super-Waffen</strong> &amp; schlag deine Kumpels!</p>
 
         <div id="loadout-picker" class="loadout-picker" role="radiogroup" aria-label="Chef-Klasse wählen">
           <button class="loadout-btn active" type="button" data-loadout="classic" aria-pressed="true">
@@ -53,9 +58,13 @@
           <button class="loadout-btn" type="button" data-loadout="brawler" aria-pressed="false">
             <b>Döner-Meister</b><small>Döner-Orbit · 125 HP</small>
           </button>
+          <button class="loadout-btn" type="button" data-loadout="knobi_chef" aria-pressed="false">
+            <b>Knobi-Priester</b><small>Knobi-Aura · 4 Spezis</small>
+          </button>
         </div>
 
         <button id="start" class="btn-start" type="button"><span>SCHICHT STARTEN</span><span class="btn-arrow" aria-hidden="true">▶</span></button>
+        <p id="title-ticker" class="title-ticker" aria-live="polite"></p>
         <p id="launch-error" class="launch-error" role="status" hidden></p>
       </div>
 
@@ -90,6 +99,7 @@
           </div>
           <div class="zone-meta">
             <span id="mutator-pill" class="mutator-pill" hidden></span>
+            <span id="challenge-pill" class="challenge-pill" hidden></span>
             <div id="active-mods" class="active-mods" aria-label="Aktive Waffen und Upgrades"></div>
           </div>
         </div>
@@ -115,6 +125,10 @@
         </div>
       </div>
 
+      <div class="notice-area" aria-live="polite">
+        <p id="notice" class="notice" hidden></p>
+      </div>
+
       <aside id="chart" class="chart" aria-labelledby="chart-title" hidden>
         <div class="chart-head">
           <h3 id="chart-title">Arena-Radar</h3>
@@ -125,7 +139,7 @@
         </div>
         <canvas id="chart-map" width="312" height="280" aria-label="Arena-Übersicht mit Torge, Fässern, Truhen und Boss Hauke"></canvas>
         <p>
-          <span class="chart-dot" aria-hidden="true"></span> Truhe/Heal
+          <span class="chart-dot" aria-hidden="true"></span> Beute
           <span class="chart-lift" aria-hidden="true"></span> Späti
           <span class="chart-enemy" aria-hidden="true"></span> Gegner
           <span class="chart-barrel" aria-hidden="true"></span> Fass
@@ -133,14 +147,13 @@
       </aside>
 
       <div class="message-area" aria-live="polite">
-        <p id="notice" class="notice" hidden></p>
         <button id="interact" class="interact" type="button" hidden><kbd id="interact-key">E</kbd><span id="interact-label"></span></button>
       </div>
 
       <div class="hud-bottom">
         <div class="meters">
           <div class="meter-line">
-            <span id="noise-label">Blend-Licht</span>
+            <span id="noise-label">Blend +30%</span>
             <span id="lamp-state" class="lamp-pill on"><span class="ico-slot" data-ico="lamp"></span><span id="lamp-label">AN</span></span>
           </div>
           <div id="noise-meter" class="noise-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -218,6 +231,11 @@
         <p id="lift-copy" class="lift-preview"></p>
         <div id="mod-list" class="mod-list"></div>
         <div class="lift-footer">
+          <button id="lift-reroll" class="btn-glass btn-reroll" type="button">
+            <span class="ico-slot gold" data-ico="dice"></span>
+            <span id="lift-reroll-label">Neu würfeln (2)</span>
+            <kbd class="mod-kbd">R</kbd>
+          </button>
           <button id="lift-cashout" class="btn-glass" type="button">Schicht beenden &amp; Score sichern</button>
         </div>
       </div>
@@ -232,6 +250,10 @@
         <div id="overlay-receipt" class="receipt" hidden></div>
         <button id="overlay-primary" class="btn-start" type="button"><span id="overlay-action">Weitermachen</span><span class="btn-arrow" aria-hidden="true">▶</span></button>
         <div class="overlay-secondary">
+          <button id="overlay-share" class="btn-glass btn-share" type="button" hidden>
+            <span class="ico-slot gold" data-ico="share"></span>
+            <span id="overlay-share-label">Kassenbon teilen</span>
+          </button>
           <button id="overlay-same-seed" class="btn-glass" type="button" hidden>Gleicher Seed</button>
           <button id="menu" class="btn-glass" type="button">Hauptmenü</button>
           <button id="pause-audio" class="btn-glass" type="button" aria-pressed="true">Ton an</button>

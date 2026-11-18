@@ -10,31 +10,31 @@ export const BIOMES = [
     id: 'nightmarket',
     name: 'Mitternachts-Imbiss',
     accent: 0xffb84d,
-    floorGlazes: [0x2a3d4a, 0x344663, 0x263d39, 0x3b3552, 0x473836],
-    wallHex: 0x354063,
-    torchHex: 0xe5b878,
-    waterHex: 0x1f6e7a,
-    fogHex: 0x0b0c14,
+    floorGlazes: [0x384e63, 0x435978, 0x32524f, 0x484469, 0x574848],
+    wallHex: 0x45547d,
+    torchHex: 0xffca6a,
+    waterHex: 0x268999,
+    fogHex: 0x101322,
   },
   {
     id: 'freezer',
     name: 'Kühlhof -18°C',
     accent: 0x73d7ff,
-    floorGlazes: [0x204459, 0x2a546e, 0x1e4b52, 0x2c4268, 0x324b63],
-    wallHex: 0x294866,
-    torchHex: 0x73d7ff,
-    waterHex: 0x2987a8,
-    fogHex: 0x08101c,
+    floorGlazes: [0x2d5873, 0x376a8c, 0x2a616b, 0x3b5885, 0x416480],
+    wallHex: 0x3a6187,
+    torchHex: 0x82e0ff,
+    waterHex: 0x38a5cc,
+    fogHex: 0x0d1729,
   },
   {
     id: 'furnace',
     name: 'Grill-Arena',
-    accent: 0xff5744,
-    floorGlazes: [0x472934, 0x52312a, 0x36243d, 0x4d342b, 0x3e222f],
-    wallHex: 0x472939,
-    torchHex: 0xff7b4d,
-    waterHex: 0x255e68,
-    fogHex: 0x14080d,
+    accent: 0xff6247,
+    floorGlazes: [0x593645, 0x663f38, 0x483152, 0x61443a, 0x523040],
+    wallHex: 0x5e384b,
+    torchHex: 0xff8e57,
+    waterHex: 0x317a85,
+    fogHex: 0x1c0d14,
   },
 ];
 
@@ -144,6 +144,19 @@ export const LOADOUTS = {
     magnetMult: 1.05,
     areaMult: 1.2,
   },
+  knobi_chef: {
+    id: 'knobi_chef',
+    name: 'Knobi-Priester',
+    tag: 'Knobi-Aura · +15% Radius · 4 Spezis',
+    startWeapon: 'knobi',
+    maxHp: 105,
+    speedMult: 1.04,
+    dashCdMult: 0.95,
+    bonkCdMult: 0.96,
+    clappers: 4,
+    magnetMult: 1.1,
+    areaMult: 1.15,
+  },
 };
 
 export const UPGRADE_POOL = [
@@ -229,7 +242,7 @@ export const UPGRADE_POOL = [
     id: 'knobi',
     kind: 'weapon',
     name: 'Knobi-Knaller',
-    icon: 'fire',
+    icon: 'knobi',
     tint: 'jade',
     maxLevel: 5,
     descForLevel: (lv) => (
@@ -285,13 +298,71 @@ export const UPGRADE_POOL = [
   },
 ];
 
+export const EVOLUTIONS = [
+  {
+    id: 'evo_pan',
+    weapon: 'pan',
+    synergy: 'chili',
+    name: 'SCHELLEN-INFERNO',
+    icon: 'pan',
+    tint: 'gold',
+    desc: 'EVOLUTION (Pfanne + Scharfe Soße): 360° Feuer-Druckwelle & doppelter Rückstoß!',
+  },
+  {
+    id: 'evo_doner',
+    weapon: 'doner',
+    synergy: 'knobi',
+    name: 'KNOBI-DÖNER-TORNADO',
+    icon: 'doner',
+    tint: 'jade',
+    desc: 'EVOLUTION (Döner + Knobi): 6 Turbo-Döner mit Mega-Radius häckseln alles weg!',
+  },
+  {
+    id: 'evo_spezi',
+    weapon: 'spezi',
+    synergy: 'espresso',
+    name: 'PAULANER-ARTILLERIE',
+    icon: 'spezi',
+    tint: 'vermilion',
+    desc: 'EVOLUTION (Spezi + Espresso): 3er-Cluster-Spezis mit riesigem Sprudel-Bumms!',
+  },
+  {
+    id: 'evo_skewer',
+    weapon: 'skewer',
+    synergy: 'magnet',
+    name: 'SCHASCHLIK-GATLING',
+    icon: 'skewer',
+    tint: 'vermilion',
+    desc: 'EVOLUTION (Spieße + Magnet): Dauerfeuer-Spieße prügeln extra Pfand-XP aus Gegnern!',
+  },
+  {
+    id: 'evo_can',
+    weapon: 'can',
+    synergy: 'dash_mod',
+    name: 'PFAND-FLIPPER 3000',
+    icon: 'can',
+    tint: 'cyan',
+    desc: 'EVOLUTION (Billard + Schlappen): Riesen-Superdosen mit 8 Abprallern & Blitztempo!',
+  },
+];
+
 export const MOD_POOL = UPGRADE_POOL;
+
+export function getDailySeed(date = new Date()) {
+  const y = date.getUTCFullYear() % 100;
+  const m = date.getUTCMonth() + 1;
+  const d = date.getUTCDate();
+  return y * 10000 + m * 100 + d;
+}
 
 export function buildArena(seed = 2026, biomeStep = 1) {
   const rng = randomFrom(seed + biomeStep * 7919);
   const width = 28;
   const depth = 28;
-  const biome = BIOMES[(biomeStep - 1) % BIOMES.length];
+  const biomeIndex = biomeStep > 1
+    ? (biomeStep - 1) % BIOMES.length
+    : (((seed - 2026) % BIOMES.length) + BIOMES.length) % BIOMES.length;
+  const biome = BIOMES[biomeIndex];
   const mutatorKeys = Object.keys(MUTATORS);
   const mutator = biomeStep === 1 && rng() < 0.45
     ? MUTATORS.classic
@@ -315,25 +386,25 @@ export function buildArena(seed = 2026, biomeStep = 1) {
     { id: 1, name: 'Nord-Grill', x: 5, z: 2, w: 18, d: 8, cx: 14, cz: 6, glaze: biome.floorGlazes[1] },
   ];
 
-  // 4 geräumige Deckungs-Pfeiler mit viel Laufraum für Horde-Kiting
+  // 4 geräumige Imbiss-Deckungen mit viel Laufraum für Horde-Kiting
   const blocks = [
-    { x: 8.5, z: 8.5, w: 1.35, d: 1.35, kind: 'pump' },
-    { x: 19.5, z: 8.5, w: 1.35, d: 1.35, kind: 'coil' },
-    { x: 8.5, z: 19.5, w: 1.35, d: 1.35, kind: 'shelves' },
-    { x: 19.5, z: 19.5, w: 1.35, d: 1.35, kind: 'turbine' },
+    { x: 8.5, z: 8.5, w: 1.35, d: 1.35, kind: 'fridge' },
+    { x: 19.5, z: 8.5, w: 1.35, d: 1.35, kind: 'fryer' },
+    { x: 8.5, z: 19.5, w: 1.35, d: 1.35, kind: 'table' },
+    { x: 19.5, z: 19.5, w: 1.35, d: 1.35, kind: 'crates_stack' },
   ];
 
   const vending = { x: 14, z: 2.35, cooldown: 0 };
 
   const fixtures = [
-    { x: 2.3, z: 2.3, color: biome.torchHex, strength: 2.6 },
-    { x: 25.7, z: 2.3, color: biome.torchHex, strength: 2.6 },
-    { x: 2.3, z: 25.7, color: biome.torchHex, strength: 2.6 },
-    { x: 25.7, z: 25.7, color: biome.torchHex, strength: 2.6 },
-    { x: 14, z: 2.3, color: 0xffb84d, strength: 2.8 },
-    { x: 14, z: 25.7, color: biome.accent, strength: 2.5 },
-    { x: 2.3, z: 14, color: biome.accent, strength: 2.5 },
-    { x: 25.7, z: 14, color: biome.accent, strength: 2.5 },
+    { x: 2.3, z: 2.3, color: biome.torchHex, strength: 3.1 },
+    { x: 25.7, z: 2.3, color: biome.torchHex, strength: 3.1 },
+    { x: 2.3, z: 25.7, color: biome.torchHex, strength: 3.1 },
+    { x: 25.7, z: 25.7, color: biome.torchHex, strength: 3.1 },
+    { x: 14, z: 2.3, color: 0xffc857, strength: 3.5 },
+    { x: 14, z: 25.7, color: biome.accent, strength: 3.0 },
+    { x: 2.3, z: 14, color: biome.accent, strength: 3.0 },
+    { x: 25.7, z: 14, color: biome.accent, strength: 3.0 },
   ];
 
   const pools = [];
