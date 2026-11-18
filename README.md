@@ -1,31 +1,29 @@
-# Scavenger
+# Scavenger — Chef Torge Edition (2026)
 
-An atmospheric 3D horror game set in an abandoned tidal pumping station. Descend into the Drowned Works, recover three maintenance records, and call the lift. The Listener patrols the works and follows what it can see or hear. Close the lamp shutter, skirt standing water, and spend your brass clappers to draw it away from your route.
+Ein 3D-Action-Horror-Game im Browser: Du spielst als **Chef Torge** (*der überlegene Chef*) und musst im Keller die drei heiligen Schätze (**Goldene Chef-Krone**, **Limitierte Paulaner Spezi**, **Heiliger Mitternachts-Döner**) sichern und mit dem Aufzug entkommen!
 
-## Play locally
+## Die Crew im Keller
 
-Use Node.js 20.19+ or 22.12+ and a browser with WebGL 2.
+- **Chef Torge (Du)**: Groß, breit gebaut, mit goldener Chef-Krone, Sonnenbrille und **Chef-Schelle** (`C` / Linksklick).
+- **Massiv-Rund Hauke (Boss)**: Hat eine gewaltige Kugel-Wampe, ein eigenes Gravitationsfeld (inklusive kreisender Snacks) und bringt den ganzen Boden zum Beben.
+- **Lost Anton (Slenderman)**: Extrem groß, schlaksig und öfter komplett lost – rutscht auf Pfützen aus und lässt sich mit goldenen Pfand-Dosen (`F`) ablenken.
+- **Tom (Einfach Tom)**: Geduckter Schnorrer im Hoodie, der dir heimlich `400 Aura` abzieht, bis er eine Chef-Schelle kassiert.
 
-```sh
-npm ci
+## Steuerung
+
+- `WASD` / `Pfeiltasten` — Bewegen
+- `Maus` — Zielen
+- `C` / `V` / `Linksklick` — **Chef-Schelle** (stößt Gegner zurück & bringt `+1.200 Aura`)
+- `Leertaste` — Dash (Hechtsprung, auf Pfützen mit Rutsch-Action)
+- `F` — Goldene Pfand-Dose werfen (lenkt Anton & Hauke ab)
+- `Q` — Taschenlampe umschalten
+- `E` — Schätze greifen / Dampf-Ventil aufdrehen / Späti-Automat nutzen
+- `M` — Keller-Radar
+- `Escape` — Pause
+
+## Lokal starten
+
+```bash
+npm install
 npm run dev
 ```
-
-Open the local URL printed by Vite. `npm run check` tests the level and simulation and builds the production site. `npm run preview` serves that build locally.
-
-| Action | Keyboard and mouse | Touch |
-| --- | --- | --- |
-| Move | WASD or arrow keys | Left stick |
-| Aim the lamp | Mouse | Touch or drag the scene |
-| Open or shutter the lamp | Q | Lamp |
-| Dash | Space | Dash |
-| Throw a clapper | F | Clapper |
-| Recover a record or use the lift | E | Use |
-| Open the survey chart | M | Chart |
-| Pause | Escape | Pause |
-
-The chart marks all three record sites and the lift. Dashing and wading carry farther than ordinary footsteps. Once the lift is called, it needs five seconds to arrive. Sound is optional. The HUD shows when your footsteps are loud, when the lamp is open, and when an action is available.
-
-## Art direction
-
-The [Riftline art style overview](docs/Riftline%20Art%20Style%20Overview.pdf) is the reference for glazed surfaces, brass-and-ivory details, high-angle framing, and readable cues. Scavenger uses those treatments for its own flooded setting, original models, and stealth loop. The runtime builds the tiles and machinery procedurally and synthesizes its soundscape locally. The title illustration was generated for Scavenger. Baskervville and Instrument Sans are bundled under their respective [Baskervville](public/fonts/Baskervville-OFL.txt) and [Instrument Sans](public/fonts/Instrument-Sans-OFL.txt) SIL Open Font Licenses.

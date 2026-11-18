@@ -85,6 +85,18 @@ test('clappers reach a floor point, emit one noise, and attract the Listener', (
   assert.deepEqual(run.listener.target, destination);
 });
 
+test('Torge can bonk Slender-Anton, Boss Hauke, and Gieriger Tom with the wrench for Pfand', () => {
+  const run = newRun();
+  place(run.player, { x: 18.5, z: 16.0 });
+  place(run.listener, { x: 18.5, z: 14.8 });
+  place(run.tom, { x: 19.2, z: 16.0 });
+  advance(run, { bonk: true });
+  assert.ok(run.listener.stunned > 2.0, 'Slender-Anton should be stunned by Rohrzangen-Bonk');
+  assert.ok(run.tom.stunned > 2.0, 'Gieriger Tom should be stunned by Rohrzangen-Bonk');
+  assert.ok(run.player.pfand >= 3.5, 'Torge earns Pfand reward for bonking');
+  assert.equal(run.stats.bonks, 2);
+});
+
 test('a locked lift waits for every record and requires the diver to board', () => {
   const run = newRun();
   place(run.player, LIFT);

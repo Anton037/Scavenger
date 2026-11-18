@@ -164,12 +164,46 @@ export class Soundscape {
         this.rustle(2060, 1.4, 0.055, 0.055);
         break;
       case 'throw':
-        this.rustle(820, 1.3, 0.12, 0.066);
+        this.tone(420, 880, 0.09, 0.08, 0, 0, 'sine');
         break;
       case 'clapper':
-        this.tone(705, 527, 0.46, 0.13, pan, 0, 'triangle');
-        this.tone(1108, 956, 0.62, 0.068, pan, 0.095);
-        this.tone(509, 489, 0.42, 0.04, pan, 0.2);
+        // Rubber duck double-squeak!
+        this.tone(980, 1420, 0.11, 0.14, pan, 0, 'triangle');
+        this.tone(1320, 860, 0.14, 0.12, pan, 0.12, 'triangle');
+        break;
+      case 'bonk':
+        // Hollow metallic wrench BONK!
+        this.tone(240, 520, 0.08, 0.22, pan, 0, 'triangle');
+        this.tone(680, 310, 0.26, 0.18, pan, 0.04, 'sine');
+        this.rustle(1400, 2.2, 0.12, 0.14, pan);
+        break;
+      case 'slip':
+        // Cartoon slide whistle + splash
+        this.tone(920, 220, 0.34, 0.15, pan, 0, 'sine');
+        this.rustle(1200, 0.8, 0.28, 0.14, pan);
+        break;
+      case 'stomp':
+        // Boss Hauke heavy sub-bass footstep
+        this.tone(68, 28, 0.24, 0.2, pan, 0, 'triangle');
+        this.rustle(140, 1.4, 0.18, 0.1, pan);
+        break;
+      case 'steal':
+        // Sneaky goblin giggle zip
+        this.tone(540, 1180, 0.09, 0.12, pan, 0, 'sawtooth');
+        this.tone(720, 1440, 0.11, 0.12, pan, 0.1, 'sawtooth');
+        break;
+      case 'toot':
+        // Canned ravioli brass toot
+        this.tone(115, 62, 0.28, 0.16, pan, 0, 'sawtooth');
+        this.rustle(240, 1.8, 0.22, 0.09, pan);
+        break;
+      case 'can':
+        this.tone(890, 620, 0.14, 0.09, pan, 0, 'triangle');
+        this.tone(1240, 980, 0.18, 0.07, pan, 0.05, 'sine');
+        break;
+      case 'valve':
+        this.rustle(1850, 0.65, 0.65, 0.22, pan);
+        this.tone(180, 90, 0.45, 0.12, pan, 0, 'sawtooth');
         break;
       case 'record':
         this.tone(418, 414, 0.47, 0.079, pan, 0, 'triangle');

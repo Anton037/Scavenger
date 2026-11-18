@@ -3,15 +3,40 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const TAU = Math.PI * 2;
 export const color = (hex) => new THREE.Color(hex);
-export const material = (hex, roughness = 0.6, metalness = 0.08) => (
-  new THREE.MeshStandardMaterial({ color: hex, roughness, metalness })
+
+export const PALETTE = {
+  ink: 0x101c20,
+  slate: 0x283f46,
+  ivory: 0xf5e5c9,
+  brass: 0xe5b878,
+  copper: 0xc98860,
+  jade: 0x91c9b4,
+  glacier: 0xbacfd9,
+  lavender: 0xc0a6db,
+  vermilion: 0xf08e70,
+};
+
+export const material = (hex, roughness = 0.34, metalness = 0.12, clearcoat = 0.55) => (
+  new THREE.MeshPhysicalMaterial({
+    color: hex,
+    roughness,
+    metalness,
+    clearcoat,
+    clearcoatRoughness: 0.2,
+  })
 );
+
+export const brassMaterial = (hex = PALETTE.brass) => (
+  new THREE.MeshStandardMaterial({ color: hex, roughness: 0.24, metalness: 0.82 })
+);
+
 export const emissive = (hex) => new THREE.MeshBasicMaterial({ color: hex });
 export const solid = new THREE.BoxGeometry(1, 1, 1);
-export const round = new THREE.CylinderGeometry(1, 1, 1, 14);
-export const tapered = new THREE.CylinderGeometry(0.8, 1, 1, 14);
-export const orb = new THREE.SphereGeometry(1, 14, 10);
-export const hoop = new THREE.TorusGeometry(1, 0.033, 6, 24);
+export const round = new THREE.CylinderGeometry(1, 1, 1, 20);
+export const tapered = new THREE.CylinderGeometry(0.76, 1, 1, 20);
+export const orb = new THREE.SphereGeometry(1, 24, 18);
+export const octa = new THREE.OctahedronGeometry(1, 0);
+export const hoop = new THREE.TorusGeometry(1, 0.028, 8, 36);
 
 export function randomFrom(seed) {
   return () => {
@@ -24,7 +49,7 @@ export function piece(parent, geometry, finish, x, y, z, sx = 1, sy = 1, sz = 1)
   const object = new THREE.Mesh(geometry, finish);
   object.position.set(x, y, z);
   object.scale.set(sx, sy, sz);
-  object.castShadow = finish.isMeshStandardMaterial;
+  object.castShadow = !finish.isMeshBasicMaterial;
   object.receiveShadow = true;
   parent.add(object);
   return object;
@@ -36,44 +61,70 @@ export function band(parent, finish, x, y, z, radius) {
   return ring;
 }
 
+export function studioEnv(renderer) {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = new THREE.Scene();
+  envScene.background = color(0x16272c);
+  const top = new THREE.Mesh(orb, emissive(0xd8e8ee));
+  top.position.set(0, 8, 0);
+  top.scale.set(6, 1.5, 6);
+  const warm = new THREE.Mesh(orb, emissive(0xf2be84));
+  warm.position.set(6, 3, 5);
+  warm.scale.set(3, 3, 3);
+  const cool = new THREE.Mesh(orb, emissive(0x6ba4b8));
+  cool.position.set(-6, 2, -5);
+  cool.scale.set(4, 3, 4);
+  envScene.add(top, warm, cool);
+  const texture = pmrem.fromScene(envScene, 0.04).texture;
+  pmrem.dispose();
+  return texture;
+}
+
 export function surfaceTexture() {
   const canvas = document.createElement('canvas');
-  canvas.width = 160;
-  canvas.height = 160;
+  canvas.width = 256;
+  canvas.height = 256;
   const ctx = canvas.getContext('2d');
   const random = randomFrom(77);
-  ctx.fillStyle = '#a6a6a6';
-  ctx.fillRect(0, 0, 160, 160);
-  for (let i = 0; i < 250; i++) {
-    const x = random() * 160;
-    const z = random() * 160;
-    const r = random() * 29 + 4;
-    const pigment = random() > 0.45 ? '18, 18, 18' : '235, 235, 235';
+
+  const grad = ctx.createLinearGradient(0, 0, 256, 256);
+  grad.addColorStop(0, '#b5c2c7');
+  grad.addColorStop(0.5, '#a7b5ba');
+  grad.addColorStop(1, '#98a7ad');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 256, 256);
+
+  for (let i = 0; i < 65; i++) {
+    const x = random() * 256;
+    const z = random() * 256;
+    const r = random() * 38 + 12;
     const blot = ctx.createRadialGradient(x, z, 0, x, z, r);
-    blot.addColorStop(0, `rgba(${pigment}, ${0.04 + random() * 0.16})`);
-    blot.addColorStop(1, `rgba(${pigment}, 0)`);
+    const tone = random() > 0.5 ? '235, 245, 248' : '40, 63, 70';
+    blot.addColorStop(0, `rgba(${tone}, 0.035)`);
+    blot.addColorStop(1, `rgba(${tone}, 0)`);
     ctx.fillStyle = blot;
     ctx.fillRect(x - r, z - r, r * 2, r * 2);
   }
-  for (let i = 0; i < 2500; i++) {
-    ctx.fillStyle = random() > 0.55 ? '#ffffff16' : '#101e241b';
-    ctx.fillRect(random() * 160, random() * 160, random() * 1.7 + 0.15, random() * 1.1 + 0.2);
+
+  ctx.strokeStyle = '#101c20';
+  ctx.lineWidth = 5;
+  ctx.strokeRect(2.5, 2.5, 251, 251);
+
+  ctx.strokeStyle = 'rgba(245, 229, 201, 0.24)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(6, 6, 244, 244);
+
+  ctx.strokeStyle = 'rgba(229, 184, 120, 0.22)';
+  ctx.lineWidth = 1.1;
+  ctx.strokeRect(14, 14, 228, 228);
+
+  ctx.fillStyle = 'rgba(229, 184, 120, 0.32)';
+  for (const [cx, cy] of [[14, 14], [242, 14], [14, 242], [242, 242]]) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2.5, 0, TAU);
+    ctx.fill();
   }
-  ctx.strokeStyle = '#252b2b';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(1.5, 1.5, 157, 157);
-  ctx.strokeStyle = '#f5f5f53c';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(4, 4, 152, 152);
-  ctx.strokeStyle = '#28353253';
-  ctx.lineWidth = 0.65;
-  ctx.beginPath();
-  ctx.moveTo(16, 82);
-  ctx.lineTo(82, 16);
-  ctx.lineTo(144, 82);
-  ctx.lineTo(82, 144);
-  ctx.closePath();
-  ctx.stroke();
+
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
@@ -95,85 +146,234 @@ export function batchScenery(scene, group) {
     const geometry = mergeGeometries(parts);
     for (const part of parts) part.dispose();
     const surface = new THREE.Mesh(geometry, style);
-    surface.castShadow = style.isMeshStandardMaterial;
+    surface.castShadow = !style.isMeshBasicMaterial;
     surface.receiveShadow = true;
     scene.add(surface);
   }
 }
 
-export function diver() {
-  const root = new THREE.Group();
-  const coat = material(0x253c37, 0.86);
-  const leather = material(0x7b422f, 0.88);
-  const dark = material(0x111d20, 0.56);
-  const brass = material(0xb0844b, 0.43, 0.52);
-  const porcelain = material(0xe5d7af, 0.35, 0.09);
-  const glass = material(0x1c3438, 0.13, 0.35);
-  const glow = emissive(0xffc07b);
-  const body = new THREE.Group();
-  root.add(body);
-  piece(body, round, coat, 0, 0.36, 0, 0.23, 0.45, 0.23);
-  piece(body, tapered, leather, 0, 0.58, 0, 0.34, 0.16, 0.305);
-  piece(body, round, brass, 0, 0.66, 0, 0.19, 0.08, 0.19);
-  piece(body, orb, porcelain, 0, 0.83, 0, 0.25, 0.239, 0.24);
-  piece(body, orb, brass, 0, 0.846, 0.18, 0.203, 0.108, 0.09);
-  piece(body, orb, glass, 0, 0.857, 0.233, 0.166, 0.075, 0.039);
-  piece(body, solid, leather, 0, 0.41, -0.245, 0.28, 0.279, 0.14);
-  for (const side of [-1, 1]) {
-    piece(body, round, brass, side * 0.23, 0.8, -0.025, 0.082, 0.053, 0.082).rotation.z = Math.PI / 2;
-    piece(body, orb, coat, side * 0.278, 0.433, 0.027, 0.096, 0.186, 0.085);
+function stunStars(parent, height = 1.65) {
+  const crown = new THREE.Group();
+  crown.position.set(0, height, 0);
+  crown.visible = false;
+  const gold = emissive(PALETTE.brass);
+  for (let i = 0; i < 4; i++) {
+    const a = (i * TAU) / 4;
+    piece(crown, octa, gold, Math.cos(a) * 0.34, 0, Math.sin(a) * 0.34, 0.08, 0.08, 0.08).rotation.set(0.4, a, 0.4);
   }
+  parent.add(crown);
+  return crown;
+}
+
+export function diver() {
+  // Chef Torge: Groß, breit gebaut ("der überlegene Chef") mit Chef-Jacke, Sonnenbrille, goldener Krone & Klatscher
+  const root = new THREE.Group();
+  const skin = material(PALETTE.ivory, 0.28, 0.06, 0.72);
+  const chefJacket = material(0x9e3528, 0.32, 0.12, 0.65);
+  const darkPants = material(PALETTE.slate, 0.34, 0.16, 0.55);
+  const shades = material(PALETTE.ink, 0.1, 0.5, 0.92);
+  const brass = brassMaterial(PALETTE.brass);
+  const copper = brassMaterial(PALETTE.copper);
+  const glow = emissive(0xffcf8b);
+
+  const body = new THREE.Group();
+  body.scale.set(1.12, 1.18, 1.12);
+  root.add(body);
+
+  // Breiter athletischer Oberkörper & Chef-Jacke mit Goldkette
+  piece(body, tapered, darkPants, 0, 0.36, 0, 0.22, 0.36, 0.2);
+  piece(body, tapered, chefJacket, 0, 0.56, 0, 0.38, 0.36, 0.28);
+  band(body, brass, 0, 0.66, 0.02, 0.26);
+
+  // Kopf & coole Chef-Sonnenbrille
+  piece(body, orb, skin, 0, 0.88, 0, 0.22, 0.24, 0.22);
+  piece(body, solid, shades, 0, 0.9, 0.19, 0.28, 0.08, 0.08);
+
+  // Goldene Chef-Krone (fällt beim ersten Treffer ab)
+  const helmet = new THREE.Group();
+  body.add(helmet);
+  piece(helmet, round, brass, 0, 1.06, 0, 0.17, 0.06, 0.17);
+  for (let i = 0; i < 4; i++) {
+    const a = (i * TAU) / 4;
+    piece(helmet, octa, brass, Math.cos(a) * 0.12, 1.12, Math.sin(a) * 0.12, 0.045, 0.07, 0.045);
+  }
+
+  // Breite Schultern & kräftige Arme
+  for (const side of [-1, 1]) {
+    piece(body, orb, chefJacket, side * 0.34, 0.64, 0, 0.13, 0.15, 0.13);
+    piece(body, tapered, skin, side * 0.36, 0.46, 0.06, 0.08, 0.24, 0.08);
+  }
+
+  // Beine & Sneaker
   const legs = [-1, 1].map((side) => {
     const leg = new THREE.Group();
-    leg.position.set(side * 0.115, 0.28, 0);
-    piece(leg, tapered, coat, 0, -0.107, 0, 0.067, 0.232, 0.07);
-    piece(leg, solid, dark, 0, -0.216, 0.038, 0.14, 0.106, 0.205);
+    leg.position.set(side * 0.12, 0.28, 0);
+    piece(leg, tapered, darkPants, 0, -0.1, 0, 0.085, 0.24, 0.085);
+    piece(leg, solid, skin, 0, -0.216, 0.04, 0.13, 0.09, 0.21);
     root.add(leg);
     return leg;
   });
+
+  // Taschenlampe rechts
   const lamp = new THREE.Group();
-  lamp.position.set(0.28, 0.43, 0.23);
+  lamp.position.set(0.34, 0.44, 0.18);
   body.add(lamp);
-  piece(lamp, round, brass, 0, 0.096, 0, 0.086, 0.05, 0.086);
-  piece(lamp, round, brass, 0, -0.089, 0, 0.086, 0.047, 0.086);
-  const bulb = piece(lamp, round, glow, 0, 0, 0, 0.066, 0.145, 0.066);
-  for (let i = 0; i < 5; i++) {
-    const a = i * TAU / 5;
-    piece(lamp, solid, brass, 0.077 * Math.sin(a), 0, 0.077 * Math.cos(a), 0.009, 0.19, 0.009);
-  }
-  return { root, body, bulb, legs };
+  piece(lamp, round, brass, 0, 0, 0, 0.075, 0.16, 0.075).rotation.x = Math.PI / 2;
+  const bulb = piece(lamp, orb, glow, 0, 0, 0.09, 0.065, 0.065, 0.065);
+
+  // Goldener Chef-Klatscher links
+  const wrench = new THREE.Group();
+  wrench.position.set(-0.36, 0.48, 0.14);
+  body.add(wrench);
+  piece(wrench, round, copper, 0, 0.12, 0.1, 0.045, 0.38, 0.045).rotation.x = Math.PI / 3;
+  piece(wrench, solid, brass, 0, 0.24, 0.24, 0.18, 0.14, 0.22);
+
+  return { root, body, bulb, legs, wrench, helmet };
 }
 
 export function dredged() {
+  // Anton: Extrem groß & schlaksig (Slenderman-Statur) und öfter komplett lost!
   const root = new THREE.Group();
-  const hull = material(0x142829, 0.95);
-  const mantle = material(0x345151, 0.78);
-  const bone = material(0xc4c2a4, 0.67);
-  const ink = material(0x0d1518, 0.9);
-  const seams = material(0x593e34, 0.7, 0.24);
+  const darkSuit = material(0x1b2b30, 0.3, 0.15, 0.72);
+  const paleSkin = material(PALETTE.glacier, 0.24, 0.1, 0.82);
+  const brass = brassMaterial(PALETTE.brass);
+  const eyeGlow = emissive(PALETTE.vermilion);
   const core = new THREE.Group();
   root.add(core);
-  piece(core, tapered, hull, 0, 0.77, -0.035, 0.43, 1.45, 0.3).rotation.x = 0.23;
-  piece(core, orb, mantle, 0, 1.07, 0.045, 0.51, 0.43, 0.3);
+
+  // Ellenlange, dünne Slenderman-Beine & extrem hoher, dürrer Oberkörper
+  for (const side of [-1, 1]) {
+    piece(core, tapered, darkSuit, side * 0.12, 0.45, 0, 0.065, 0.9, 0.065);
+  }
+  piece(core, tapered, darkSuit, 0, 1.24, 0, 0.19, 0.88, 0.16);
+  // Schmale Krawatte / Revers
+  piece(core, solid, brass, 0, 1.28, 0.15, 0.05, 0.48, 0.03);
+
+  // Schief gelegter, verwirrter Slenderman-Kopf ("komplett lost")
   const mask = new THREE.Group();
-  mask.position.set(0, 1.22, 0.283);
-  mask.rotation.x = -0.15;
+  mask.position.set(0, 1.82, 0.06);
+  mask.rotation.z = 0.22;
   core.add(mask);
-  piece(mask, tapered, bone, 0, 0, 0, 0.212, 0.49, 0.115).rotation.z = Math.PI;
-  for (let i = -1; i <= 1; i++) {
-    piece(mask, solid, ink, i * 0.066, 0.025, 0.098, 0.024, 0.234 - Math.abs(i) * 0.036, 0.037);
-  }
-  for (let i = 0; i < 5; i++) {
-    piece(core, orb, seams, 0, 0.64 + i * 0.132, -0.302, 0.09, 0.058, 0.07);
-  }
+  piece(mask, orb, paleSkin, 0, 0, 0, 0.2, 0.28, 0.2);
+  // Zwei ungleich große, verwirrte Leuchtaugen
+  piece(mask, orb, eyeGlow, -0.07, 0.03, 0.17, 0.045, 0.045, 0.03);
+  piece(mask, orb, eyeGlow, 0.07, -0.02, 0.17, 0.03, 0.03, 0.03);
+  // Schwebender Verwirrungs-Ring über Antons Kopf
+  band(mask, brass, 0, 0.34, 0, 0.22);
+
+  // Überlange, schlaksig herunterhängende Slenderman-Arme
   const arms = [-1, 1].map((side) => {
     const arm = new THREE.Group();
-    arm.position.set(side * 0.38, 1.19, 0.02);
-    arm.rotation.z = side * 0.175;
-    piece(arm, tapered, mantle, side * 0.07, -0.25, 0.025, 0.126, 0.58, 0.11).rotation.z = side * 0.265;
-    piece(arm, tapered, bone, side * 0.16, -0.6, -0.06, 0.078, 0.29, 0.092).rotation.x = -0.39;
+    arm.position.set(side * 0.26, 1.58, 0);
+    piece(arm, tapered, darkSuit, side * 0.08, -0.45, 0, 0.055, 0.95, 0.055).rotation.z = side * 0.14;
+    piece(arm, orb, paleSkin, side * 0.15, -0.94, 0, 0.07, 0.12, 0.07);
     core.add(arm);
     return arm;
   });
-  return { root, core, mask, arms };
+
+  const stars = stunStars(root, 2.25);
+  return { root, core, mask, arms, stars };
+}
+
+export function haukeBoss() {
+  // Boss Hauke: "Massiv rund" – gewaltige Kugel-Wampe, dicke Backen, Gürtelschnalle & wuchtige Arme!
+  const root = new THREE.Group();
+  const hoodie = material(0x6e322c, 0.28, 0.14, 0.78);
+  const skin = material(PALETTE.ivory, 0.26, 0.08, 0.76);
+  const pants = material(PALETTE.slate, 0.34, 0.16, 0.6);
+  const brass = brassMaterial(PALETTE.brass);
+  const eyeGlow = emissive(PALETTE.vermilion);
+  const core = new THREE.Group();
+  root.add(core);
+
+  // Kurze, stämmige Stampfer-Beine
+  for (const side of [-1, 1]) {
+    piece(core, round, pants, side * 0.36, 0.22, 0, 0.22, 0.42, 0.22);
+    piece(core, solid, brass, side * 0.36, 0.06, 0.08, 0.26, 0.12, 0.34);
+  }
+
+  // MASSIV RUNDE WAMPE (Haukes Markenzeichen!)
+  piece(core, orb, hoodie, 0, 0.82, 0.06, 0.92, 0.78, 0.92);
+  // Gewaltiger Gürtel mit goldener Schnalle um den Bauch
+  band(core, brass, 0, 0.56, 0.06, 0.88);
+  piece(core, solid, brass, 0, 0.56, 0.92, 0.26, 0.18, 0.08);
+
+  // Runder Kopf mit dicken Backen & Kappe
+  const mask = new THREE.Group();
+  mask.position.set(0, 1.54, 0.18);
+  core.add(mask);
+  piece(mask, orb, skin, 0, 0, 0, 0.36, 0.32, 0.36);
+  // Dicke Pausbacken
+  for (const side of [-1, 1]) {
+    piece(mask, orb, skin, side * 0.24, -0.06, 0.14, 0.16, 0.14, 0.15);
+    piece(mask, orb, eyeGlow, side * 0.12, 0.05, 0.31, 0.055, 0.045, 0.03);
+  }
+  // Kleine Kappe oben auf dem runden Kopf
+  piece(mask, orb, hoodie, 0, 0.18, 0, 0.32, 0.16, 0.32);
+  piece(mask, solid, brass, 0, 0.14, 0.28, 0.28, 0.04, 0.22);
+
+  // Dicke, runde Oberarme links und rechts
+  const arms = [-1, 1].map((side) => {
+    const arm = new THREE.Group();
+    arm.position.set(side * 0.86, 0.92, 0.12);
+    piece(arm, orb, hoodie, 0, 0, 0, 0.28, 0.36, 0.28);
+    piece(arm, orb, skin, side * 0.08, -0.32, 0.14, 0.18, 0.18, 0.18);
+    core.add(arm);
+    return arm;
+  });
+
+  const stars = stunStars(root, 2.02);
+  return { root, core, mask, arms, stars };
+}
+
+export function greedyTom() {
+  // Tom: "Einfach Tom" – kleiner, geduckter Schnorrer im Hoodie mit umgedrehter Cap, Beutesack & Gier-Händen
+  const root = new THREE.Group();
+  const hoodie = material(0x2d6b59, 0.26, 0.14, 0.78);
+  const skin = material(PALETTE.ivory, 0.28, 0.08, 0.74);
+  const bag = material(PALETTE.copper, 0.34, 0.22, 0.65);
+  const brass = brassMaterial(PALETTE.brass);
+  const eyeGlow = emissive(PALETTE.ivory);
+  const core = new THREE.Group();
+  root.add(core);
+
+  // Geduckter Schnorrer-Torso & praller Beute-Rucksack auf dem Rücken
+  piece(core, tapered, hoodie, 0, 0.42, 0.04, 0.28, 0.52, 0.26).rotation.x = 0.35;
+  piece(core, orb, bag, 0, 0.56, -0.24, 0.28, 0.32, 0.26);
+  piece(core, round, brass, 0, 0.82, -0.24, 0.11, 0.16, 0.11);
+
+  // Kopf mit frechem Grinsen & umgedrehter Cap
+  const mask = new THREE.Group();
+  mask.position.set(0, 0.78, 0.22);
+  core.add(mask);
+  piece(mask, orb, skin, 0, 0, 0, 0.21, 0.21, 0.21);
+  piece(mask, orb, brass, 0, 0.1, -0.02, 0.22, 0.12, 0.22);
+  piece(mask, solid, brass, 0, 0.08, -0.22, 0.18, 0.035, 0.16);
+  for (const side of [-1, 1]) {
+    piece(mask, orb, eyeGlow, side * 0.08, 0.02, 0.18, 0.04, 0.04, 0.03);
+  }
+
+  // Nach vorne ausgestreckte Schnorrer-Hände
+  const arms = [-1, 1].map((side) => {
+    const arm = new THREE.Group();
+    arm.position.set(side * 0.28, 0.52, 0.16);
+    piece(arm, tapered, hoodie, 0, -0.06, 0.14, 0.075, 0.28, 0.075).rotation.x = Math.PI / 2.6;
+    piece(arm, orb, skin, 0, -0.12, 0.28, 0.085, 0.085, 0.085);
+    core.add(arm);
+    return arm;
+  });
+
+  const stars = stunStars(root, 1.18);
+  return { root, core, mask, arms, stars };
+}
+
+export function rubberDuck(parent) {
+  // Goldene Pfand-Dose zum Ablenken von Anton & Hauke
+  const can = new THREE.Group();
+  const brass = brassMaterial(PALETTE.brass);
+  const red = material(PALETTE.vermilion, 0.25, 0.2, 0.8);
+  piece(can, round, brass, 0, 0.12, 0, 0.1, 0.22, 0.1);
+  piece(can, round, red, 0, 0.12, 0, 0.104, 0.11, 0.104);
+  parent.add(can);
+  return can;
 }

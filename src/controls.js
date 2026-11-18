@@ -1,5 +1,5 @@
 const MOVEMENT = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight']);
-const ACTIONS = { KeyQ: 'lamp', Space: 'dash', KeyF: 'lure', KeyE: 'use' };
+const ACTIONS = { KeyQ: 'lamp', Space: 'dash', KeyF: 'lure', KeyE: 'use', KeyC: 'bonk', KeyV: 'bonk' };
 const shortcuts = new Set([...MOVEMENT, ...Object.keys(ACTIONS), 'KeyM', 'Escape', 'KeyP']);
 
 export class Controls {
@@ -39,6 +39,9 @@ export class Controls {
         this.aimId = event.pointerId;
         canvas.setPointerCapture(event.pointerId);
         this.aimPoint = { x: event.clientX, y: event.clientY };
+      } else if (event.pointerType !== 'touch' && event.button === 0) {
+        this.aimPoint = { x: event.clientX, y: event.clientY };
+        this.queue('bonk');
       }
     });
     canvas.addEventListener('pointermove', (event) => {
@@ -127,6 +130,7 @@ export class Controls {
       dash: this.actions.has('dash'),
       lamp: this.actions.has('lamp'),
       lure: this.actions.has('lure'),
+      bonk: this.actions.has('bonk'),
     };
     this.actions.clear();
     return output;

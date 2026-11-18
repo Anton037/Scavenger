@@ -1,15 +1,14 @@
 export const WIDTH = 37;
 export const DEPTH = 33;
 
-// Coordinates are shared by the floor plan, collisions, the chart, and the scene.
 export const ROOMS = [
-  { id: 'landing', name: 'Lift Landing', x: 14, z: 25, w: 9, d: 7, glaze: 0x425351 },
-  { id: 'hall', name: 'Valve Hall', x: 10, z: 12, w: 17, d: 10, glaze: 0x354b4d },
-  { id: 'archive', name: 'Silt Archive', x: 2, z: 13, w: 7, d: 9, glaze: 0x50433b },
-  { id: 'vault', name: 'Turbine Vault', x: 13, z: 2, w: 11, d: 7, glaze: 0x384b55 },
-  { id: 'annex', name: 'Gauge Annex', x: 28, z: 10, w: 7, d: 10, glaze: 0x475b4d },
-  { id: 'sluice', name: 'West Sluice', x: 2, z: 3, w: 8, d: 7, glaze: 0x3d4745 },
-  { id: 'cistern', name: 'Runoff Cistern', x: 26, z: 23, w: 9, d: 8, glaze: 0x3e444f },
+  { id: 'landing', name: 'Aufzugsschacht', x: 14, z: 25, w: 9, d: 7, glaze: 0x283f46 },
+  { id: 'hall', name: 'Zentral-Halle', x: 10, z: 12, w: 17, d: 10, glaze: 0x283f46 },
+  { id: 'archive', name: 'Fliesentisch-Lounge', x: 2, z: 13, w: 7, d: 9, glaze: 0x4b6573 },
+  { id: 'vault', name: 'Spezi-Kammer', x: 13, z: 2, w: 11, d: 7, glaze: 0x302f4b },
+  { id: 'annex', name: 'Döner-Eck', x: 28, z: 10, w: 7, d: 10, glaze: 0x263d39 },
+  { id: 'sluice', name: 'Antons Lost-Zone', x: 2, z: 3, w: 8, d: 7, glaze: 0x615347 },
+  { id: 'cistern', name: 'Haukes Masse-Keller', x: 26, z: 23, w: 9, d: 8, glaze: 0x4d3736 },
 ];
 
 const PASSAGES = [
@@ -56,24 +55,66 @@ export const POOLS = [
 ];
 
 export const FIXTURES = [
-  { x: 15.45, z: 31.3, color: 0xffb56b, strength: 24 },
-  { x: 21.65, z: 31.3, color: 0xffb56b, strength: 24 },
-  { x: 11.0, z: 13.0, color: 0xc49a67, strength: 26 },
-  { x: 25.85, z: 13.1, color: 0x9baea2, strength: 19 },
-  { x: 2.7, z: 14.4, color: 0xd4a172, strength: 23 },
-  { x: 15.0, z: 2.8, color: 0xa0bcc9, strength: 28 },
-  { x: 33.85, z: 10.65, color: 0xd4b48a, strength: 24 },
-  { x: 4.1, z: 3.8, color: 0xa8a388, strength: 18 },
-  { x: 34.0, z: 29.95, color: 0x9b9bbc, strength: 15 },
+  { x: 15.45, z: 31.3, color: 0xe5b878, strength: 26 },
+  { x: 21.65, z: 31.3, color: 0xe5b878, strength: 26 },
+  { x: 11.0, z: 13.0, color: 0xe5b878, strength: 28 },
+  { x: 25.85, z: 13.1, color: 0x91c9b4, strength: 22 },
+  { x: 2.7, z: 14.4, color: 0xbacfd9, strength: 25 },
+  { x: 15.0, z: 2.8, color: 0xc0a6db, strength: 30 },
+  { x: 33.85, z: 10.65, color: 0x91c9b4, strength: 26 },
+  { x: 4.1, z: 3.8, color: 0xe5b878, strength: 20 },
+  { x: 34.0, z: 29.95, color: 0xf08e70, strength: 20 },
 ];
 
 export const RECORDS = [
-  { id: 'log', name: 'Flood log', room: 'Silt Archive', x: 4.55, z: 15.35, color: 0xefb77c,
-    discovery: 'The crew reopened the sluice after they heard knocking from inside.' },
-  { id: 'cylinder', name: 'Tide cylinder', room: 'Turbine Vault', x: 18.0, z: 5.55, color: 0xb5d2cd,
-    discovery: 'The knocking chart marks a route between rooms. It was still being updated after midnight.' },
-  { id: 'spool', name: 'Dispatch spool', room: 'Gauge Annex', x: 32.45, z: 12.3, color: 0xc9aec8,
-    discovery: 'The last dispatch asks for the lift to be left at the surface.' },
+  {
+    id: 'log',
+    name: 'Goldene Chef-Krone (+2.000 Aura)',
+    room: 'Fliesentisch-Lounge',
+    x: 4.55,
+    z: 15.35,
+    color: 0xe5b878,
+    discovery: 'Chef-Krone gesichert! Torges überlegene Chef-Aura steigt ins Unermessliche.',
+  },
+  {
+    id: 'cylinder',
+    name: 'Limitierte Paulaner Spezi (Eiskalt)',
+    room: 'Spezi-Kammer',
+    x: 18.0,
+    z: 5.55,
+    color: 0x91c9b4,
+    discovery: 'Die letzte eiskalte Spezi! Vorsicht: Hauke (Massiv Rund) hat das Zischen gehört!',
+  },
+  {
+    id: 'spool',
+    name: 'Heiliger Mitternachts-Döner (Mit Alles)',
+    room: 'Döner-Eck',
+    x: 32.45,
+    z: 12.3,
+    color: 0xc0a6db,
+    discovery: 'Heiliger Döner geborgen! Tom wittert schon wieder Gratis-Bissen aus 20 Metern.',
+  },
+];
+
+export const VENDING = { x: 24.6, z: 12.7, name: 'Späti-Automat (Booster & Pfand-Dosen)' };
+
+export const VALVES = [
+  { id: 'v1', name: 'Überdruck-Ventil (Zünden)', x: 16.3, z: 13.3 },
+  { id: 'v2', name: 'Lounge-Ventil (Zünden)', x: 6.2, z: 14.1 },
+  { id: 'v3', name: 'Tresor-Ventil (Zünden)', x: 22.1, z: 4.8 },
+];
+
+export const INITIAL_CANS = [
+  { id: 1, x: 18.1, z: 22.8 },
+  { id: 2, x: 15.6, z: 19.2 },
+  { id: 3, x: 12.2, z: 15.4 },
+  { id: 4, x: 6.1, z: 16.9 },
+  { id: 5, x: 17.6, z: 9.6 },
+  { id: 6, x: 20.1, z: 6.1 },
+  { id: 7, x: 27.1, z: 15.3 },
+  { id: 8, x: 30.8, z: 14.2 },
+  { id: 9, x: 24.4, z: 21.4 },
+  { id: 10, x: 28.4, z: 25.4 },
 ];
 
 export const LIFT = { x: 18.5, z: 30.25 };
@@ -84,13 +125,21 @@ export const PATROL = [
   { x: 28.0, z: 25.3 }, { x: 23.85, z: 21.3 },
 ];
 
+export const PATROL_HAUKE = [
+  { x: 28.0, z: 25.3 }, { x: 23.85, z: 21.3 }, { x: 20.45, z: 16.0 }, { x: 30.7, z: 13.3 },
+];
+
+export const PATROL_TOM = [
+  { x: 20.45, z: 16.0 }, { x: 13.3, z: 14.2 }, { x: 19.3, z: 6.8 }, { x: 30.7, z: 13.3 },
+];
+
 export function cell(x, z) {
   if (x < 0 || z < 0 || x >= WIDTH || z >= DEPTH) return 0;
   return cells[z * WIDTH + x];
 }
 
 export function roomAt(x, z) {
-  return ROOMS[cell(Math.floor(x), Math.floor(z)) - 2]?.name ?? 'Service Passage';
+  return ROOMS[cell(Math.floor(x), Math.floor(z)) - 2]?.name ?? 'Sektor-Korridor';
 }
 
 function rectDistanceSquared(x, z, left, top, right, bottom) {
