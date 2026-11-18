@@ -24,7 +24,12 @@
           <span class="ico-slot gold" data-ico="bolt"></span>
         </div>
         <div class="title-top-actions">
-          <button id="shuffle-seed" class="btn-glass" type="button" title="Neuen Zufalls-Keller würfeln">Seed #<span id="seed-label">2026</span> ↻</button>
+          <div class="seed-pill">
+            <span class="seed-hash" aria-hidden="true">#</span>
+            <input id="seed-input" type="number" min="1" max="999999" value="2026" inputmode="numeric" aria-label="Keller-Seed">
+            <button id="shuffle-seed" class="seed-btn" type="button" title="Neuen Zufalls-Seed würfeln">↻</button>
+            <button id="copy-seed" class="seed-btn" type="button" title="Seed-Link kopieren" aria-label="Seed-Link kopieren"><span class="ico-slot" data-ico="link"></span></button>
+          </div>
           <button id="title-audio" class="btn-glass" type="button" aria-pressed="true">Ton an</button>
         </div>
       </div>
@@ -74,6 +79,7 @@
             <div class="relic-rack" id="relic-rack" aria-label="Relikte"></div>
             <span id="objective" class="obj-hint">3 offen</span>
             <span id="mutator-pill" class="mutator-pill" hidden></span>
+            <div id="active-mods" class="active-mods" aria-label="Aktive Mods" hidden></div>
           </div>
         </div>
 
@@ -184,9 +190,14 @@
         <p id="overlay-eyebrow" class="arcade-kicker">KELLER-BILANZ · '26</p>
         <h2 id="overlay-title">Pause</h2>
         <p id="overlay-copy"></p>
+        <div id="overlay-mods" class="overlay-mods" hidden></div>
         <div id="overlay-receipt" class="receipt" hidden></div>
         <button id="overlay-primary" class="btn-start" type="button"><span id="overlay-action">Weitermachen</span><span class="btn-arrow" aria-hidden="true">▶</span></button>
-        <div class="overlay-secondary"><button id="menu" class="btn-glass" type="button">Hauptmenü</button><button id="pause-audio" class="btn-glass" type="button" aria-pressed="true">Ton an</button></div>
+        <div class="overlay-secondary">
+          <button id="overlay-same-seed" class="btn-glass" type="button" hidden>Gleicher Seed</button>
+          <button id="menu" class="btn-glass" type="button">Hauptmenü</button>
+          <button id="pause-audio" class="btn-glass" type="button" aria-pressed="true">Ton an</button>
+        </div>
       </div>
     </section>
   </main>

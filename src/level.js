@@ -127,7 +127,7 @@ export const LOADOUTS = {
 };
 
 export const MOD_POOL = [
-  { id: 'fire_pan', name: 'Flammende Pfanne', desc: 'Schellen verbrennen Gegner (-15 HP DoT)', tint: 'vermilion' },
+  { id: 'fire_pan', name: 'Flammende Pfanne', desc: 'Schellen verbrennen Gegner (DoT + Tempo-Slow)', tint: 'vermilion' },
   { id: 'twin_dash', name: 'Turbo-Kettendash', desc: '-35% Dash-Cooldown & längerer Gleit-Impuls', tint: 'cyan' },
   { id: 'shock_pan', name: 'Schock-Schelle', desc: '+45% Pfannen-Reichweite & starker Rückstoß', tint: 'gold' },
   { id: 'searchlight', name: 'Flutlicht-Brenner', desc: '+20% Tempo · Taschenlampe blendet Anton länger', tint: 'cyan' },
@@ -517,7 +517,7 @@ export function buildDungeon(seed = 2026, floor = 1) {
         const cx = room.x + 1.0 + rng() * Math.max(0.4, room.w - 2.0);
         const cz = room.z + 1.0 + rng() * Math.max(0.4, room.d - 2.0);
         if (canPlaceProp(cx, cz, 0.38, 0.9, 1.1)) {
-          crates.push({ id: `cr_${i}`, x: cx, z: cz, broken: false });
+          crates.push({ id: `cr_${i}`, x: cx, z: cz, broken: false, gold: i === 0 });
           placed = true;
           break;
         }

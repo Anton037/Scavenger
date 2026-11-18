@@ -13,8 +13,14 @@ const hud = new Hud();
 const sound = new Soundscape();
 const controls = new Controls(canvas, get('stick'), get('stick-thumb'), { chart: toggleChart, pause: togglePause });
 
-const freshSeed = () => (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0;
-let previewSeed = freshSeed();
+const freshSeed = () => Math.floor(1000 + Math.random() * 9000);
+function parseSeed(raw) {
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) && n > 0 ? Math.min(999999, n) : null;
+}
+
+const urlSeed = parseSeed(new URLSearchParams(window.location.search).get('seed'));
+let previewSeed = urlSeed ?? freshSeed();
 let selectedLoadout = 'classic';
 let titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
 let run = titlePreviewRun;
@@ -24,10 +30,17 @@ let last = 0;
 let lag = 0;
 
 function updateSeedBadge() {
-  const el = get('seed-label');
-  if (el) write(el, String(previewSeed % 10000).padStart(4, '0'));
+  const input = get('seed-input');
+  if (input && input.value !== String(previewSeed)) {
+    input.value = String(previewSeed);
+  }
 }
 updateSeedBadge();
+
+function refreshTitlePreview() {
+  titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
+  if (view && stage === 'title') view.drawTitle(titlePreviewRun, performance.now() / 1000);
+}
 
 import('./scene.js').then(({ SceneView }) => {
   view = new SceneView(canvas);
@@ -48,11 +61,48 @@ for (const btn of document.querySelectorAll('.loadout-btn')) {
   });
 }
 
+get('seed-input')?.addEventListener('input', (event) => {
+  const parsed = parseSeed(event.target.value);
+  if (parsed !== null) {
+    previewSeed = parsed;
+    refreshTitlePreview();
+  }
+});
+
+get('seed-input')?.addEventListener('blur', () => {
+  updateSeedBadge();
+});
+
 get('shuffle-seed')?.addEventListener('click', () => {
   previewSeed = freshSeed();
   updateSeedBadge();
-  titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
-  if (view && stage === 'title') view.drawTitle(titlePreviewRun, performance.now() / 1000);
+  refreshTitlePreview();
+});
+
+get('copy-seed')?.addEventListener('click', async () => {
+  const shareUrl = `${window.location.origin}${window.location.pathname}?seed=${previewSeed}`;
+  try {
+    await navigator.clipboard?.writeText?.(shareUrl);
+  } catch {
+    // clipboard optional in headless/restricted contexts
+  }
+  const btn = get('copy-seed');
+  if (btn) {
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 1200);
+  }
+});
+
+window.addEventListener('keydown', (event) => {
+  if (stage !== 'lift' || event.repeat) return;
+  const idx = event.code === 'Digit1' ? 0 : event.code === 'Digit2' ? 1 : event.code === 'Digit3' ? 2 : -1;
+  if (idx >= 0) {
+    const btn = get('mod-list')?.children[idx];
+    if (btn) {
+      event.preventDefault();
+      btn.click();
+    }
+  }
 });
 
 function toggleChart() {
@@ -83,12 +133,12 @@ function changeSound() {
   paintSound();
 }
 
-function restart(useFreshSeed = true) {
-  const seed = useFreshSeed ? freshSeed() : previewSeed;
-  run = newRun({ seed, floor: 1, loadout: selectedLoadout });
-  previewSeed = freshSeed();
+function restart(explicitSeed = null) {
+  const seed = explicitSeed ?? freshSeed();
+  previewSeed = seed;
   updateSeedBadge();
   titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
+  run = newRun({ seed, floor: 1, loadout: selectedLoadout });
   if (liftScreen) liftScreen.hidden = true;
   hud.clearFloating();
   title.hidden = true;
@@ -117,7 +167,7 @@ async function begin() {
       const { SceneView } = await import('./scene.js');
       view = new SceneView(canvas);
     }
-    restart(false);
+    restart(previewSeed);
   } catch (error) {
     console.warn('Scavenger could not start', error.message);
     stage = 'title';
@@ -153,6 +203,7 @@ function showFloorChoices() {
   get('hud').inert = true;
   hud.showLiftChoices(run, (modId) => {
     descendNextFloor(run, modId);
+    for (const event of run.events) sound.play(event, run.player);
     view.resize();
     view.draw(run, 0, true);
     hud.paint(run, view);
@@ -164,7 +215,7 @@ function showOverlay(kind) {
   const caughtTitle = run?.caughtBy === 'hauke' ? 'Von Hauke überrollt!' : 'Von Anton gecatcht!';
   const mutLabel = run?.map?.mutator?.id && run.map.mutator.id !== 'classic' ? ` · ${run.map.mutator.name}` : '';
   const details = {
-    pause: ['Pause', `Etage ${run?.floor ?? 1} · ${run?.map?.biome?.name ?? 'Keller'}${mutLabel}`, 'Weitermachen'],
+    pause: ['Pause', `Etage ${run?.floor ?? 1} · ${run?.map?.biome?.name ?? 'Keller'}${mutLabel} · Seed #${String(run?.seed ?? previewSeed).padStart(4, '0')}`, 'Weitermachen'],
     caught: [caughtTitle, run?.deathReason ?? 'Du wurdest im Dunkeln erwischt.', 'Neuer Keller'],
     escaped: [
       `Etage ${run?.floor ?? 1} gesichert!`,
@@ -182,6 +233,9 @@ function showOverlay(kind) {
   write(get('overlay-title'), details[0]);
   write(get('overlay-copy'), details[1]);
   write(get('overlay-action'), details[2]);
+  hud.renderOverlayMods(run);
+  const sameSeedBtn = get('overlay-same-seed');
+  if (sameSeedBtn) sameSeedBtn.hidden = kind === 'pause';
   const receipt = get('overlay-receipt');
   if (kind === 'pause') {
     if (receipt) receipt.hidden = true;
@@ -218,9 +272,12 @@ startButton.addEventListener('click', begin);
 get('pause').addEventListener('click', togglePause);
 get('chart-toggle').addEventListener('click', toggleChart);
 get('menu').addEventListener('click', showTitle);
+get('overlay-same-seed')?.addEventListener('click', () => {
+  restart(run?.seed ?? previewSeed);
+});
 get('overlay-primary').addEventListener('click', () => {
   if (stage === 'pause') resume();
-  else restart(true);
+  else restart(null);
 });
 for (const [id, action] of [
   ['touch-shutter', 'lamp'], ['touch-dash', 'dash'], ['touch-lure', 'lure'], ['touch-use', 'use'],
@@ -252,6 +309,12 @@ function tick(now) {
   }
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  if ((run.hitStop || 0) > 0) {
+    run.hitStop = Math.max(0, run.hitStop - dt);
+    view.draw(run, dt * 0.2);
+    hud.paint(run, view);
+    return;
+  }
   lag += dt;
   while (lag >= STEP && run.state === 'playing') {
     advance(run, controls.read(view, run.player));

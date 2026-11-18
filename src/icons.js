@@ -11,6 +11,7 @@ export const ICONS = {
   skewer: `<svg class="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7.2 1h1.6v14H7.2V1zM5 3.5h6l-.6 2.2H5.6L5 3.5zm.3 3.5h5.4l-.6 2.2H5.9L5.3 7zm.4 3.5h4.6l-.5 2H6.2l-.5-2z"/></svg>`,
   fire: `<svg class="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8.5 1.5c1.5 2 3.8 3.8 3.8 6.8a4.3 4.3 0 01-8.6 0c0-1.9 1-3.5 2.1-4.6.2 1.2 1 2 1 2S6.5 3.2 8.5 1.5zm-.5 9.8a1.5 1.5 0 001.5-1.5c0-1-.8-1.8-1.5-2.5-.7.7-1.5 1.5-1.5 2.5a1.5 1.5 0 001.5 1.5z"/></svg>`,
   shield: `<svg class="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1.5L2.5 3.8v4.1c0 3.2 2.3 5.7 5.5 6.6 3.2-.9 5.5-3.4 5.5-6.6V3.8L8 1.5z"/></svg>`,
+  link: `<svg class="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6.8 11.4a3.3 3.3 0 010-4.7l1.8-1.8a3.3 3.3 0 014.7 4.7l-.9.9-1.1-1.1.9-.9a1.8 1.8 0 00-2.5-2.5L7.9 7.8a1.8 1.8 0 000 2.5l-1.1 1.1zm2.4-6.8a3.3 3.3 0 010 4.7l-1.8 1.8a3.3 3.3 0 01-4.7-4.7l.9-.9 1.1 1.1-.9.9a1.8 1.8 0 002.5 2.5l1.8-1.8a1.8 1.8 0 000-2.5l1.1-1.1z"/></svg>`,
 };
 
 export function relicIcon(id) {

@@ -526,18 +526,22 @@ export function skewerModel() {
   return g;
 }
 
-export function crateMesh() {
-  // Zerstörbare Holz-Beutekiste mit Eisenbeschlägen & Goldband
+export function crateMesh(isGold = false) {
+  // Zerstörbare Holz-Beutekiste oder Goldene Chef-Truhe
   const g = new THREE.Group();
-  const wood = material(0x7c4f2b, 0.72, 0.06);
-  const trim = material(0x283044, 0.45, 0.25);
-  const gold = emissive(PALETTE.brass);
-  piece(g, solid, wood, 0, 0.32, 0, 0.62, 0.62, 0.62);
-  piece(g, solid, trim, 0, 0.32, 0, 0.66, 0.09, 0.66);
-  piece(g, solid, trim, 0, 0.61, 0, 0.65, 0.07, 0.65);
-  piece(g, solid, trim, 0, 0.04, 0, 0.65, 0.07, 0.65);
-  piece(g, solid, gold, 0, 0.32, 0.325, 0.16, 0.14, 0.04);
-  piece(g, solid, gold, 0, 0.32, -0.325, 0.16, 0.14, 0.04);
+  const wood = isGold ? brassMaterial(PALETTE.brass) : material(0x7c4f2b, 0.72, 0.06);
+  const trim = isGold ? material(0x3a2614, 0.42, 0.3) : material(0x283044, 0.45, 0.25);
+  const gem = emissive(isGold ? PALETTE.jade : PALETTE.brass);
+  const scale = isGold ? 1.12 : 1.0;
+  piece(g, solid, wood, 0, 0.32 * scale, 0, 0.62 * scale, 0.62 * scale, 0.62 * scale);
+  piece(g, solid, trim, 0, 0.32 * scale, 0, 0.66 * scale, 0.09 * scale, 0.66 * scale);
+  piece(g, solid, trim, 0, 0.61 * scale, 0, 0.65 * scale, 0.07 * scale, 0.65 * scale);
+  piece(g, solid, trim, 0, 0.04 * scale, 0, 0.65 * scale, 0.07 * scale, 0.65 * scale);
+  piece(g, solid, gem, 0, 0.32 * scale, 0.325 * scale, 0.16 * scale, 0.14 * scale, 0.045 * scale);
+  piece(g, solid, gem, 0, 0.32 * scale, -0.325 * scale, 0.16 * scale, 0.14 * scale, 0.045 * scale);
+  if (isGold) {
+    g.userData.topGem = piece(g, octa, gem, 0, 0.78, 0, 0.11, 0.12, 0.11);
+  }
   return g;
 }
 

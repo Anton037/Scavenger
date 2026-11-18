@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   advance,
+  applyMod,
   descendNextFloor,
   finishRunCashOut,
   interaction,
@@ -232,3 +233,111 @@ test('Chef-Krone absorbs the first hit, drops on the floor, and leaves Torge vul
   advance(run);
   assert.equal(run.state, 'caught');
 });
+
+test('Goldene Chef-Truhe grants jackpot Aura, repairs dropped crown, grants Turbo, and emits chest_gold', () => {
+  const run = newRun({ seed: 6161, floor: 1 });
+  const hall = run.map.rooms[1];
+  const goldCrate = run.crates.find((c) => c.gold);
+  assert.ok(goldCrate, 'expected at least one Golden Chef-Truhe per floor');
+  for (const c of run.crates) c.broken = c !== goldCrate;
+  for (const e of [run.listener, run.hauke, run.tom]) place(e, { x: 1, z: 1 });
+  goldCrate.x = hall.cx + 0.9;
+  goldCrate.z = hall.cz;
+  goldCrate.broken = false;
+  place(run.player, { x: hall.cx, z: hall.cz });
+  run.player.helmet = false;
+  run.droppedHelmet = { x: hall.cx + 3, z: hall.cz + 3 };
+  const startClappers = run.player.clappers;
+  const startPfand = run.player.pfand;
+
+  advance(run, { bonk: true });
+  assert.equal(goldCrate.broken, true);
+  assert.equal(run.events.some((e) => e.kind === 'chest_gold'), true);
+  assert.equal(run.player.helmet, true);
+  assert.equal(run.droppedHelmet, null);
+  assert.equal(run.player.clappers, startClappers + 1);
+  assert.ok(run.player.beanBoost >= 4.0);
+  assert.ok(run.player.pfand >= startPfand + 1200);
+  assert.ok(run.hitStop > 0);
+});
+
+test('Tom banks stolen Aura in lootBank and bursts out as a Piñata jackpot on Chef-Schelle', () => {
+  const run = newRun({ seed: 6262, floor: 1 });
+  const hall = run.map.rooms[1];
+  place(run.player, { x: hall.cx, z: hall.cz });
+  place(run.tom, { x: hall.cx + 0.35, z: hall.cz });
+  run.player.lamp = true;
+  run.tom.stealCooldown = 0;
+
+  advance(run);
+  assert.equal(run.stats.stolen, 1);
+  assert.equal(run.tom.lootBank, 400);
+  const auraAfterSteal = run.player.pfand;
+
+  place(run.tom, { x: hall.cx + 0.9, z: hall.cz });
+  advance(run, { bonk: true });
+  assert.equal(run.tom.lootBank, 0);
+  assert.ok(run.player.pfand >= auraAfterSteal + 1800, 'Piñata should return banked Aura + bonk bonus');
+  assert.ok(run.hitStop > 0);
+});
+
+test('Fire Pan burns enemies with Aura DoT while Searchlight blinds Anton only when lamp is lit', () => {
+  const run = newRun({ seed: 6363, floor: 1 });
+  const hall = run.map.rooms[1];
+  applyMod(run, 'fire_pan');
+  place(run.player, { x: hall.cx, z: hall.cz });
+  place(run.listener, { x: hall.cx + 1.0, z: hall.cz });
+  place(run.hauke, { x: hall.cx - 1.1, z: hall.cz });
+  const startHaukeHp = run.hauke.hp;
+
+  advance(run, { bonk: true });
+  assert.ok(run.listener.burning > 2.0);
+  assert.ok(run.hauke.burning > 2.0);
+  const pfandRightAfterBonk = run.player.pfand;
+
+  idle(run, 0.7);
+  assert.ok(run.player.pfand > pfandRightAfterBonk, 'Burning listener should tick burn Aura');
+  assert.ok(run.hauke.hp < startHaukeHp - 35, 'Burning Hauke should suffer DoT damage');
+
+  const darkRun = newRun({ seed: 6464, floor: 1 });
+  const litRun = newRun({ seed: 6464, floor: 1 });
+  for (const r of [darkRun, litRun]) {
+    applyMod(r, 'searchlight');
+    const rm = r.map.rooms[1];
+    place(r.player, { x: rm.cx - 1.1, z: rm.cz });
+    place(r.listener, { x: rm.cx + 1.1, z: rm.cz });
+    r.listener.awareness = 0.95;
+  }
+  advance(darkRun, { lamp: true }); // toggle off
+  idle(darkRun, 0.25);
+  idle(litRun, 0.25);
+  assert.equal(litRun.listener.stunned > 1.0, true, 'Lit lamp + Searchlight should blind Anton');
+  assert.equal(darkRun.listener.stunned > 0, false, 'Unlit lamp should not trigger Searchlight blind');
+});
+
+test('Input buffering, Hauke Phase 2 Wut-Modus, and touch Dose auto-aim work deterministically', () => {
+  const run = newRun({ seed: 6565, floor: 1 });
+  const hall = run.map.rooms[1];
+  place(run.player, { x: hall.cx, z: hall.cz });
+  place(run.listener, { x: hall.cx + 1.0, z: hall.cz });
+  run.player.bonkCooldown = 0.08;
+
+  advance(run, { bonk: true });
+  assert.equal(run.listener.stunned, 0, 'Still on cooldown for 1st frame');
+  idle(run, 0.12);
+  assert.ok(run.listener.stunned > 2.0, 'Buffered bonk should execute once cooldown expires');
+
+  run.hauke.hp = 45;
+  run.hauke.koTimer = 0;
+  advance(run);
+  assert.equal(run.hauke.enraged, true, 'Hauke <= 50 HP should enter Wut-Modus');
+
+  const barrel = run.barrels[0];
+  place(barrel, { x: hall.cx, z: hall.cz - 2.6 });
+  barrel.exploded = false;
+  run.player.angle = Math.PI / 2; // pointing away (south)
+  advance(run, { isTouch: true, lure: true });
+  assert.equal(run.throws.length, 1);
+  assert.ok(run.throws[0].to.z < run.player.z - 0.8, 'Touch auto-aim should throw Dose toward nearby barrel');
+});
+

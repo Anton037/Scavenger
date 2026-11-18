@@ -105,6 +105,54 @@ h1, h2, h3, p { margin: 0; }
   z-index: 2;
 }
 .title-top-actions { display: flex; align-items: center; gap: .4rem; }
+.seed-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .16rem;
+  min-height: 34px;
+  padding: .16rem .24rem .16rem .52rem;
+  border-radius: 6px;
+  border: 1px solid var(--hairline);
+  background: var(--glass);
+  backdrop-filter: blur(8px);
+  font-size: .75rem;
+  font-weight: 600;
+}
+.seed-hash { color: var(--muted); font-weight: 700; }
+#seed-input {
+  width: 4.5ch;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--gold);
+  font: 700 .78rem/1.2 var(--sans);
+  font-variant-numeric: tabular-nums;
+  padding: .12rem .08rem;
+  outline: 0;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+#seed-input::-webkit-inner-spin-button,
+#seed-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+#seed-input:focus { color: var(--ivory); }
+.seed-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ivory);
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: border-color .12s ease, background .12s ease, color .12s ease;
+}
+.seed-btn .ico { width: 12px; height: 12px; }
+.seed-btn:hover:enabled { border-color: rgba(255, 184, 77, 0.55); background: var(--glass-hi); color: var(--gold); }
+.seed-btn.copied { border-color: var(--jade); background: rgba(56, 242, 175, 0.16); color: var(--jade); }
 .highscore-pill {
   display: inline-flex;
   align-items: center;
@@ -346,6 +394,21 @@ kbd {
   font-weight: 700;
   white-space: nowrap;
 }
+.active-mods { display: inline-flex; align-items: center; gap: .2rem; flex-shrink: 0; }
+.mod-badge {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 184, 77, 0.45);
+  background: rgba(255, 184, 77, 0.12);
+  color: var(--gold);
+}
+.mod-badge .ico { width: 11px; height: 11px; }
+.mod-badge.tone-cyan { color: var(--cyan); border-color: rgba(115, 215, 255, 0.48); background: rgba(115, 215, 255, 0.12); }
+.mod-badge.tone-jade { color: var(--jade); border-color: rgba(56, 242, 175, 0.48); background: rgba(56, 242, 175, 0.12); }
+.mod-badge.tone-vermilion { color: var(--crimson); border-color: rgba(255, 59, 86, 0.48); background: rgba(255, 59, 86, 0.14); }
 
 /* Schlanke Hauke Boss-Anzeige */
 .boss-gauge {
@@ -358,7 +421,8 @@ kbd {
   border: 1px solid var(--hairline);
   transition: border-color .15s ease;
 }
-.boss-gauge.charging { border-color: var(--crimson); box-shadow: 0 0 16px rgba(255, 59, 86, 0.25); }
+.boss-gauge.enraged { border-color: rgba(255, 59, 86, 0.78); box-shadow: 0 0 14px rgba(255, 59, 86, 0.22); }
+.boss-gauge.charging { border-color: var(--crimson); box-shadow: 0 0 16px rgba(255, 59, 86, 0.28); }
 .boss-head {
   display: flex;
   justify-content: space-between;
@@ -386,6 +450,7 @@ kbd {
   background: linear-gradient(90deg, #ff3b56, var(--gold));
   transition: width .16s ease;
 }
+.boss-gauge.enraged .boss-fill { background: linear-gradient(90deg, #ff1e3c, #ff7a45); }
 
 .hud-right { display: flex; align-items: center; gap: .36rem; }
 .aura-chip, .count-chip {
@@ -582,7 +647,35 @@ kbd {
 .mod-text { flex: 1; display: grid; gap: .12rem; }
 .mod-text b { font-size: .88rem; color: var(--ivory); }
 .mod-text small { font-size: .74rem; color: var(--muted); }
+.mod-kbd { font-size: .68rem; padding: .12em .46em; opacity: .82; flex-shrink: 0; }
 .lift-footer { display: flex; justify-content: flex-end; }
+
+.overlay-mods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .36rem;
+  margin-bottom: .82rem;
+}
+.overlay-mod-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .22rem .52rem;
+  border-radius: 4px;
+  border: 1px solid var(--hairline);
+  border-left: 2.5px solid var(--gold);
+  background: rgba(15, 18, 33, 0.85);
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--ivory);
+}
+.overlay-mod-pill .ico { width: 12px; height: 12px; color: var(--gold); }
+.overlay-mod-pill.tone-cyan { border-left-color: var(--cyan); }
+.overlay-mod-pill.tone-cyan .ico { color: var(--cyan); }
+.overlay-mod-pill.tone-jade { border-left-color: var(--jade); }
+.overlay-mod-pill.tone-jade .ico { color: var(--jade); }
+.overlay-mod-pill.tone-vermilion { border-left-color: var(--crimson); }
+.overlay-mod-pill.tone-vermilion .ico { color: var(--crimson); }
 
 .receipt {
   margin-bottom: .95rem;
@@ -616,7 +709,7 @@ kbd {
   font-size: .78rem;
   text-align: right;
 }
-.overlay-secondary { margin-top: .7rem; display: flex; gap: .45rem; }
+.overlay-secondary { margin-top: .7rem; display: flex; flex-wrap: wrap; gap: .45rem; }
 
 /* Touch & Mobile Controls */
 #touch-ui { display: none; }
@@ -658,7 +751,7 @@ kbd {
 .touch-use { grid-column: 1 / -1; }
 .touch-use:enabled { color: #090b14; background: var(--jade); border-color: var(--ivory); }
 .touch-input #touch-ui { display: block; }
-.touch-input .skill-rack, .touch-input .title-controls, .touch-input #interact-key { display: none; }
+.touch-input .skill-rack, .touch-input .title-controls, .touch-input #interact-key, .touch-input .mod-kbd { display: none; }
 .touch-input .title-touch { display: block; right: var(--gutter); }
 .touch-input .hud-bottom {
   justify-content: flex-start;
@@ -688,13 +781,17 @@ kbd {
     padding-top: max(62px, calc(env(safe-area-inset-top) + 52px));
     padding-bottom: max(14px, env(safe-area-inset-bottom));
   }
-  .title-topbar { gap: .32rem; }
-  .highscore-pill { padding: .28rem .52rem; font-size: .68rem; gap: .3rem; }
-  .title-top-actions { gap: .28rem; }
-  .title-top-actions .btn-glass { min-height: 30px; padding: .24rem .5rem; font-size: .68rem; }
+  .title-topbar { gap: .26rem; }
+  .highscore-pill { padding: .22rem .42rem; font-size: .64rem; gap: .22rem; white-space: nowrap; }
+  .title-top-actions { gap: .22rem; }
+  .seed-pill { min-height: 28px; padding: .1rem .18rem .1rem .38rem; gap: .12rem; }
+  #seed-input { width: 3.9ch; font-size: .68rem; }
+  .seed-btn { width: 23px; height: 23px; font-size: .74rem; }
+  .seed-btn .ico { width: 10px; height: 10px; }
+  .title-top-actions .btn-glass { min-height: 28px; padding: .2rem .44rem; font-size: .66rem; }
 
   .arcade-panel { max-width: 100%; padding: .9rem .95rem; gap: .68rem; }
-  .title-controls { display: none; }
+  .title-controls, .mod-kbd { display: none; }
   .title-touch {
     position: static;
     display: block;
@@ -738,12 +835,15 @@ kbd {
     white-space: nowrap;
     flex-shrink: 0;
   }
-  .zone-meta { gap: .28rem; min-width: 0; }
+  .zone-meta { gap: .26rem; min-width: 0; }
   .relic-rack { gap: .16rem; flex-shrink: 0; }
   .relic-slot { width: 17px; height: 16px; }
   .relic-slot .ico { width: 10px; height: 10px; }
   .obj-hint { font-size: .58rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mutator-pill { display: none; }
+  .active-mods { gap: .14rem; }
+  .mod-badge { width: 15px; height: 15px; }
+  .mod-badge .ico { width: 9px; height: 9px; }
 
   .hud-right {
     grid-column: 2;

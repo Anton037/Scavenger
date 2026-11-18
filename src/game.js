@@ -46,6 +46,9 @@ function populateFloorState(run, map) {
   run.player.dash = 0;
   run.player.sliding = 0;
   run.player.noise = 0;
+  run.player.bufBonk = 0;
+  run.player.bufDash = 0;
+  run.player.bufLure = 0;
 
   run.listener = {
     ...map.startListener,
@@ -89,6 +92,8 @@ function populateFloorState(run, map) {
     koTimer: 0,
     hitFlash: 0,
     knockouts: 0,
+    enraged: false,
+    rageAnnounced: false,
     chargeState: 'none',
     chargeTimer: 0,
     chargeCooldown: 4.5 * hyperHauke,
@@ -111,12 +116,13 @@ function populateFloorState(run, map) {
     burning: 0,
     burnTick: 0,
     stealCooldown: 0,
+    lootBank: 0,
     stride: 0,
   };
 }
 
 export function newRun(options = {}) {
-  const seed = options.seed ?? ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0);
+  const seed = options.seed ?? Math.floor(1000 + Math.random() * 9000);
   const floor = options.floor ?? 1;
   const loadoutId = options.loadout && LOADOUTS[options.loadout] ? options.loadout : 'classic';
   const loadout = LOADOUTS[loadoutId];
@@ -132,6 +138,7 @@ export function newRun(options = {}) {
     deathReason: DEATH_QUOTES_ANTON[0],
     cameraShake: 0,
     hitFlash: 0,
+    hitStop: 0,
     mods: new Set(),
     modOffers: [],
     player: {
@@ -167,6 +174,9 @@ export function newRun(options = {}) {
       stepIn: 0,
       clappers: loadout.clappers,
       noise: 0,
+      bufBonk: 0,
+      bufDash: 0,
+      bufLure: 0,
     },
     notices: [],
     barks: [],
@@ -252,7 +262,7 @@ export function applyMod(run, modId) {
   } else if (modId === 'shock_pan') {
     player.novaRadius += 0.95;
   } else if (modId === 'searchlight') {
-    player.speedMult += 0.14;
+    player.speedMult += 0.2;
   } else if (modId === 'pfand_magnet') {
     player.clappers = Math.min(5, player.clappers + 3);
   } else if (modId === 'espresso') {
@@ -272,6 +282,7 @@ export function descendNextFloor(run, modId) {
   populateFloorState(run, nextMap);
   run.state = 'playing';
   run.modOffers = [];
+  run.events.push({ kind: 'descend', ...location(run.player) });
   tell(run, `ETAGE ${run.floor}: ${nextMap.biome.name} (${nextMap.mutator.name})! +${bonus} ⚡`, 3.4);
   bark(run, run.player, `ETAGE ${run.floor}!`, 'gold', 2.2, 1.5);
   return run;
@@ -310,11 +321,13 @@ function damageHauke(run, dmg, sourceLabel) {
     hauke.koTimer = 14.0;
     hauke.stunned = 14.0;
     hauke.burning = 0;
+    hauke.enraged = false;
     hauke.chargeState = 'none';
     hauke.knockouts = (hauke.knockouts || 0) + 1;
     run.stats.haukeKos = (run.stats.haukeKos || 0) + 1;
     run.cameraShake = Math.max(run.cameraShake, 0.85);
     run.hitFlash = 0.28;
+    run.hitStop = Math.max(run.hitStop || 0, 0.045);
     player.clappers = Math.min(5, player.clappers + 1);
     const bonus = addAura(run, 4000, true);
     run.events.push({ kind: 'ko', ...location(hauke) });
@@ -322,6 +335,12 @@ function damageHauke(run, dmg, sourceLabel) {
     bark(run, hauke, `FRESSKOMA! +${bonus} ⚡`, 'gold', 2.4, 1.8);
     tell(run, 'HAUKE IM FRESSKOMA (14s K.O.)! Goldene Pfand-Dose gedroppt!', 3.2);
   } else {
+    if (hauke.hp <= 50 && !hauke.rageAnnounced) {
+      hauke.enraged = true;
+      hauke.rageAnnounced = true;
+      bark(run, hauke, 'WUT-MODUS! 50%', 'vermilion', 2.65, 1.5);
+      tell(run, 'Hauke wird wütend! Schneller & häufigere Bauch-Rammen!', 2.6);
+    }
     const gained = addAura(run, 1400, true);
     bark(run, hauke, `${sourceLabel} -${dmg}%`, 'vermilion', 2.3, 1.3);
     bark(run, run.player, `+${gained} ⚡`, 'gold', 1.8, 1.0);
@@ -334,6 +353,22 @@ function smashCrate(run, crate) {
   run.stats.crates = (run.stats.crates || 0) + 1;
   spawnVfx(run, 'crate_smash', crate);
   const { player } = run;
+
+  if (crate.gold) {
+    run.events.push({ kind: 'chest_gold', ...location(crate) });
+    if (!player.helmet) reclaimCrown(run, crate);
+    if (player.clappers < 5) player.clappers++;
+    player.beanBoost = Math.max(player.beanBoost, 4.5);
+    run.cameraShake = Math.max(run.cameraShake, 0.52);
+    run.hitStop = Math.max(run.hitStop || 0, 0.035);
+    const gained = addAura(run, 1200, true);
+    spawnVfx(run, 'coin_burst', crate);
+    bark(run, crate, `GOLD-TRUHE! +${gained} ⚡`, 'gold', 1.75, 1.5);
+    tell(run, `Goldene Chef-Truhe geknackt! +${gained} ⚡ & Turbo!`, 2.5);
+    return;
+  }
+
+  run.events.push({ kind: 'crate_break', ...location(crate) });
   const roll = Math.abs(Math.sin(crate.x * 19.3 + crate.z * 7.1 + run.time));
   if (!player.helmet && roll < 0.45) {
     reclaimCrown(run, crate);
@@ -358,6 +393,7 @@ function detonateBarrel(run, barrel) {
   run.stats.barrels = (run.stats.barrels || 0) + 1;
   run.cameraShake = Math.max(run.cameraShake, 0.92);
   run.hitFlash = Math.max(run.hitFlash || 0, 0.24);
+  run.hitStop = Math.max(run.hitStop || 0, 0.045);
   makeNoise(run, 'valve', barrel, 22);
   run.events.push({ kind: 'wall_slam', ...location(barrel) });
   spawnVfx(run, 'ko_explosion', barrel);
@@ -501,10 +537,44 @@ function use(run) {
   }
 }
 
-function throwClapper(run) {
+function throwClapper(run, autoAim = false) {
   const { player, map } = run;
   if (player.clappers === 0) return;
-  const direction = { x: Math.cos(player.angle), z: Math.sin(player.angle) };
+  let throwAngle = player.angle;
+  if (autoAim) {
+    const threats = [
+      ...(run.hauke && run.hauke.koTimer <= 0 ? [run.hauke] : []),
+      ...(run.listener ? [run.listener] : []),
+      ...(run.tom ? [run.tom] : []),
+    ];
+    let bestTarget = null;
+    let bestScore = Infinity;
+    for (const barrel of run.barrels) {
+      if (barrel.exploded) continue;
+      const d = distance(player, barrel);
+      if (d < 0.55 || d > 7.5 || !map.clearPath(player, barrel, 0.08)) continue;
+      const threatNear = threats.some((t) => distance(barrel, t) < 4.6);
+      const score = d - (threatNear ? 3.5 : 0.8);
+      if (score < bestScore) {
+        bestScore = score;
+        bestTarget = barrel;
+      }
+    }
+    if (!bestTarget) {
+      for (const threat of threats) {
+        const d = distance(player, threat);
+        if (d >= 0.55 && d <= 7.5 && d < bestScore && map.clearPath(player, threat, 0.08)) {
+          bestScore = d;
+          bestTarget = threat;
+        }
+      }
+    }
+    if (bestTarget) {
+      throwAngle = Math.atan2(bestTarget.z - player.z, bestTarget.x - player.x);
+      player.angle = throwAngle;
+    }
+  }
+  const direction = { x: Math.cos(throwAngle), z: Math.sin(throwAngle) };
   let target = location(player);
   for (let step = 0.28; step < 6.4; step += 0.24) {
     const x = player.x + direction.x * step;
@@ -572,9 +642,12 @@ function swingWrench(run) {
     player.clappers = Math.min(5, player.clappers + 1);
     const push = Math.atan2(run.tom.z - player.z, run.tom.x - player.x);
     shiftBody(run, run.tom, Math.cos(push) * 1.55 * knockMult, Math.sin(push) * 1.55 * knockMult, 0.24);
-    const gained = addAura(run, 1400, true);
+    const bank = run.tom.lootBank || 0;
+    run.tom.lootBank = 0;
+    const gained = addAura(run, 1400 + bank, true);
+    if (bank > 0) run.hitStop = Math.max(run.hitStop || 0, 0.032);
     spawnVfx(run, 'coin_burst', run.tom);
-    bark(run, run.tom, `SCHELLE! +${gained}`, 'jade', 1.6, 1.3);
+    bark(run, run.tom, bank > 0 ? `PIÑATA! +${gained} ⚡` : `SCHELLE! +${gained}`, bank > 0 ? 'gold' : 'jade', 1.75, 1.45);
   }
 
   // Zerstöre Holzkisten & entzünde Druckfässer in Pfannen-Reichweite!
@@ -592,6 +665,7 @@ function swingWrench(run) {
   }
 
   if (hits >= 2) {
+    run.hitStop = Math.max(run.hitStop || 0, 0.028);
     const bonus = addAura(run, 800, true);
     bark(run, player, `${hits}× DOPPEL-SCHELLE! +${bonus}`, 'gold', 2.2, 1.4);
   }
@@ -645,6 +719,13 @@ function movePlayer(run, input, dt) {
   player.sliding = Math.max(0, player.sliding - dt);
   player.invuln = Math.max(0, player.invuln - dt);
   player.dodgeBonusCooldown = Math.max(0, player.dodgeBonusCooldown - dt);
+  player.bufBonk = Math.max(0, (player.bufBonk || 0) - dt);
+  player.bufDash = Math.max(0, (player.bufDash || 0) - dt);
+  player.bufLure = Math.max(0, (player.bufLure || 0) - dt);
+  if (input.bonk) player.bufBonk = 0.15;
+  if (input.dash) player.bufDash = 0.15;
+  if (input.lure && player.clappers > 0) player.bufLure = 0.15;
+
   run.vendingCooldown = Math.max(0, run.vendingCooldown - dt);
   run.cameraShake = Math.max(0, run.cameraShake - dt * 1.9);
   run.hitFlash = Math.max(0, (run.hitFlash || 0) - dt);
@@ -670,7 +751,8 @@ function movePlayer(run, input, dt) {
   player.wet = nowWet;
 
   player.dash = Math.max(0, player.dash - dt);
-  if (input.dash && player.cooldown === 0) {
+  if (player.bufDash > 0 && player.cooldown === 0) {
+    player.bufDash = 0;
     player.dash = DASH_TIME;
     player.cooldown = DASH_COOLDOWN * (player.dashCdMult || 1);
     player.dx = magnitude > 0.15 ? x / magnitude : Math.cos(player.angle);
@@ -755,8 +837,14 @@ function movePlayer(run, input, dt) {
   }
 
   if (input.use) use(run);
-  if (input.lure) throwClapper(run);
-  if (input.bonk) swingWrench(run);
+  if (player.bufLure > 0 && player.clappers > 0) {
+    player.bufLure = 0;
+    throwClapper(run, Boolean(input.isTouch && !Number.isFinite(input.angle)));
+  }
+  if (player.bufBonk > 0 && player.bonkCooldown === 0) {
+    player.bufBonk = 0;
+    swingWrench(run);
+  }
 }
 
 function advanceProps(run, dt) {
@@ -792,7 +880,12 @@ function applyBurnTick(run, enemy, dt, isHauke = false) {
   if (enemy.burnTick <= 0) {
     enemy.burnTick = 0.55;
     spawnVfx(run, 'can_pickup', enemy, { color: 0xff5744 });
-    if (isHauke) damageHauke(run, 8, 'GLUT!');
+    if (isHauke) {
+      damageHauke(run, 8, 'GLUT!');
+    } else {
+      const burnAura = addAura(run, 220, false);
+      bark(run, enemy, `GLUT +${burnAura}`, 'vermilion', 1.95, 0.72);
+    }
   }
 }
 
@@ -869,10 +962,11 @@ function moveListener(run, dt) {
     if (listener.mode !== 'hunt') {
       run.events.push({ kind: 'detected', ...location(listener) });
       bark(run, listener, 'DA?!', 'vermilion', 2.45, 1.0);
-      if (run.mods.has('searchlight') && gap < 4.5 && listener.stunImmune <= 0) {
-        listener.stunned = 0.85;
+      if (player.lamp && run.mods.has('searchlight') && gap < 5.0 && listener.stunImmune <= 0) {
+        listener.stunned = 1.65;
         listener.stunImmune = 4.5;
-        bark(run, listener, 'GEBLENDET!', 'cyan', 2.6, 0.9);
+        spawnVfx(run, 'bonk_hit', listener, { color: 0x73d7ff });
+        bark(run, listener, 'GEBLENDET!', 'cyan', 2.6, 1.0);
       }
     }
     listener.mode = 'hunt';
@@ -907,7 +1001,7 @@ function moveListener(run, dt) {
     listener.angle += dt * 1.8;
     return;
   }
-  const scale = threatScale(run);
+  const scale = threatScale(run) * (listener.burning > 0 ? 0.76 : 1);
   const speed = (listener.mode === 'hunt' ? 3.28 : listener.mode === 'investigate' ? 2.4 : 1.54) * scale;
   listener.moving = followWaypoints(listener, listener.target, speed, dt, run);
 
@@ -939,8 +1033,10 @@ function moveHauke(run, dt) {
     hauke.stunned = hauke.koTimer;
     hauke.moving = false;
     hauke.chargeState = 'none';
+    hauke.enraged = false;
     if (hauke.koTimer === 0) {
       hauke.hp = hauke.maxHp;
+      hauke.rageAnnounced = false;
       hauke.mode = 'hunt';
       hauke.target = location(player);
       hauke.chargeCooldown = 2.0;
@@ -949,6 +1045,8 @@ function moveHauke(run, dt) {
     }
     return;
   }
+
+  hauke.enraged = hauke.hp <= 50;
 
   if (hauke.stunned > 0) {
     hauke.stunned = Math.max(0, hauke.stunned - dt);
@@ -959,7 +1057,7 @@ function moveHauke(run, dt) {
   }
 
   const gap = distance(hauke, player);
-  const hyperScale = map.mutator?.haukeChargeScale ?? 1;
+  const hyperScale = (map.mutator?.haukeChargeScale ?? 1) * (hauke.enraged ? 0.78 : 1.0);
 
   if (hauke.chargeState === 'windup') {
     hauke.moving = false;
@@ -980,7 +1078,7 @@ function moveHauke(run, dt) {
   if (hauke.chargeState === 'rush') {
     hauke.moving = true;
     hauke.chargeTimer -= dt;
-    const rushSpeed = 7.9 + (hauke.knockouts > 0 ? 0.6 : 0);
+    const rushSpeed = 7.9 + (hauke.knockouts > 0 ? 0.6 : 0) + (hauke.enraged ? 0.65 : 0);
     const nx = hauke.x + hauke.chargeDirX * rushSpeed * dt;
     const nz = hauke.z + hauke.chargeDirZ * rushSpeed * dt;
     hauke.stride = (hauke.stride || 0) + rushSpeed * dt;
@@ -1004,6 +1102,7 @@ function moveHauke(run, dt) {
       hauke.stunned = 2.8;
       run.stats.wallSlams = (run.stats.wallSlams || 0) + 1;
       run.cameraShake = Math.max(run.cameraShake, 0.82);
+      run.hitStop = Math.max(run.hitStop || 0, 0.045);
       run.events.push({ kind: 'wall_slam', ...location(hauke) });
       spawnVfx(run, 'wall_slam', hauke);
       damageHauke(run, 25, 'OLÉ! WAND-CRASH');
@@ -1047,7 +1146,7 @@ function moveHauke(run, dt) {
   ) {
     hauke.chargeState = 'windup';
     hauke.chargeTimer = 0.62;
-    hauke.chargeCooldown = Math.max(3.1, 5.4 - run.records.size * 0.5) * hyperScale;
+    hauke.chargeCooldown = Math.max(2.4, (5.4 - run.records.size * 0.5) * hyperScale);
     const aim = Math.atan2(player.z - hauke.z, player.x - hauke.x);
     hauke.angle = aim;
     hauke.chargeDirX = Math.cos(aim);
@@ -1058,13 +1157,14 @@ function moveHauke(run, dt) {
   }
 
   const rageSpeed = (hauke.knockouts || 0) > 0 ? 0.28 : 0;
-  const speed = ((hauke.mode === 'hunt' ? 2.58 : 1.32) + rageSpeed) * threatScale(run);
+  const phaseMult = hauke.enraged ? 1.14 : 1.0;
+  const speed = ((hauke.mode === 'hunt' ? 2.58 : 1.32) + rageSpeed) * threatScale(run) * phaseMult;
   hauke.moving = followWaypoints(hauke, hauke.target, speed, dt, run);
 
   if (hauke.moving) {
     hauke.stompIn -= dt;
     if (hauke.stompIn <= 0) {
-      hauke.stompIn = hauke.mode === 'hunt' ? 0.42 : 0.76;
+      hauke.stompIn = hauke.mode === 'hunt' ? (hauke.enraged ? 0.35 : 0.42) : 0.76;
       if (gap < 10.0) {
         const intensity = (1 - gap / 10.0) * 0.16;
         run.cameraShake = Math.max(run.cameraShake, intensity);
@@ -1106,7 +1206,7 @@ function moveTom(run, dt) {
     tom.replanAt = run.time;
   }
 
-  const tomScale = map.mutator?.tomSpeedScale ?? 1;
+  const tomScale = (map.mutator?.tomSpeedScale ?? 1) * (tom.burning > 0 ? 0.76 : 1);
   const speed = (tom.mode === 'flee' ? 3.8 : tom.mode === 'greed' ? 2.9 : 1.8) * threatScale(run) * tomScale;
   tom.moving = followWaypoints(tom, tom.target, speed, dt, run);
 
@@ -1120,11 +1220,13 @@ function moveTom(run, dt) {
     run.stats.stolen++;
     run.events.push({ kind: 'steal', ...location(tom) });
     spawnVfx(run, 'coin_burst', player);
-    player.pfand = Math.max(0, player.pfand - 400);
+    const took = Math.min(player.pfand, 400);
+    player.pfand -= took;
+    tom.lootBank = (tom.lootBank || 0) + took;
     if (player.clappers > 0 && run.stats.stolen % 2 === 1) player.clappers--;
     player.combo = 1;
     player.comboTimer = 0;
-    bark(run, tom, 'YOINK! -400 ⚡', 'jade', 1.55, 1.35);
+    bark(run, tom, `YOINK! -${took} ⚡`, 'jade', 1.55, 1.35);
   }
 }
 

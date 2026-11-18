@@ -133,6 +133,7 @@ export class Controls {
       x: this.movement.x + Number(right) - Number(left),
       z: this.movement.z + Number(down) - Number(up),
       angle: this.aimAngle,
+      isTouch: Boolean(this.touch),
       use: this.actions.has('use'),
       dash: this.actions.has('dash'),
       lamp: this.actions.has('lamp'),

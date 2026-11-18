@@ -248,6 +248,24 @@ export class Soundscape {
         this.tone(180, 42, 0.65, 0.26, pan, 0, 'sawtooth');
         this.tone(520, 260, 0.28, 0.16, pan, 0.05, 'triangle');
         break;
+      case 'crate_break':
+        // Splitternde Holzkiste
+        this.rustle(680, 0.85, 0.19, 0.18, pan);
+        this.tone(175, 72, 0.16, 0.14, pan, 0, 'triangle');
+        break;
+      case 'chest_gold':
+        // Goldene Chef-Truhe Jackpot!
+        this.rustle(720, 0.9, 0.18, 0.15, pan);
+        this.tone(523.25, 523.25, 0.14, 0.16, pan, 0, 'triangle');
+        this.tone(659.25, 659.25, 0.16, 0.16, pan, 0.06, 'triangle');
+        this.tone(783.99, 783.99, 0.18, 0.16, pan, 0.12, 'triangle');
+        this.tone(1046.5, 1046.5, 0.34, 0.18, pan, 0.18, 'sine');
+        break;
+      case 'descend':
+        // Aufzug fährt tiefer in den nächsten Sektor
+        this.tone(92, 48, 0.68, 0.2, 0, 0, 'triangle');
+        this.tone(220, 440, 0.35, 0.12, 0, 0.08, 'sine');
+        break;
       case 'caught':
         this.tone(126, 29, 0.93, 0.27, 0, 0, 'triangle');
         this.rustle(550, 0.85, 0.89, 0.14);
@@ -267,11 +285,17 @@ export class Soundscape {
   background(run) {
     if (!this.enabled || !this.context || this.context.state !== 'running') return;
     if (run.time > this.nextDrip) {
-      this.nextDrip = run.time + 1.6 + Math.random() * 3.8;
+      this.nextDrip = run.time + 1.6 + Math.random() * 3.6;
       const pan = Math.random() * 1.4 - 0.7;
-      const pitch = 265 + Math.random() * 320;
-      this.tone(pitch, pitch * 0.51, 0.24, 0.035, pan);
+      const biomeId = run.map?.biome?.id;
+      const pitch = biomeId === 'freezer'
+        ? 440 + Math.random() * 390
+        : biomeId === 'furnace'
+          ? 165 + Math.random() * 165
+          : 265 + Math.random() * 320;
+      this.tone(pitch, pitch * (biomeId === 'freezer' ? 0.82 : 0.51), 0.24, 0.035, pan);
       this.tone(pitch * 2.28, pitch * 2.22, 0.41, 0.013, pan, 0.08);
+      if (biomeId === 'furnace') this.rustle(290, 1.4, 0.28, 0.025, pan);
     }
     const gap = Math.hypot(run.listener.x - run.player.x, run.listener.z - run.player.z);
     if (gap < 6.5 && run.time > this.nextPulse) {

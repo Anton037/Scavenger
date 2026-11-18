@@ -393,6 +393,79 @@ function createChargeLaneMesh(scene) {
   return mesh;
 }
 
+function createAntonConeMesh(scene) {
+  const geo = new THREE.PlaneGeometry(5.2, 4.4);
+  geo.translate(2.6, 0, 0);
+  geo.rotateX(-Math.PI / 2);
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 }, uHunt: { value: 0 } },
+    vertexShader: `
+      varying vec2 vLocal;
+      void main() {
+        vLocal = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform float uHunt;
+      varying vec2 vLocal;
+      void main() {
+        float x = vLocal.x;
+        float y = (vLocal.y - 0.5) * 2.0;
+        float r = length(vec2(x, y * 0.9));
+        float angleRatio = abs(y) / max(0.06, x * 0.88);
+        float sector = 1.0 - smoothstep(0.55, 0.92, angleRatio);
+        float rim = smoothstep(0.52, 0.72, angleRatio) * (1.0 - smoothstep(0.78, 0.95, angleRatio));
+        float radial = (1.0 - smoothstep(0.25, 0.96, r)) * smoothstep(0.02, 0.08, x);
+        float pulse = 0.85 + 0.15 * sin(uTime * (3.0 + uHunt * 5.0));
+        float alpha = (sector * (0.11 + uHunt * 0.1) + rim * 0.14) * radial * pulse;
+        vec3 col = mix(vec3(0.95, 0.25, 0.34), vec3(1.0, 0.18, 0.26), uHunt);
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = floorY + 0.019;
+  mesh.visible = false;
+  mesh.renderOrder = 1;
+  scene.add(mesh);
+  return mesh;
+}
+
+function createCrownBeaconMesh(scene) {
+  const geo = new THREE.CylinderGeometry(0.14, 0.34, 2.8, 12, 1, true);
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec2 vUv;
+      void main() {
+        float fade = pow(max(0.0, 1.0 - vUv.y), 1.75);
+        gl_FragColor = vec4(1.0, 0.88, 0.5, fade * 0.42);
+      }
+    `,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = 1.4;
+  mesh.visible = false;
+  mesh.renderOrder = 3;
+  scene.add(mesh);
+  return mesh;
+}
+
 function createSlashArcMesh(scene) {
   const geo = new THREE.RingGeometry(0.65, 1.15, 22, 1, -Math.PI * 0.62, Math.PI * 1.24).rotateX(-Math.PI / 2);
   const mat = new THREE.MeshBasicMaterial({
@@ -676,7 +749,9 @@ export class SceneView {
     this.scene.add(this.droppedCrown);
     this.droppedCrownRing = placeRing(this.scene, PALETTE.brass, 0, 0, 0.72);
     this.droppedCrownRing.visible = false;
+    this.crownBeacon = createCrownBeaconMesh(this.scene);
 
+    this.antonCone = createAntonConeMesh(this.scene);
     this.haukeSnacks = Array.from({ length: 3 }, (_, i) => {
       const s = haukeSnack(i);
       this.scene.add(s);
@@ -739,7 +814,7 @@ export class SceneView {
     this.air = diffuseAir(this.worldGroup, map);
 
     this.crates = map.crates.map((c) => {
-      const m = crateMesh();
+      const m = crateMesh(Boolean(c.gold));
       m.position.set(c.x, 0, c.z);
       this.worldGroup.add(m);
       return m;
@@ -953,19 +1028,47 @@ export class SceneView {
     }
   }
 
-  updateThreat(run, forceVisible = false) {
+  updateThreat(run, isTitle = false) {
     const { player, listener, hauke, tom, time, map } = run;
-    this.updateActor(this.monster, listener, map, player, time, forceVisible || run.state === 'caught');
-    this.updateActor(this.hauke, hauke, map, player, time, forceVisible || run.state === 'caught');
-    this.updateActor(this.tom, tom, map, player, time, forceVisible);
+    this.updateActor(this.monster, listener, map, player, time, isTitle || run.state === 'caught');
+    this.updateActor(this.hauke, hauke, map, player, time, isTitle || run.state === 'caught');
+    this.updateActor(this.tom, tom, map, player, time, isTitle);
+
+    if (this.antonCone) {
+      const showCone = !isTitle && Boolean(this.monster.root.visible && listener && listener.stunned <= 0);
+      this.antonCone.visible = showCone;
+      if (showCone) {
+        this.antonCone.position.set(listener.x, floorY + 0.019, listener.z);
+        this.antonCone.rotation.y = -listener.angle;
+        this.antonCone.material.uniforms.uTime.value = time;
+        this.antonCone.material.uniforms.uHunt.value = listener.mode === 'hunt' ? 1.0 : 0.0;
+      }
+    }
 
     const showHauke = this.hauke.root.visible && hauke;
     this.haukeRing.visible = Boolean(showHauke);
     if (showHauke) {
       this.haukeRing.position.set(hauke.x, floorY + 0.02, hauke.z);
-      const pulse = (hauke.chargeState !== 'none' ? 2.15 : 1.85) + Math.sin(time * 4.5) * 0.15;
+      const baseScale = hauke.chargeState !== 'none' ? 2.22 : hauke.enraged ? 2.08 : 1.85;
+      const pulse = baseScale + Math.sin(time * (hauke.enraged ? 6.5 : 4.5)) * 0.15;
       this.haukeRing.scale.set(pulse, 1, pulse);
-      this.haukeRing.material.color.setHex(hauke.chargeState !== 'none' ? PALETTE.vermilion : PALETTE.copper);
+      this.haukeRing.material.color.setHex(
+        hauke.chargeState !== 'none' || hauke.enraged ? PALETTE.vermilion : PALETTE.copper,
+      );
+      if (hauke.enraged && (hauke.koTimer ?? 0) <= 0 && Math.random() < 0.24) {
+        this.particles.emit(
+          hauke.x + (Math.random() - 0.5) * 0.7,
+          0.95,
+          hauke.z + (Math.random() - 0.5) * 0.7,
+          (Math.random() - 0.5) * 1.1,
+          1.6 + Math.random() * 1.2,
+          (Math.random() - 0.5) * 1.1,
+          0xff3b56,
+          0.11,
+          0.34,
+          1.2,
+        );
+      }
     }
 
     if (this.chargeLane) {
@@ -979,10 +1082,43 @@ export class SceneView {
       }
     }
 
+    if (!isTitle) {
+      for (const [model, agent] of [[this.monster, listener], [this.hauke, hauke], [this.tom, tom]]) {
+        if (model.root.visible && (agent?.burning ?? 0) > 0 && Math.random() < 0.34) {
+          this.particles.emit(
+            agent.x + (Math.random() - 0.5) * 0.45,
+            0.55 + Math.random() * 0.4,
+            agent.z + (Math.random() - 0.5) * 0.45,
+            (Math.random() - 0.5) * 0.6,
+            1.8,
+            (Math.random() - 0.5) * 0.6,
+            Math.random() < 0.5 ? 0xff5744 : 0xffb84d,
+            0.1,
+            0.32,
+            0.5,
+          );
+        }
+      }
+      if (this.tom.root.visible && (tom?.lootBank || 0) > 0 && Math.random() < 0.14) {
+        this.particles.emit(
+          tom.x + (Math.random() - 0.5) * 0.35,
+          0.75,
+          tom.z + (Math.random() - 0.5) * 0.35,
+          (Math.random() - 0.5) * 0.5,
+          1.4,
+          (Math.random() - 0.5) * 0.5,
+          0xffe082,
+          0.09,
+          0.35,
+          2.0,
+        );
+      }
+    }
+
     for (const [i, snack] of this.haukeSnacks.entries()) {
       snack.visible = Boolean(showHauke && (hauke.koTimer ?? 0) <= 0);
       if (!snack.visible) continue;
-      const a = (i * TAU) / this.haukeSnacks.length + time * 1.9;
+      const a = (i * TAU) / this.haukeSnacks.length + time * (hauke.enraged ? 2.8 : 1.9);
       const r = 1.38 + Math.sin(time * 3 + i) * 0.08;
       snack.position.set(hauke.x + Math.cos(a) * r, 0.05 + Math.sin(time * 4 + i) * 0.04, hauke.z + Math.sin(a) * r);
       snack.rotation.y = -a;
@@ -1028,6 +1164,24 @@ export class SceneView {
       for (const [i, mesh] of this.crates.entries()) {
         const c = run.crates[i];
         mesh.visible = Boolean(c && !c.broken);
+        if (mesh.visible && c.gold && mesh.userData.topGem) {
+          mesh.userData.topGem.rotation.y = run.time * 2.6;
+          mesh.userData.topGem.position.y = 0.78 + Math.sin(run.time * 4.0) * 0.04;
+          if (Math.random() < 0.08) {
+            this.particles.emit(
+              c.x + (Math.random() - 0.5) * 0.45,
+              0.75,
+              c.z + (Math.random() - 0.5) * 0.45,
+              0,
+              1.1,
+              0,
+              PALETTE.jade,
+              0.08,
+              0.38,
+              1.0,
+            );
+          }
+        }
       }
     }
     if (run.barrels) {
@@ -1037,7 +1191,21 @@ export class SceneView {
         if (b && !b.exploded) {
           const pulse = b.fuse > 0 ? Math.floor(run.time * 32) % 2 === 0 : Math.sin(run.time * 3.5 + i) > 0.7;
           mesh.glowBand.material.color.setHex(pulse ? 0xffffff : 0xffc94d);
-          mesh.cap.rotation.y = run.time * 3.0;
+          mesh.cap.rotation.y = run.time * (b.fuse > 0 ? 12.0 : 3.0);
+          if (b.fuse > 0 && Math.random() < 0.65) {
+            this.particles.emit(
+              b.x + (Math.random() - 0.5) * 0.15,
+              0.86,
+              b.z + (Math.random() - 0.5) * 0.15,
+              (Math.random() - 0.5) * 1.4,
+              2.6,
+              (Math.random() - 0.5) * 1.4,
+              0xffe082,
+              0.09,
+              0.24,
+              6.0,
+            );
+          }
         }
       }
     }
@@ -1045,12 +1213,19 @@ export class SceneView {
     const drop = run.droppedHelmet;
     this.droppedCrown.visible = Boolean(drop);
     this.droppedCrownRing.visible = Boolean(drop);
+    if (this.crownBeacon) this.crownBeacon.visible = Boolean(drop);
     if (drop) {
       this.droppedCrown.position.set(drop.x, 0.18 + Math.sin(run.time * 5.2) * 0.06, drop.z);
       this.droppedCrown.rotation.y = run.time * 2.8;
       this.droppedCrownRing.position.set(drop.x, floorY + 0.025, drop.z);
       const pulse = 0.65 + Math.sin(run.time * 6.5) * 0.12;
       this.droppedCrownRing.scale.set(pulse, 1, pulse);
+      if (this.crownBeacon) {
+        this.crownBeacon.position.set(drop.x, 1.45, drop.z);
+        this.crownBeacon.rotation.y = run.time * 1.4;
+        const beamPulse = 0.85 + Math.sin(run.time * 6.5) * 0.22;
+        this.crownBeacon.scale.set(beamPulse, 1, beamPulse);
+      }
     }
 
     for (const { record, root, ring, glow } of this.records) {

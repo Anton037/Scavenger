@@ -1,6 +1,6 @@
 import { interaction } from './game.js';
 import { ICONS, modIcon, relicIcon } from './icons.js';
-import { BIOMES } from './level.js';
+import { BIOMES, MOD_POOL } from './level.js';
 
 export const get = (id) => document.getElementById(id);
 export function write(element, text) {
@@ -39,6 +39,10 @@ function formatAura(amount) {
   return Math.round(amount).toLocaleString('de-DE');
 }
 
+function modMeta(id) {
+  return MOD_POOL.find((m) => m.id === id) ?? { id, name: id, desc: '', tint: 'gold' };
+}
+
 export class Hud {
   constructor() {
     for (const slot of document.querySelectorAll('.ico-slot[data-ico]')) {
@@ -46,12 +50,12 @@ export class Hud {
     }
     this.elements = Object.fromEntries([
       'hud', 'floor-badge', 'location', 'objective', 'mutator-pill', 'crown-badge', 'relic-rack',
-      'record-counter', 'pfand-counter', 'noise-label', 'noise-meter', 'lamp-state', 'interact',
+      'active-mods', 'record-counter', 'pfand-counter', 'noise-label', 'noise-meter', 'lamp-state', 'interact',
       'interact-key', 'interact-label', 'notice', 'clapper-count', 'dash-state', 'bonk-state',
       'bonk-fill', 'dash-fill', 'world-barks', 'boss-bar', 'boss-name', 'boss-status', 'boss-bar-fill',
       'touch-use', 'touch-dash', 'touch-shutter', 'touch-lure', 'touch-bonk', 'orb-bonk', 'orb-dash',
       'slot-lamp', 'slot-lure', 'menu-best', 'vignette', 'chart', 'chart-map', 'chart-toggle',
-      'chart-seed', 'overlay-receipt', 'lift-screen', 'lift-eyebrow', 'lift-copy', 'mod-list',
+      'chart-seed', 'overlay-mods', 'overlay-receipt', 'lift-screen', 'lift-eyebrow', 'lift-copy', 'mod-list',
     ].map((id) => [id, get(id)]));
 
     const mapCanvas = this.elements['chart-map'];
@@ -63,6 +67,7 @@ export class Hud {
     this.scale = 1;
     this.barkNodes = new Map();
     this.lastRelicMap = null;
+    this.lastModsKey = '';
     this.syncMenuHighscore();
   }
 
@@ -101,7 +106,7 @@ export class Hud {
       }
     }
     if (this.elements['chart-seed']) {
-      write(this.elements['chart-seed'], `#${String(map.seed % 10000).padStart(4, '0')} · ${map.biome.name}`);
+      write(this.elements['chart-seed'], `#${String(map.seed).padStart(4, '0')} · ${map.biome.name}`);
     }
   }
 
@@ -147,13 +152,23 @@ export class Hud {
     };
 
     for (const c of run.crates) {
-      if (!c.broken) place(c, '#a86c3a', 3.2, 'square');
+      if (!c.broken) {
+        if (c.gold) place(c, '#ffe082', 5.0, 'diamond');
+        else place(c, '#a86c3a', 3.2, 'square');
+      }
     }
     for (const b of run.barrels) {
       if (!b.exploded) place(b, '#ff5744', 3.6, 'square');
     }
     place(run.map.lift, '#38f2af', 8, 'diamond');
-    if (run.droppedHelmet) place(run.droppedHelmet, '#ffe082', 4.6, 'circle');
+    if (run.droppedHelmet) {
+      ctx.strokeStyle = 'rgba(255, 224, 130, 0.85)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(this.px(run.droppedHelmet.x), this.py(run.droppedHelmet.z), 7 + Math.sin(run.time * 8) * 1.5, 0, Math.PI * 2);
+      ctx.stroke();
+      place(run.droppedHelmet, '#ffe082', 4.6, 'circle');
+    }
     for (const record of run.map.records) {
       if (!run.records.has(record.id)) place(record, '#ffb84d', 4.7, 'circle');
     }
@@ -177,13 +192,15 @@ export class Hud {
     write(eyebrow, `LASTENAUFZUG · ETAGE ${run.floor} BEZWUNGEN`);
     write(copy, `Nächster Halt: Etage ${nextFloor} (${nextBiome.name} · Aura ×${nextMult})`);
     list.innerHTML = '';
-    for (const mod of run.modOffers) {
+    for (const [idx, mod] of run.modOffers.entries()) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `mod-switch tone-${mod.tint}`;
+      btn.dataset.modIndex = String(idx);
       btn.innerHTML = `
         <span class="mod-ico">${modIcon(mod.id)}</span>
         <span class="mod-text"><b>${mod.name}</b><small>${mod.desc}</small></span>
+        <kbd class="mod-kbd">${idx + 1}</kbd>
         <span class="btn-arrow" aria-hidden="true">▶</span>
       `;
       btn.addEventListener('click', () => onPick(mod.id));
@@ -191,6 +208,21 @@ export class Hud {
     }
     lift.hidden = false;
     list.querySelector('button')?.focus({ preventScroll: true });
+  }
+
+  renderOverlayMods(run) {
+    const box = this.elements['overlay-mods'];
+    if (!box) return;
+    if (!run || !run.mods || run.mods.size === 0) {
+      box.hidden = true;
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = [...run.mods].map((id) => {
+      const mod = modMeta(id);
+      return `<span class="overlay-mod-pill tone-${mod.tint}">${modIcon(mod.id)}<span>${mod.name}</span></span>`;
+    }).join('');
+    box.hidden = false;
   }
 
   renderReceipt(run) {
@@ -216,7 +248,7 @@ export class Hud {
     const modLabel = run.mods.size === 1 ? '1 Mod' : `${run.mods.size} Mods`;
 
     box.innerHTML = `
-      <div class="receipt-row"><span>Etage ${run.floor} · Seed #${String(run.seed % 10000).padStart(4, '0')}</span><span>${modLabel} · ${run.player.maxCombo || 1}× Streak</span></div>
+      <div class="receipt-row"><span>Etage ${run.floor} · Seed #${String(run.seed).padStart(4, '0')}</span><span>${modLabel} · ${run.player.maxCombo || 1}× Streak</span></div>
       <div class="receipt-row"><span>Schellen (${stats.bonks || 0}×) · Kisten (${stats.crates || 0}×) · Fässer (${stats.barrels || 0}×)</span><span>K.O. ${stats.haukeKos || 0}×</span></div>
       <div class="receipt-row"><span>Knapp-Dash (${stats.dodges || 0}×) · Slips (${stats.slips || 0}×) · Tom-Klau (${stats.stolen || 0}×)</span><span>${stats.cans || 0} Dosen</span></div>
       ${penalty > 0 ? `<div class="receipt-row"><span>Keller-Verlust</span><span>-${formatAura(penalty)} ⚡</span></div>` : ''}
@@ -259,7 +291,7 @@ export class Hud {
 
   paint(run, view) {
     const ui = this.elements;
-    const { player, records, lift, hauke, map, floor } = run;
+    const { player, records, lift, hauke, map, floor, mods } = run;
     this.ensureRelicRack(map);
 
     const totalRecs = map.records.length;
@@ -277,6 +309,23 @@ export class Hud {
       const showMut = map.mutator && map.mutator.id !== 'classic';
       ui['mutator-pill'].hidden = !showMut;
       if (showMut) write(ui['mutator-pill'], map.mutator.name);
+    }
+
+    if (ui['active-mods']) {
+      const modsKey = mods ? [...mods].join(',') : '';
+      if (modsKey !== this.lastModsKey) {
+        this.lastModsKey = modsKey;
+        if (modsKey) {
+          ui['active-mods'].innerHTML = [...mods].map((id) => {
+            const mod = modMeta(id);
+            return `<span class="mod-badge tone-${mod.tint}" title="${mod.name}: ${mod.desc}">${modIcon(mod.id)}</span>`;
+          }).join('');
+          ui['active-mods'].hidden = false;
+        } else {
+          ui['active-mods'].innerHTML = '';
+          ui['active-mods'].hidden = true;
+        }
+      }
     }
 
     if (ui['crown-badge']) {
@@ -302,12 +351,15 @@ export class Hud {
           ? 'RAMMT!'
           : hauke.stunned > 0
             ? 'TAUMELT'
-            : hauke.mode === 'hunt'
-              ? 'ROLLT AN'
-              : 'LAUERT';
+            : hauke.enraged
+              ? 'WUT!'
+              : hauke.mode === 'hunt'
+                ? 'ROLLT AN'
+                : 'LAUERT';
       write(ui['boss-status'], status);
       ui['boss-status'].classList.toggle('ko', hauke.koTimer > 0);
       ui['boss-bar'].classList.toggle('charging', hauke.chargeState === 'windup' || hauke.chargeState === 'rush');
+      ui['boss-bar'].classList.toggle('enraged', Boolean(hauke.enraged && hauke.koTimer <= 0));
       if (ui['boss-bar-fill']) {
         const pct = hauke.koTimer > 0 ? 0 : Math.max(0, Math.min(100, hauke.hp ?? 100));
         ui['boss-bar-fill'].style.width = `${pct}%`;
@@ -333,9 +385,14 @@ export class Hud {
     if (ui['dash-fill']) ui['dash-fill'].style.height = `${Math.min(100, (player.cooldown / (2.15 * (player.dashCdMult || 1))) * 100)}%`;
 
     ui['touch-dash'].disabled = player.cooldown > 0;
+    write(ui['touch-dash'], player.cooldown > 0 ? `Dash ${player.cooldown.toFixed(1)}` : 'Dash');
     ui['touch-lure'].disabled = player.clappers === 0;
+    write(ui['touch-lure'], `Dose (${player.clappers})`);
     if (ui['slot-lure']) ui['slot-lure'].disabled = player.clappers === 0;
-    if (ui['touch-bonk']) ui['touch-bonk'].disabled = player.bonkCooldown > 0;
+    if (ui['touch-bonk']) {
+      ui['touch-bonk'].disabled = player.bonkCooldown > 0;
+      write(ui['touch-bonk'], player.bonkCooldown > 0 ? `${player.bonkCooldown.toFixed(1)}s` : 'SCHELLE');
+    }
     if (ui['orb-bonk']) ui['orb-bonk'].disabled = player.bonkCooldown > 0;
     if (ui['orb-dash']) ui['orb-dash'].disabled = player.cooldown > 0;
     ui['touch-shutter'].setAttribute('aria-pressed', String(player.lamp));
