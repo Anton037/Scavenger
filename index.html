@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1719">
+  <meta name="description" content="An atmospheric salvage run through a drowned pumping station.">
+  <title>Scavenger</title>
+  <link rel="icon" type="image/png" href="/gate.png">
+  <link rel="preload" href="/drowned-works.webp" as="image">
+  <script type="module" src="/src/main.js"></script>
+</head>
+<body>
+  <main id="app">
+    <canvas id="arena" aria-label="The Drowned Works" tabindex="-1" hidden></canvas>
+    <div id="vignette" aria-hidden="true" hidden></div>
+
+    <section id="title-screen" class="screen" aria-labelledby="title">
+      <button id="title-audio" class="quiet title-audio" type="button" aria-pressed="true">Sound on</button>
+      <div class="title-copy">
+        <p class="eyebrow">The Drowned Works</p>
+        <h1 id="title">Scavenger</h1>
+        <p class="title-line">The pumps stopped years ago.<br>Something below still answers.</p>
+        <p class="title-mission">Recover three records and get back to the lift.</p>
+        <button id="start" class="primary" type="button"><span>Descend</span><span class="button-arrow" aria-hidden="true">→</span></button>
+        <p id="launch-error" class="launch-error" role="status" hidden></p>
+      </div>
+      <div class="title-controls" aria-label="Controls">
+        <span><kbd>WASD</kbd> Move</span>
+        <span><kbd>Mouse</kbd> Aim lamp</span>
+        <span><kbd>Q</kbd> Shutter</span>
+        <span><kbd>E</kbd> Use</span>
+      </div>
+      <p class="title-touch">Use the left stick to move and drag the scene to aim.</p>
+    </section>
+
+    <section id="hud" aria-label="Run status" hidden>
+      <div class="hud-top">
+        <div class="place">
+          <h2 id="location">Lift Landing</h2>
+          <p id="objective">Recover three records</p>
+        </div>
+        <div class="hud-right">
+          <div class="record-status" aria-label="Records recovered">
+            <span id="record-counter">0 / 3</span>
+            <span id="record-pips" aria-hidden="true"><i></i><i></i><i></i></span>
+          </div>
+          <button id="chart-toggle" class="quiet" type="button" aria-controls="chart" aria-expanded="false" title="Survey chart (M)">Chart</button>
+          <button id="pause" class="quiet pause" type="button" aria-label="Pause" title="Pause (Escape)"><span aria-hidden="true"></span></button>
+        </div>
+      </div>
+      <aside id="chart" class="chart" aria-labelledby="chart-title" hidden>
+        <h3 id="chart-title">Survey chart</h3>
+        <canvas id="chart-map" width="312" height="264" aria-label="Floor plan showing your position, the lift and unrecovered records"></canvas>
+        <p><span class="chart-dot" aria-hidden="true"></span> Record <span class="chart-lift" aria-hidden="true"></span> Lift</p>
+      </aside>
+
+      <div class="message-area" aria-live="polite">
+        <p id="notice" class="notice" hidden></p>
+        <p id="interact" class="interact" hidden><kbd id="interact-key">E</kbd><span id="interact-label"></span></p>
+      </div>
+      <div class="hud-bottom">
+        <div class="meters">
+          <div class="meter-line"><span>Footfall</span><span id="noise-label">Quiet</span></div>
+          <div id="noise-meter" class="noise-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <p id="lamp-state">Lamp open</p>
+        </div>
+        <div class="hotkeys">
+          <span><kbd>Q</kbd> Shutter</span>
+          <span><kbd>Space</kbd> Dash <small id="dash-state"></small></span>
+          <span><kbd>F</kbd> Clapper <small id="clapper-count">2</small></span>
+        </div>
+      </div>
+      <div id="touch-ui" aria-label="Touch controls">
+        <div id="stick" class="stick" role="img" aria-label="Movement joystick"><span id="stick-thumb"></span></div>
+        <div class="touch-actions">
+          <button id="touch-shutter" class="quiet" type="button" aria-pressed="true">Lamp</button>
+          <button id="touch-lure" class="quiet" type="button">Clapper</button>
+          <button id="touch-dash" class="quiet" type="button">Dash</button>
+          <button id="touch-use" class="quiet touch-use" type="button">Use</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="overlay" class="screen overlay" aria-labelledby="overlay-title" tabindex="-1" hidden>
+      <div class="overlay-card">
+        <h2 id="overlay-title">Paused</h2>
+        <p id="overlay-copy"></p>
+        <button id="overlay-primary" class="primary" type="button"><span id="overlay-action">Resume</span><span class="button-arrow" aria-hidden="true">→</span></button>
+        <div class="overlay-secondary"><button id="menu" class="quiet" type="button">Title screen</button><button id="pause-audio" class="quiet" type="button" aria-pressed="true">Sound on</button></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
