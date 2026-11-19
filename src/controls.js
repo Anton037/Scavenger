@@ -63,7 +63,7 @@ export class Controls {
 
   bindViewportLocks() {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
-    // Block pinch-zoom, Ctrl/Cmd wheel zoom, double-tap zoom, text selection, and context menus
+    // CSS handles double-tap zoom so repeated touches still reach the buttons.
     window.addEventListener('wheel', (event) => {
       if (event.ctrlKey || event.metaKey) event.preventDefault();
     }, { passive: false });
@@ -79,16 +79,6 @@ export class Controls {
     document.addEventListener('contextmenu', (event) => {
       if (!this.isEditable(event.target)) event.preventDefault();
     });
-
-    let lastTouchEnd = 0;
-    document.addEventListener('touchend', (event) => {
-      if (this.isEditable(event.target)) return;
-      const now = Date.now();
-      if (now - lastTouchEnd <= 320 && event.touches.length === 0) {
-        event.preventDefault();
-      }
-      lastTouchEnd = now;
-    }, { passive: false });
   }
 
   bindKeyboard() {
@@ -99,11 +89,13 @@ export class Controls {
         event.preventDefault();
         return;
       }
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (event.code === 'Escape' || event.code === 'KeyP') {
-        if (this.actions.pause?.()) event.preventDefault();
+        if (!event.repeat && this.actions.pause?.()) event.preventDefault();
         return;
       }
       if (!this.enabled) return;
+      if (event.code === 'Space' && event.target?.closest?.('button')) return;
 
       this.keys.add(event.code);
       if (event.repeat) return;
@@ -143,6 +135,7 @@ export class Controls {
       this.keys.clear();
       this.edgePan = 0;
       this.dragId = null;
+      this.dragDelta = 0;
       this.lookHold = 0;
     });
   }
@@ -161,7 +154,7 @@ export class Controls {
 
     this.canvas.addEventListener('pointerdown', (event) => {
       if (event.pointerType !== 'mouse') this.noteTouch();
-      if (!this.enabled) return;
+      if (!this.enabled || this.dragId !== null || event.button !== 0) return;
       this.dragId = event.pointerId;
       this.dragLastX = event.clientX;
       this.dragMoved = false;
@@ -178,8 +171,9 @@ export class Controls {
       this.dragDelta -= (dx / Math.max(320, window.innerWidth)) * sensitivity;
     });
 
-    const endDrag = (event) => {
+    this.canvas.addEventListener('pointerup', (event) => {
       if (this.dragId !== event.pointerId) return;
+      this.dragId = null;
       if (!this.dragMoved && this.enabled) {
         // Check if player tapped/clicked the Chef Torge poster in the center-left of Office!
         const rect = this.canvas.getBoundingClientRect();
@@ -187,10 +181,14 @@ export class Controls {
         const ry = (event.clientY - rect.top) / Math.max(1, rect.height);
         this.actions.canvasTap?.(rx, ry);
       }
+    });
+    const cancelDrag = (event) => {
+      if (this.dragId !== event.pointerId) return;
       this.dragId = null;
+      this.dragDelta = 0;
     };
-    this.canvas.addEventListener('pointerup', endDrag);
-    this.canvas.addEventListener('pointercancel', endDrag);
+    this.canvas.addEventListener('pointercancel', cancelDrag);
+    this.canvas.addEventListener('lostpointercapture', cancelDrag);
   }
 
   read() {

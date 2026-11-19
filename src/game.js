@@ -800,7 +800,7 @@ export function advance(run, input = {}, dt = STEP) {
     const nearDoor = run.animatronics.anton.room === 'left_door'
       || run.animatronics.tom.room === 'right_door'
       || run.animatronics.torge.room === '4B';
-    emit(run, 'ambience', { tense: nearDoor });
+    emit(run, 'ambience', { tense: nearDoor, cam: run.monitorOpen ? run.activeCam : undefined });
     if (nearDoor && run.rng() < 0.22 && !run.hallucination) {
       run.hallucination = {
         text: HALLUCINATIONS[Math.floor(run.rng() * HALLUCINATIONS.length)],

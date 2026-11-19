@@ -1,7 +1,7 @@
 import './style.css';
 import { Soundscape } from './audio.js';
 import { Controls } from './controls.js';
-import { CUSTOM_PRESETS, loadProgress, NIGHT_CONFIGS, resetProgress, saveProgress } from './fnafData.js';
+import { CUSTOM_PRESETS, loadProgress, NIGHT_CONFIGS, saveProgress } from './fnafData.js';
 import {
   advance,
   honkPoster,
@@ -31,6 +31,7 @@ let view = null;
 let run = null;
 let stage = 'title'; // 'title' | 'custom' | 'intro' | 'play' | 'pause' | 'win' | 'gameover'
 let introTimer = null;
+let pausedFocus = null;
 let lastTs = 0;
 let lag = 0;
 let lastHapticAt = 0;
@@ -71,69 +72,32 @@ function flushEvents(currentRun) {
   currentRun.events.length = 0;
 }
 
-const hud = new Hud((camId) => {
-  if (stage !== 'play' || !run) return;
-  sound.open();
-  if (selectCam(run, camId)) {
+function playAction(action) {
+  return (...args) => {
+    if (stage !== 'play' || run?.state !== 'playing') return;
+    sound.open();
+    action(run, ...args);
     flushEvents(run);
     hud.paint(run);
-  }
-});
+  };
+}
 
+const gameActions = {
+  monitor: playAction(toggleMonitor),
+  leftDoor: playAction(toggleLeftDoor),
+  leftLight: playAction(toggleLeftLight),
+  rightDoor: playAction(toggleRightDoor),
+  rightLight: playAction(toggleRightLight),
+  cam: playAction(selectCam),
+  mute: playAction((currentRun) => {
+    if (muteCall(currentRun)) sound.stopSpeech();
+  }),
+};
+
+const hud = new Hud(gameActions.cam);
 const controls = new Controls(canvas, {
+  ...gameActions,
   pause: () => togglePause(),
-  monitor: () => {
-    if (stage !== 'play' || !run) return;
-    sound.open();
-    if (toggleMonitor(run)) {
-      flushEvents(run);
-      hud.paint(run);
-    }
-  },
-  leftDoor: () => {
-    if (stage !== 'play' || !run) return;
-    sound.open();
-    toggleLeftDoor(run);
-    flushEvents(run);
-    hud.paint(run);
-  },
-  leftLight: () => {
-    if (stage !== 'play' || !run) return;
-    sound.open();
-    toggleLeftLight(run);
-    flushEvents(run);
-    hud.paint(run);
-  },
-  rightDoor: () => {
-    if (stage !== 'play' || !run) return;
-    sound.open();
-    toggleRightDoor(run);
-    flushEvents(run);
-    hud.paint(run);
-  },
-  rightLight: () => {
-    if (stage !== 'play' || !run) return;
-    sound.open();
-    toggleRightLight(run);
-    flushEvents(run);
-    hud.paint(run);
-  },
-  cam: (camId) => {
-    if (stage !== 'play' || !run || !run.monitorOpen) return;
-    sound.open();
-    if (selectCam(run, camId)) {
-      flushEvents(run);
-      hud.paint(run);
-    }
-  },
-  mute: () => {
-    if (stage !== 'play' || !run) return;
-    if (muteCall(run)) {
-      sound.stopSpeech();
-      flushEvents(run);
-      hud.paint(run);
-    }
-  },
   honk: () => {
     if (stage !== 'play' || !run) return;
     sound.open();
@@ -151,6 +115,8 @@ const controls = new Controls(canvas, {
 });
 
 function hideAllScreens() {
+  hudScreen.inert = false;
+  pausedFocus = null;
   for (const s of [titleScreen, customScreen, introScreen, hudScreen, pauseScreen, winScreen, gameoverScreen]) {
     if (s) s.hidden = true;
   }
@@ -185,14 +151,17 @@ function showTitle() {
   hideAllScreens();
   hud.syncTitleProgress();
   if (titleScreen) titleScreen.hidden = false;
+  titleScreen.querySelector('.title-menu button:not([hidden])')?.focus();
 }
 
 function showCustomNight() {
+  sound.open();
   stage = 'custom';
   controls.enable(false);
   hideAllScreens();
   syncCustomValues();
   if (customScreen) customScreen.hidden = false;
+  get('custom-back').focus();
 }
 
 function syncCustomValues() {
@@ -278,20 +247,27 @@ async function startNight(night, customOverride = null) {
 
 function togglePause() {
   if (stage === 'play' && run && run.state === 'playing') {
+    pausedFocus = hudScreen.contains(document.activeElement) ? document.activeElement : get('btn-pause');
     stage = 'pause';
     controls.enable(false);
     sound.setActivity('pause');
     hud.showPause(run);
+    hudScreen.inert = true;
     pauseScreen.hidden = false;
+    get('pause-resume').focus();
     return true;
   }
   if (stage === 'pause') {
     pauseScreen.hidden = true;
+    hudScreen.inert = false;
+    pausedFocus?.focus({ preventScroll: true });
+    pausedFocus = null;
     stage = 'play';
     lastTs = 0;
     lag = 0;
     controls.enable(true);
     sound.setActivity('play');
+    sound.open();
     return true;
   }
   return false;
@@ -354,37 +330,29 @@ for (const card of document.querySelectorAll('.ai-card')) {
 }
 
 // Menu & Overlay bindings
-get('btn-new-game')?.addEventListener('click', () => {
-  resetProgress();
-  startNight(1);
-});
+get('btn-new-game')?.addEventListener('click', () => startNight(1));
 get('btn-continue')?.addEventListener('click', () => {
   const { night } = loadProgress();
-  startNight(Math.min(5, night));
+  if (night === 7) {
+    showCustomNight();
+  } else {
+    startNight(night);
+  }
 });
 get('btn-night6')?.addEventListener('click', () => startNight(6));
-get('btn-custom')?.addEventListener('click', () => {
-  sound.open();
-  showCustomNight();
-});
+get('btn-custom')?.addEventListener('click', showCustomNight);
 get('custom-back')?.addEventListener('click', showTitle);
 get('custom-start')?.addEventListener('click', () => startNight(7, customAi));
 get('title-audio')?.addEventListener('click', toggleAudio);
 get('pause-audio')?.addEventListener('click', toggleAudio);
 
-get('btn-pause')?.addEventListener('click', () => {
-  togglePause();
-  get('btn-pause')?.blur();
-});
+get('btn-pause')?.addEventListener('click', togglePause);
 get('pause-resume')?.addEventListener('click', togglePause);
 get('pause-menu')?.addEventListener('click', showTitle);
 
-get('btn-mute-call')?.addEventListener('click', () => {
-  if (run && muteCall(run)) {
-    sound.stopSpeech();
-    flushEvents(run);
-    hud.paint(run);
-  }
+get('btn-mute-call')?.addEventListener('click', (event) => {
+  gameActions.mute();
+  if (event.detail > 0) event.currentTarget.blur();
 });
 
 // Start eerie Title Screen horror drone on first user gesture
@@ -406,60 +374,22 @@ get('gameover-retry')?.addEventListener('click', () => {
 });
 get('gameover-menu')?.addEventListener('click', showTitle);
 
-// Office tactile button bindings (instant pointerdown for zero mobile latency!)
-function bindInstant(id, fn) {
-  const el = get(id);
-  if (!el) return;
-  let lastPtr = 0;
-  el.addEventListener('pointerdown', (event) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    if (event.pointerType !== 'mouse') controls.noteTouch();
-    lastPtr = performance.now();
-    event.preventDefault();
-    fn();
+for (const [id, action] of [
+  ['btn-left-door', gameActions.leftDoor],
+  ['btn-left-light', gameActions.leftLight],
+  ['btn-right-door', gameActions.rightDoor],
+  ['btn-right-light', gameActions.rightLight],
+  ['btn-monitor', gameActions.monitor],
+]) {
+  const btn = get(id);
+  btn.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'touch') controls.noteTouch();
   });
-  el.addEventListener('click', () => {
-    if (performance.now() - lastPtr < 500) return;
-    fn();
-    el.blur?.();
+  btn.addEventListener('click', (event) => {
+    action();
+    if (event.detail > 0) btn.blur();
   });
 }
-
-bindInstant('btn-left-door', () => {
-  if (stage !== 'play' || !run) return;
-  sound.open();
-  toggleLeftDoor(run);
-  flushEvents(run);
-  hud.paint(run);
-});
-bindInstant('btn-left-light', () => {
-  if (stage !== 'play' || !run) return;
-  sound.open();
-  toggleLeftLight(run);
-  flushEvents(run);
-  hud.paint(run);
-});
-bindInstant('btn-right-door', () => {
-  if (stage !== 'play' || !run) return;
-  sound.open();
-  toggleRightDoor(run);
-  flushEvents(run);
-  hud.paint(run);
-});
-bindInstant('btn-right-light', () => {
-  if (stage !== 'play' || !run) return;
-  sound.open();
-  toggleRightLight(run);
-  flushEvents(run);
-  hud.paint(run);
-});
-bindInstant('btn-monitor', () => {
-  if (stage !== 'play' || !run) return;
-  sound.open();
-  toggleMonitor(run);
-  flushEvents(run);
-  hud.paint(run);
-});
 
 // Touch Quick-Look Left / Right hold buttons
 function bindHoldLook(id, dir) {

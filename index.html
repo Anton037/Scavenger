@@ -33,11 +33,11 @@
         </div>
 
         <nav class="title-menu" aria-label="Hauptmenü">
-          <button id="btn-new-game" class="fnaf-menu-btn" type="button">
-            <span class="chev">&gt;&gt;</span><span>Neues Spiel</span><small>Nacht 1</small>
-          </button>
-          <button id="btn-continue" class="fnaf-menu-btn" type="button">
+          <button id="btn-continue" class="fnaf-menu-btn" type="button" hidden>
             <span class="chev">&gt;&gt;</span><span>Weiter</span><small id="continue-night-label">Nacht 1</small>
+          </button>
+          <button id="btn-new-game" class="fnaf-menu-btn" type="button">
+            <span class="chev">&gt;&gt;</span><span>Nacht 1 starten</span>
           </button>
           <button id="btn-night6" class="fnaf-menu-btn" type="button">
             <span class="chev">&gt;&gt;</span><span>6. Nacht</span><small>Überstunden</small>
@@ -48,6 +48,7 @@
         </nav>
 
         <div class="title-footer">
+          <p class="title-objective">Halte bis 6 Uhr durch. Türen, Licht und Kameras kosten Strom.</p>
           <button id="title-audio" class="btn-crt" type="button" aria-pressed="true">Ton: AN</button>
           <span class="title-hint">PC: Maus/A-D Schauen · Q/W &amp; E/R Türen/Licht · Space Kameras</span>
           <span class="title-hint-touch">Handy: Wischen zum Umschauen · Buttons links/rechts · Unten Kameras</span>
@@ -260,7 +261,7 @@
     </section>
 
     <!-- PAUSE OVERLAY -->
-    <section id="pause-screen" class="screen modal-screen" aria-labelledby="pause-title" hidden>
+    <section id="pause-screen" class="screen modal-screen" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
       <div class="crt-card small-card">
         <p class="title-kicker">SCHICHT PAUSIERT</p>
         <h2 id="pause-title">PAUSE</h2>

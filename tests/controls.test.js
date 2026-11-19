@@ -105,3 +105,40 @@ test('Controls blocks zooming, selection, and context menu outside editable inpu
   doc.dispatch('contextmenu', { target: { closest: () => null }, preventDefault() { ctxPrevented = true; } });
   assert.equal(ctxPrevented, true);
 });
+
+test('Controls toggles pause once per key press and preserves focused button activation', () => {
+  const { win, canvas } = createFakeDom();
+  let pauseCount = 0;
+  let monitorCount = 0;
+  const controls = new Controls(canvas, {
+    pause: () => { pauseCount += 1; return true; },
+    monitor: () => { monitorCount += 1; },
+  });
+  controls.enable(true);
+
+  const preventDefault = () => {};
+  win.dispatch('keydown', { code: 'Escape', preventDefault });
+  win.dispatch('keydown', { code: 'Escape', repeat: true, preventDefault });
+  assert.equal(pauseCount, 1);
+
+  const button = { closest: (selector) => selector === 'button' ? button : null };
+  win.dispatch('keydown', { code: 'Space', target: button, preventDefault });
+  win.dispatch('keydown', { code: 'KeyS', ctrlKey: true, preventDefault });
+  assert.equal(monitorCount, 0);
+});
+
+test('Controls only treats a completed pointer gesture as a canvas tap', () => {
+  const { canvas } = createFakeDom();
+  const taps = [];
+  const controls = new Controls(canvas, { canvasTap: (x, y) => taps.push([x, y]) });
+  controls.enable(true);
+
+  const pointer = { pointerId: 1, pointerType: 'touch', button: 0, clientX: 500, clientY: 300 };
+  canvas.dispatch('pointerdown', pointer);
+  canvas.dispatch('pointercancel', pointer);
+  assert.deepEqual(taps, []);
+
+  canvas.dispatch('pointerdown', pointer);
+  canvas.dispatch('pointerup', pointer);
+  assert.deepEqual(taps, [[0.5, 0.5]]);
+});

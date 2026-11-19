@@ -189,8 +189,8 @@ export const CUSTOM_PRESETS = [
 
 export function loadProgress() {
   try {
-    const night = Math.max(1, Math.min(7, Number(localStorage.getItem(SAVE_KEYS.night)) || 1));
-    const stars = Math.max(0, Math.min(3, Number(localStorage.getItem(SAVE_KEYS.stars)) || 0));
+    const night = Math.max(1, Math.min(7, Math.trunc(Number(localStorage.getItem(SAVE_KEYS.night))) || 1));
+    const stars = Math.max(0, Math.min(3, Math.trunc(Number(localStorage.getItem(SAVE_KEYS.stars))) || 0));
     return { night, stars };
   } catch {
     return { night: 1, stars: 0 };
@@ -227,12 +227,4 @@ export function saveProgress(nightWon, customAi = null) {
     // ignore storage errors
   }
   return { night: nextNight, stars: nextStars };
-}
-
-export function resetProgress() {
-  try {
-    localStorage.setItem(SAVE_KEYS.night, '1');
-  } catch {
-    // ignore storage errors
-  }
 }

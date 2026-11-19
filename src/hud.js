@@ -16,7 +16,7 @@ export class Hud {
       'btn-monitor', 'monitor-label', 'cctv-overlay', 'cctv-room-label', 'cctv-audio-only',
       'kitchen-wave', 'kitchen-status', 'cctv-disrupt', 'cam-buttons', 'call-box', 'call-text', 'btn-mute-call',
       'quake-alert', 'hallucination', 'hallucination-text',
-      'title-stars', 'continue-night-label', 'btn-night6', 'btn-custom',
+      'title-stars', 'btn-continue', 'continue-night-label',
       'pause-meta', 'win-clock', 'win-sub', 'win-stats',
       'gameover-kicker', 'gameover-title', 'gameover-line', 'gameover-meta',
     ].map((id) => [id, get(id)]));
@@ -39,7 +39,12 @@ export class Hud {
       btn.style.top = `${cam.y}%`;
       btn.textContent = `CAM ${cam.short}`;
       btn.title = `CAM ${cam.id} — ${cam.name}`;
-      btn.addEventListener('click', () => this.onSelectCam?.(cam.id));
+      btn.setAttribute('aria-label', `Kamera ${cam.id}, ${cam.name}`);
+      btn.setAttribute('aria-pressed', 'false');
+      btn.addEventListener('click', (event) => {
+        this.onSelectCam?.(cam.id);
+        if (event.detail > 0) btn.blur();
+      });
       wrap.appendChild(btn);
       this.camButtons.set(cam.id, btn);
     }
@@ -47,17 +52,14 @@ export class Hud {
 
   syncTitleProgress() {
     const { night, stars } = loadProgress();
-    const continueLabel = this.el['continue-night-label'];
-    if (continueLabel) write(continueLabel, `Nacht ${Math.min(5, night)}`);
+    this.el['btn-continue'].hidden = night === 1;
+    write(this.el['continue-night-label'], night === 7 ? 'Custom Night' : `Nacht ${night}`);
     const starsEl = this.el['title-stars'];
     if (starsEl) {
       starsEl.innerHTML = stars > 0
         ? Array.from({ length: stars }, () => '<span>★</span>').join('')
         : '';
     }
-    // Keep Night 6 & Custom Night accessible anytime for friends, with clear label if unlocked
-    if (this.el['btn-night6']) this.el['btn-night6'].hidden = false;
-    if (this.el['btn-custom']) this.el['btn-custom'].hidden = false;
   }
 
   paint(run) {
@@ -138,7 +140,8 @@ export class Hud {
       }
       if (ui['cctv-disrupt']) ui['cctv-disrupt'].hidden = run.camDisrupt <= 0;
       for (const [id, btn] of this.camButtons.entries()) {
-        btn.classList.toggle('active', id === run.activeCam);
+        const pressed = String(id === run.activeCam);
+        if (btn.getAttribute('aria-pressed') !== pressed) btn.setAttribute('aria-pressed', pressed);
       }
     }
 
