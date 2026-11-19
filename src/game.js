@@ -156,6 +156,9 @@ export function newNight(options = {}) {
     stingFlash: 0,
     hallucination: null, // { text, timer }
     kitchenAudioTimer: 2.2,
+    kitchenNoisePulse: 0,
+    officeBreathTimer: 2.8,
+    haukeHumTimer: 11.0,
     ambienceTimer: 9.0,
     posterHonks: 0,
     posterBounce: 0,
@@ -636,7 +639,7 @@ function stepPhoneCall(run) {
   run.callActive = run.time <= lastEnd + 0.5;
   if (foundIdx !== -1 && foundIdx !== run.callIndex) {
     run.callIndex = foundIdx;
-    emit(run, foundIdx === 0 ? 'phone_ring' : 'phone_line', { night: run.night });
+    emit(run, foundIdx === 0 ? 'phone_ring' : 'phone_line', { night: run.night, text: activeLine.text });
   }
   run.callText = activeLine ? activeLine.text : '';
 }
@@ -677,6 +680,7 @@ export function advance(run, input = {}, dt = STEP) {
   run.doorSlamFlash = Math.max(0, run.doorSlamFlash - dt);
   run.stingFlash = Math.max(0, run.stingFlash - dt);
   run.posterBounce = Math.max(0, run.posterBounce - dt);
+  run.kitchenNoisePulse = Math.max(0, run.kitchenNoisePulse - dt * 1.15);
   run.quake = Math.max(0, run.quake - dt * 1.45);
   run.quakeTime += dt;
   if (run.hallucination) {
@@ -763,8 +767,29 @@ export function advance(run, input = {}, dt = STEP) {
     run.kitchenAudioTimer -= dt;
     if (run.kitchenAudioTimer <= 0) {
       run.kitchenAudioTimer = 1.9 + run.rng() * 2.2;
+      run.kitchenNoisePulse = 1.0;
       const watchingKitchen = run.monitorOpen && run.activeCam === '6';
       emit(run, tomInKitchen ? 'kitchen_clatter' : 'torge_jingle_distant', { loud: watchingKitchen });
+    }
+  }
+
+  // Eerie office breathing when Anton or Tom already slipped inside while monitor is up!
+  const antonIn = run.animatronics.anton.room === 'office';
+  const tomIn = run.animatronics.tom.room === 'office';
+  if ((antonIn || tomIn) && run.monitorOpen) {
+    run.officeBreathTimer -= dt;
+    if (run.officeBreathTimer <= 0) {
+      run.officeBreathTimer = 3.1 + run.rng() * 2.1;
+      emit(run, 'office_breath', { side: antonIn ? 'left' : 'right' });
+    }
+  }
+
+  // Hauke's creepy muffled hum / hungry stomach rumble in Buffet-Bucht (CAM 1C)
+  if (run.ai.hauke > 0 && run.animatronics.hauke.stage < 3) {
+    run.haukeHumTimer -= dt;
+    if (run.haukeHumTimer <= 0) {
+      run.haukeHumTimer = 14 + run.rng() * 12;
+      emit(run, 'hauke_hum', { loud: run.monitorOpen && run.activeCam === '1C' });
     }
   }
 

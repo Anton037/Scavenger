@@ -203,3 +203,21 @@ test('Full Night 1 reaches 6:00 AM victory with hourly AI bumps, Phone Guy call,
   assert.ok(ev.some((e) => e.kind === 'win_6am'));
   assert.equal(NIGHT_CONFIGS[6].title, 'NACHT 6');
 });
+
+test('Horror sound cues fire for office breathing, Hauke cove hum, CAM 6 kitchen pulse, and Phone Guy text', () => {
+  const run = newNight({ night: 2, seed: 808 });
+  run.ai.hauke = 5;
+  run.animatronics.tom.room = '6';
+  run.animatronics.anton.room = 'office';
+  run.kitchenAudioTimer = 0.05;
+  run.officeBreathTimer = 0.05;
+  run.haukeHumTimer = 0.05;
+  toggleMonitor(run);
+  selectCam(run, '6');
+
+  const ev = simulate(run, 2.5);
+  assert.ok(ev.some((e) => e.kind === 'kitchen_clatter' && e.loud === true));
+  assert.ok(ev.some((e) => e.kind === 'office_breath' && e.side === 'left'));
+  assert.ok(ev.some((e) => e.kind === 'hauke_hum'));
+  assert.ok(ev.some((e) => e.kind === 'phone_ring' && typeof e.text === 'string' && e.text.length > 10));
+});

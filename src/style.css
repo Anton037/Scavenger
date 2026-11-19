@@ -643,6 +643,35 @@ button {
 .cctv-center-msg b { font-size: 1.05rem; letter-spacing: 0.14em; color: #ffffff; }
 .cctv-center-msg span { font-size: 0.74rem; letter-spacing: 0.1em; color: var(--muted); }
 
+.kitchen-wave {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  height: 30px;
+  margin-top: 0.45rem;
+}
+.kitchen-wave i {
+  display: block;
+  width: 6px;
+  height: 100%;
+  transform-origin: bottom;
+  transform: scaleY(0.14);
+  background: rgba(54, 238, 158, 0.45);
+  transition: background 0.12s ease;
+}
+.kitchen-wave.active i {
+  background: var(--jade);
+  box-shadow: 0 0 8px rgba(54, 238, 158, 0.75);
+}
+.kitchen-status {
+  margin-top: 0.25rem;
+  font-style: normal;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--jade);
+}
+
 /* Interactive Floorplan Map (Bottom-Right just like FNAF 1!) */
 .cctv-map-wrap {
   position: fixed;

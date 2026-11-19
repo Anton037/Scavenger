@@ -14,7 +14,7 @@ export class Hud {
       'hud', 'clock-hour', 'clock-night', 'power-box', 'power-pct', 'usage-bars',
       'office-controls', 'btn-left-door', 'btn-left-light', 'btn-right-door', 'btn-right-light',
       'btn-monitor', 'monitor-label', 'cctv-overlay', 'cctv-room-label', 'cctv-audio-only',
-      'cctv-disrupt', 'cam-buttons', 'call-box', 'call-text', 'btn-mute-call',
+      'kitchen-wave', 'kitchen-status', 'cctv-disrupt', 'cam-buttons', 'call-box', 'call-text', 'btn-mute-call',
       'quake-alert', 'hallucination', 'hallucination-text',
       'title-stars', 'continue-night-label', 'btn-night6', 'btn-custom',
       'pause-meta', 'win-clock', 'win-sub', 'win-stats',
@@ -111,7 +111,31 @@ export class Hud {
     if (run.monitorOpen) {
       const cam = CAMERA_MAP[run.activeCam];
       write(ui['cctv-room-label'], cam ? `CAM ${cam.id} — ${cam.name}` : `CAM ${run.activeCam}`);
-      if (ui['cctv-audio-only']) ui['cctv-audio-only'].hidden = run.activeCam !== '6' || run.camDisrupt > 0;
+      if (ui['cctv-audio-only']) {
+        const showKitchen = run.activeCam === '6' && run.camDisrupt <= 0;
+        ui['cctv-audio-only'].hidden = !showKitchen;
+        if (showKitchen && ui['kitchen-wave']) {
+          const pulse = run.kitchenNoisePulse || 0;
+          const active = pulse > 0.08;
+          ui['kitchen-wave'].classList.toggle('active', active);
+          const bars = [...ui['kitchen-wave'].children];
+          for (let i = 0; i < bars.length; i++) {
+            const wave = active
+              ? (0.28 + 0.72 * Math.abs(Math.sin(run.time * 18 + i * 1.15)) * pulse)
+              : (0.12 + 0.06 * Math.abs(Math.sin(run.time * 3.5 + i)));
+            bars[i].style.transform = `scaleY(${wave.toFixed(2)})`;
+          }
+          const inKitchen = run.animatronics.tom.room === '6' || run.animatronics.torge.room === '6';
+          write(
+            ui['kitchen-status'],
+            active
+              ? (run.animatronics.tom.room === '6' ? 'AUDIO: TÖPFE & SPEZI-KLAPPERN!' : 'AUDIO: LEISE SPIELUHR...')
+              : inKitchen
+                ? 'AUDIO: FRITTEUSE ZISCHT...'
+                : 'AUDIO: RUHIG',
+          );
+        }
+      }
       if (ui['cctv-disrupt']) ui['cctv-disrupt'].hidden = run.camDisrupt <= 0;
       for (const [id, btn] of this.camButtons.entries()) {
         btn.classList.toggle('active', id === run.activeCam);
@@ -158,7 +182,14 @@ export class Hud {
 
   showWin(run) {
     write(this.el['win-clock'], '5:59 AM');
-    write(this.el['win-sub'], `${run.nightTitle} ÜBERLEBT!`);
+    const bonus = run.night === 5
+      ? 'GEHALTSCHECK: 120,50 € + 2 GRATIS-DÖNER ★'
+      : run.night === 6
+        ? 'ÜBERSTUNDEN-BONUS: +50,00 € PFANDGELD ★★'
+        : run.night === 7 && run.customAi && run.customAi.torge >= 20 && run.customAi.anton >= 20 && run.customAi.tom >= 20 && run.customAi.hauke >= 20
+          ? '4/20-LEGENDE: KÜCHENCHEF-EHRE ★★★'
+          : `${run.nightTitle} ÜBERLEBT!`;
+    write(this.el['win-sub'], bonus);
     write(
       this.el['win-stats'],
       `Reststrom: ${Math.ceil(run.power)}% · Hauke geblockt: ${run.stats.haukeBlocked}× · Anton/Tom geblockt: ${run.stats.antonBlocked + run.stats.tomBlocked}×`,

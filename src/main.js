@@ -129,6 +129,7 @@ const controls = new Controls(canvas, {
   mute: () => {
     if (stage !== 'play' || !run) return;
     if (muteCall(run)) {
+      sound.stopSpeech();
       flushEvents(run);
       hud.paint(run);
     }
@@ -380,10 +381,18 @@ get('pause-menu')?.addEventListener('click', showTitle);
 
 get('btn-mute-call')?.addEventListener('click', () => {
   if (run && muteCall(run)) {
+    sound.stopSpeech();
     flushEvents(run);
     hud.paint(run);
   }
 });
+
+// Start eerie Title Screen horror drone on first user gesture
+for (const ev of ['pointerdown', 'keydown']) {
+  window.addEventListener(ev, () => {
+    if (stage === 'title' || stage === 'custom') sound.open();
+  }, { once: true });
+}
 
 get('win-next')?.addEventListener('click', () => {
   if (run && run.night < 6) startNight(run.night + 1);
