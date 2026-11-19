@@ -207,6 +207,13 @@ button {
   font-size: 0.86rem;
   line-height: 1.4;
 }
+.title-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.85rem;
+}
+.title-version,
 .title-hint,
 .title-hint-touch {
   font-family: var(--mono);
