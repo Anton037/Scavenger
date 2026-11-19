@@ -7,6 +7,8 @@ import {
   honkPoster,
   muteCall,
   newNight,
+  resetCameraFuse,
+  ringKitchenBell,
   selectCam,
   STEP,
   toggleLeftDoor,
@@ -41,19 +43,21 @@ const customAi = { torge: 5, anton: 5, tom: 5, hauke: 5 };
 function pulseHaptic(event) {
   if (!controls.touch || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
   const now = performance.now();
-  const urgent = event.kind === 'jumpscare' || event.kind === 'hauke_door_slam' || event.kind === 'window_sting';
+  const urgent = event.kind === 'jumpscare' || event.kind === 'hauke_door_slam' || event.kind === 'window_sting' || event.kind === 'anton_video_warning';
   if (!urgent && now - lastHapticAt < 85) return;
   const pattern = event.kind === 'jumpscare'
     ? [70, 30, 90, 30, 120]
     : event.kind === 'hauke_door_slam'
       ? [60, 28, 80, 28, 60]
-      : event.kind === 'hauke_stomp'
-        ? 34
+      : event.kind === 'anton_video_warning'
+        ? [32, 65, 32]
         : event.kind === 'window_sting'
           ? [36, 20, 48]
-          : event.kind === 'door'
-            ? 20
-            : 0;
+          : event.kind === 'hauke_stomp'
+            ? 34
+            : event.kind === 'door'
+              ? 20
+              : 0;
   if (!pattern) return;
   lastHapticAt = now;
   try {
@@ -89,6 +93,8 @@ const gameActions = {
   rightDoor: playAction(toggleRightDoor),
   rightLight: playAction(toggleRightLight),
   cam: playAction(selectCam),
+  fuse: playAction(resetCameraFuse),
+  bell: playAction(ringKitchenBell),
   mute: playAction((currentRun) => {
     if (muteCall(currentRun)) sound.stopSpeech();
   }),
@@ -380,6 +386,8 @@ for (const [id, action] of [
   ['btn-right-door', gameActions.rightDoor],
   ['btn-right-light', gameActions.rightLight],
   ['btn-monitor', gameActions.monitor],
+  ['btn-fuse', gameActions.fuse],
+  ['btn-kitchen-bell', gameActions.bell],
 ]) {
   const btn = get(id);
   btn.addEventListener('pointerdown', (event) => {

@@ -11,6 +11,10 @@ import {
 export const STEP = 1 / 60;
 export { HOUR_SECONDS, TOTAL_NIGHT_SECONDS };
 
+export const FUSE_RESET_COST = 3;
+export const KITCHEN_BELL_COST = 4;
+const VIDEO_WARNING_SECONDS = 3.8;
+
 export function randomFrom(seed) {
   let s = (seed >>> 0) || 1;
   return () => {
@@ -25,6 +29,14 @@ function clamp(v, lo, hi) {
 
 function emit(run, kind, extra = {}) {
   run.events.push({ kind, ...extra });
+}
+
+function notify(run, text, seconds = 4.5) {
+  run.notice = { text, until: run.time + seconds };
+}
+
+export function feedIsInterrupted(run, cam = run.activeCam) {
+  return (run.feedFaultUntil[cam] ?? 0) > run.time;
 }
 
 const ANTON_GRAPH = {
@@ -115,8 +127,12 @@ export function newNight(options = {}) {
     activeCam: '1A',
     camPan: 0,
     camSwitchStatic: 0,
-    camDisrupt: 0,
-    officeAttackWait: 0,
+    feedFaultUntil: {},
+    antonVideo: { cam: null, watched: 0, deadline: 0, cooldownUntil: 0 },
+    cameraFuseUntil: 0,
+    kitchenBellUntil: 0,
+    training: night === 1 ? 'waiting' : 'done',
+    notice: null,
 
     // Power Outage (FNAF 1 3-phase sequence)
     powerOutage: null, // null | { phase: 'wait'|'jingle'|'blackout', timer, eyesOn }
@@ -185,30 +201,35 @@ export function newNight(options = {}) {
       torgeStalled: 0,
       goldenBanished: 0,
       posterHonks: 0,
+      videoDodges: 0,
+      tomLured: 0,
+      fusesReset: 0,
     },
     events: [],
   };
 
   if (customAi && isEasterEgg1987(customAi)) {
-    triggerJumpscare(run, 'duck');
+    triggerJumpscare(run, 'duck', 'code');
   }
 
   return run;
 }
 
-export function triggerJumpscare(run, who) {
+export function triggerJumpscare(run, who, cause = 'office') {
   if (!run || run.state === 'jumpscare' || run.state === 'gameover' || run.state === 'won') return;
   run.state = 'jumpscare';
   run.killedBy = who;
-  run.deathLine = CHARACTERS[who]?.deathLine ?? 'Die Schicht ist vorbei.';
+  run.deathLine = cause === 'video'
+    ? 'Anton hat den Videoanruf angenommen. Für euch beide.'
+    : (CHARACTERS[who]?.deathLine ?? 'Die Schicht ist vorbei.');
   run.monitorOpen = false;
   run.monitorAnim = 0;
   run.leftLight = false;
   run.rightLight = false;
   run.goldenActive = false;
   run.quake = Math.max(run.quake, 1.3);
-  run.jumpscare = { who, timer: 0, duration: 1.35 };
-  emit(run, 'jumpscare', { who });
+  run.jumpscare = { who, cause, cam: cause === 'video' ? run.activeCam : null, timer: 0, duration: 1.35 };
+  emit(run, 'jumpscare', { who, cause });
 }
 
 export function toggleLeftDoor(run) {
@@ -278,7 +299,7 @@ export function toggleRightLight(run) {
 }
 
 export function toggleMonitor(run) {
-  if (!run || run.state !== 'playing' || run.powerOutage) return false;
+  if (!run || run.state !== 'playing' || run.powerOutage || run.cameraFuseUntil > run.time) return false;
   run.monitorOpen = !run.monitorOpen;
   if (run.monitorOpen) {
     run.leftLight = false;
@@ -298,8 +319,7 @@ export function toggleMonitor(run) {
     onCameraViewed(run, run.activeCam);
   } else {
     emit(run, 'monitor_close');
-    // Closing monitor locks Hauke for a short authentic FNAF 1 grace window
-    run.animatronics.hauke.lockTimer = 1.1 + run.rng() * 4.4;
+    endAntonVideo(run);
 
     // If Golden Duck poster was seen on CAM 2B, summon it into the Office!
     if (run.goldenPoster && !run.goldenActive) {
@@ -340,6 +360,7 @@ export function selectCam(run, camId) {
   if (!run || run.state !== 'playing' || run.powerOutage || !run.monitorOpen) return false;
   if (!CAMERA_MAP[camId]) return false;
   if (run.activeCam !== camId) {
+    endAntonVideo(run);
     run.activeCam = camId;
     run.camSwitchStatic = 0.24;
     run.stats.camSwitches += 1;
@@ -349,11 +370,83 @@ export function selectCam(run, camId) {
   return true;
 }
 
+function endAntonVideo(run, dodged = true) {
+  const video = run.antonVideo;
+  if (video.deadline && dodged) {
+    run.stats.videoDodges += 1;
+    notify(run, 'ANTON · Anruf abgelehnt. „Dann halt schriftlich.“');
+    emit(run, 'anton_video_dodged');
+  }
+  if (video.deadline) video.cooldownUntil = run.time + 16;
+  video.cam = null;
+  video.watched = 0;
+  video.deadline = 0;
+}
+
+function stepAntonVideo(run, dt) {
+  const video = run.antonVideo;
+  const eligible = run.monitorOpen && run.activeCam !== '6'
+    && run.animatronics.anton.room === run.activeCam
+    && (run.ai.anton > 0 || run.training === 'camera');
+  if (!eligible) {
+    endAntonVideo(run, false);
+    return;
+  }
+  if (video.deadline) {
+    if (run.time >= video.deadline) triggerJumpscare(run, 'anton', 'video');
+    return;
+  }
+  if (run.time < video.cooldownUntil || feedIsInterrupted(run)) return;
+  if (video.cam !== run.activeCam) {
+    video.cam = run.activeCam;
+    video.watched = 0;
+  }
+  video.watched += dt;
+  if (video.watched >= 4.2) {
+    video.deadline = run.time + VIDEO_WARNING_SECONDS;
+    emit(run, 'anton_video_warning');
+  }
+}
+
+export function resetCameraFuse(run) {
+  if (!run || run.state !== 'playing' || run.powerOutage || run.monitorOpen
+      || run.cameraFuseUntil <= run.time || run.power <= FUSE_RESET_COST) return false;
+  run.power -= FUSE_RESET_COST;
+  run.cameraFuseUntil = 0;
+  run.stats.fusesReset += 1;
+  notify(run, 'Kameras wieder da. Elektriker rechnet nach Einsatz ab.');
+  emit(run, 'fuse_reset');
+  return true;
+}
+
+export function ringKitchenBell(run) {
+  if (!run || run.state !== 'playing' || !run.monitorOpen || run.activeCam !== '6'
+      || feedIsInterrupted(run) || run.kitchenBellUntil > run.time || run.power <= KITCHEN_BELL_COST) return false;
+  run.power -= KITCHEN_BELL_COST;
+  run.kitchenBellUntil = run.time + 26;
+  emit(run, 'kitchen_bell');
+  const tom = run.animatronics.tom;
+  if (tom.room === '4A' || tom.room === '4B' || tom.room === 'right_door') {
+    noteRoomTransition(run, tom.room, '6', 'tom', false);
+    tom.room = '6';
+    tom.timer = 9;
+    run.kitchenAudioTimer = 0.6;
+    run.stats.tomLured += 1;
+    notify(run, 'BON #404 · „Tom, einmal alles!“ Er ist wieder in der Küche.');
+  } else {
+    notify(run, 'BON #404 · „Tom, Abholung!“ Keine Antwort aus dem Ost-Flur.');
+  }
+  return true;
+}
+
 export function honkPoster(run) {
   if (!run || run.state !== 'playing' || run.monitorOpen || run.powerOutage) return false;
   run.posterHonks += 1;
   run.stats.posterHonks += 1;
   run.posterBounce = 0.3;
+  if (run.posterHonks === 3 && (run.notice?.until ?? 0) <= run.time) {
+    notify(run, 'HAUSORDNUNG · Drei Hupen gelten als schriftliche Beschwerde.');
+  }
   emit(run, 'honk');
   return true;
 }
@@ -367,9 +460,10 @@ export function muteCall(run) {
   return true;
 }
 
-function noteRoomTransition(run, fromRoom, toRoom, who) {
-  if (run.monitorOpen && (run.activeCam === fromRoom || run.activeCam === toRoom)) {
-    run.camDisrupt = 2.25;
+function noteRoomTransition(run, fromRoom, toRoom, who, disruptDestination = true) {
+  if (CAMERA_MAP[fromRoom]) run.feedFaultUntil[fromRoom] = run.time + 1.4;
+  if (disruptDestination && CAMERA_MAP[toRoom]) run.feedFaultUntil[toRoom] = run.time + 1.4;
+  if (run.monitorOpen && (run.activeCam === fromRoom || (disruptDestination && run.activeCam === toRoom))) {
     emit(run, 'cam_static_burst', { who });
   }
 }
@@ -389,23 +483,54 @@ function stepAnton(run, dt) {
   const a = run.animatronics.anton;
   if (a.room === 'office') {
     a.officeTimer += dt;
-    if (a.officeTimer > 12.5 && !run.monitorOpen) {
+    if (a.officeTimer >= 7) {
       triggerJumpscare(run, 'anton');
+    }
+    return;
+  }
+  if (run.antonVideo.deadline) return;
+  if (run.training !== 'done' && a.room !== 'left_door') {
+    if (run.training === 'waiting' && run.time >= 20) {
+      const prev = a.room;
+      run.training = 'camera';
+      a.room = '2B';
+      noteRoomTransition(run, prev, a.room, 'anton');
+      notify(run, 'PROBESCHICHT · Geräusch in der West-Ecke. Prüf CAM 2B.', 8);
+      emit(run, 'footstep', { side: 'left', who: 'anton', loud: true });
+    } else if (run.training === 'camera' && run.time >= 32) {
+      run.training = 'door';
+      a.room = 'left_door';
+      a.timer = 9;
+      a.sighted = false;
+      noteRoomTransition(run, '2B', a.room, 'anton');
+      notify(run, 'PROBEALARM · Monitor runter, Licht links prüfen, linke Tür schließen.', 9);
+      emit(run, 'door_approach', { side: 'left' });
     }
     return;
   }
   a.timer -= dt;
   if (a.timer > 0) return;
   a.timer = 4.97;
-  if (run.ai.anton <= 0) return;
-  if (Math.ceil(run.rng() * 20) > run.ai.anton) return;
 
   if (a.room === 'left_door') {
+    if (run.training === 'door') {
+      run.training = 'done';
+      if (!run.leftDoor) run.power = Math.max(0, run.power - 3);
+      else run.stats.antonBlocked += 1;
+      a.room = '1B';
+      noteRoomTransition(run, 'left_door', a.room, 'anton');
+      notify(run, run.leftDoor
+        ? 'ANTON · „Zutritt verweigert? Dann gibts nur ein Sternchen.“'
+        : 'ANTON · „Nur kurz reingucken.“ Probealarm vorbei. −3 % Strom.', 6);
+      emit(run, 'training_knock', { side: 'left' });
+      return;
+    }
     if (run.leftDoor) {
       // Blocked! Retreats to Dining Area
       a.room = '1B';
       a.sighted = false;
       run.stats.antonBlocked += 1;
+      notify(run, run.stats.antonBlocked === 1 ? 'WEST FREI · „Dann halt durch den Haupteingang.“' : 'WEST FREI · Anton zieht ab.');
       noteRoomTransition(run, 'left_door', '1B', 'anton');
       emit(run, 'footstep', { side: 'left', who: 'anton' });
     } else {
@@ -414,16 +539,21 @@ function stepAnton(run, dt) {
       a.officeTimer = 0;
       run.leftJammed = true;
       run.leftLight = false;
+      notify(run, 'SCHRITTE IM BÜRO · Anton ist durch die linke Tür.', 7);
       emit(run, 'sneak_in', { side: 'left', who: 'anton' });
     }
     return;
   }
 
+  if (run.ai.anton <= 0 || Math.ceil(run.rng() * 20) > run.ai.anton) return;
   const choices = ANTON_GRAPH[a.room] ?? ['1B'];
   const next = choices[Math.floor(run.rng() * choices.length)];
   const prev = a.room;
   a.room = next;
-  if (next === 'left_door') a.sighted = false;
+  if (next === 'left_door') {
+    a.sighted = false;
+    emit(run, 'door_approach', { side: 'left' });
+  }
   noteRoomTransition(run, prev, next, 'anton');
   emit(run, 'footstep', { side: 'left', who: 'anton', loud: next === 'left_door' || next === '2B' });
 }
@@ -432,7 +562,7 @@ function stepTom(run, dt) {
   const t = run.animatronics.tom;
   if (t.room === 'office') {
     t.officeTimer += dt;
-    if (t.officeTimer > 12.5 && !run.monitorOpen) {
+    if (t.officeTimer >= 7) {
       triggerJumpscare(run, 'tom');
     }
     return;
@@ -440,14 +570,12 @@ function stepTom(run, dt) {
   t.timer -= dt;
   if (t.timer > 0) return;
   t.timer = 4.98;
-  if (run.ai.tom <= 0) return;
-  if (Math.ceil(run.rng() * 20) > run.ai.tom) return;
-
   if (t.room === 'right_door') {
     if (run.rightDoor) {
       t.room = run.rng() < 0.6 ? '1B' : '4A';
       t.sighted = false;
       run.stats.tomBlocked += 1;
+      notify(run, run.stats.tomBlocked === 1 ? 'OST FREI · „War eh nur wegen der Soße hier.“' : 'OST FREI · Tom zieht ab.');
       noteRoomTransition(run, 'right_door', t.room, 'tom');
       emit(run, 'footstep', { side: 'right', who: 'tom' });
     } else {
@@ -455,16 +583,21 @@ function stepTom(run, dt) {
       t.officeTimer = 0;
       run.rightJammed = true;
       run.rightLight = false;
+      notify(run, 'SCHLEIFEN IM BÜRO · Tom ist durch die rechte Tür.', 7);
       emit(run, 'sneak_in', { side: 'right', who: 'tom' });
     }
     return;
   }
 
+  if (run.ai.tom <= 0 || Math.ceil(run.rng() * 20) > run.ai.tom) return;
   const choices = TOM_GRAPH[t.room] ?? ['1B'];
   const next = choices[Math.floor(run.rng() * choices.length)];
   const prev = t.room;
   t.room = next;
-  if (next === 'right_door') t.sighted = false;
+  if (next === 'right_door') {
+    t.sighted = false;
+    emit(run, 'door_approach', { side: 'right' });
+  }
   noteRoomTransition(run, prev, next, 'tom');
   emit(run, 'footstep', { side: 'right', who: 'tom', loud: next === 'right_door' || next === '4B' });
 }
@@ -510,24 +643,28 @@ function stepHauke(run, dt) {
         h.lockTimer = 3.2;
         noteRoomTransition(run, '2A', '1C', 'hauke');
         emit(run, 'hauke_door_slam', { drain, hits: h.hits });
+        run.monitorOpen = false;
+        run.monitorAnim = 0;
+        endAntonVideo(run, false);
+        run.cameraFuseUntil = run.time + 9;
+        emit(run, 'fuse_trip');
       } else {
-        triggerJumpscare(run, 'hauke');
+        triggerJumpscare(run, 'hauke', 'rush');
       }
     }
     return;
   }
 
-  if (h.lockTimer > 0 && !run.monitorOpen) {
-    h.lockTimer = Math.max(0, h.lockTimer - dt);
-  }
+  h.lockTimer = run.monitorOpen && run.activeCam === '1C' && !feedIsInterrupted(run)
+    ? 3.5
+    : Math.max(0, h.lockTimer - dt);
 
   h.timer -= dt;
   if (h.timer > 0) return;
   h.timer = 5.01;
   if (run.ai.hauke <= 0) return;
 
-  // Authentic FNAF 1 Foxy camera lock: any open camera OR recent camera close blocks Hauke!
-  if (run.monitorOpen || h.lockTimer > 0) return;
+  if (h.lockTimer > 0) return;
   if (Math.ceil(run.rng() * 20) > run.ai.hauke) return;
 
   h.stage += 1;
@@ -547,7 +684,7 @@ function stepTorge(run, dt) {
   const f = run.animatronics.torge;
   if (f.room === 'office') {
     f.officeTimer -= dt;
-    if (f.officeTimer <= 0 && !run.monitorOpen) {
+    if (f.officeTimer <= 0) {
       triggerJumpscare(run, 'torge');
     }
     return;
@@ -583,6 +720,7 @@ function stepTorge(run, dt) {
       f.room = 'office';
       f.officeTimer = 3.2 + run.rng() * 5.2;
       noteRoomTransition(run, '4B', 'office', 'torge');
+      notify(run, 'LACHEN IM BÜRO · Torge ist durch die rechte Tür.', 5);
       emit(run, 'torge_laugh', { close: true });
     }
     return;
@@ -614,7 +752,7 @@ function stepPowerOutage(run, dt) {
       out.timer = 2.6 + run.rng() * 3.4;
       emit(run, 'torge_jingle_stop');
     } else {
-      triggerJumpscare(run, 'torge');
+      triggerJumpscare(run, 'torge', 'blackout');
     }
   }
 }
@@ -676,7 +814,6 @@ export function advance(run, input = {}, dt = STEP) {
 
   // Decay visual timers
   run.camSwitchStatic = Math.max(0, run.camSwitchStatic - dt);
-  run.camDisrupt = Math.max(0, run.camDisrupt - dt);
   run.doorSlamFlash = Math.max(0, run.doorSlamFlash - dt);
   run.stingFlash = Math.max(0, run.stingFlash - dt);
   run.posterBounce = Math.max(0, run.posterBounce - dt);
@@ -733,6 +870,7 @@ export function advance(run, input = {}, dt = STEP) {
     run.leftLight = false;
     run.rightLight = false;
     run.monitorOpen = false;
+    endAntonVideo(run, false);
     run.goldenActive = false;
     run.callText = '';
     run.callActive = false;
@@ -755,7 +893,7 @@ export function advance(run, input = {}, dt = STEP) {
       };
     }
     if (run.goldenTimer <= 0) {
-      triggerJumpscare(run, 'duck');
+      triggerJumpscare(run, 'duck', 'hallucination');
       return run;
     }
   }
@@ -810,6 +948,8 @@ export function advance(run, input = {}, dt = STEP) {
   }
 
   // Animatronic AI Steps
+  stepAntonVideo(run, dt);
+  if (run.state !== 'playing') return run;
   stepAnton(run, dt);
   if (run.state !== 'playing') return run;
   stepTom(run, dt);

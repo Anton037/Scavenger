@@ -3,12 +3,15 @@ import assert from 'node:assert/strict';
 import { CAMERAS, HOUR_SECONDS, NIGHT_CONFIGS } from '../src/fnafData.js';
 import {
   advance,
+  feedIsInterrupted,
   getHourLabel,
   getUsageBars,
   honkPoster,
   isEasterEgg1987,
   muteCall,
   newNight,
+  resetCameraFuse,
+  ringKitchenBell,
   selectCam,
   STEP,
   toggleLeftDoor,
@@ -103,6 +106,13 @@ test('Boss Hauke Earthquake Sprint shakes Office, slams closed Left Door with po
   assert.ok(blocked.quake > 0.3);
   assert.ok(blocked.power < powerBefore - 1);
   assert.equal(blocked.state, 'playing');
+  assert.equal(blocked.monitorOpen, false);
+  assert.equal(toggleMonitor(blocked), false);
+  const fusePower = blocked.power;
+  assert.equal(resetCameraFuse(blocked), true);
+  assert.equal(blocked.power, fusePower - 3);
+  assert.equal(resetCameraFuse(blocked), false);
+  assert.equal(toggleMonitor(blocked), true);
 
   // Case 2: Left door OPEN -> Boss Hauke jumpscare!
   const killed = newNight({ night: 4, seed: 102 });
@@ -115,12 +125,16 @@ test('Boss Hauke Earthquake Sprint shakes Office, slams closed Left Door with po
   assert.equal(killed.killedBy, 'hauke');
 });
 
-test('Boss Hauke is camera-locked while CCTV monitor is open (authentic FNAF 1 Foxy rule)', () => {
-  const run = newNight({ night: 6, seed: 303 });
+test('Hauke responds to the buffet feed and keeps moving on other cameras', () => {
+  const run = newNight({ night: 7, seed: 303, customAi: { hauke: 20 } });
   run.ai.hauke = 20;
   toggleMonitor(run);
+  selectCam(run, '1C');
   simulate(run, 12.0);
   assert.equal(run.animatronics.hauke.stage, 0);
+  selectCam(run, '4B');
+  simulate(run, 10.0);
+  assert.ok(run.animatronics.hauke.stage > 0);
 });
 
 test('Lost Anton & Schnorrer Tom trigger window stings, jam doors when sneaking in, and jumpscare on monitor close', () => {
@@ -220,4 +234,108 @@ test('Horror sound cues fire for office breathing, Hauke cove hum, CAM 6 kitchen
   assert.ok(ev.some((e) => e.kind === 'office_breath' && e.side === 'left'));
   assert.ok(ev.some((e) => e.kind === 'hauke_hum'));
   assert.ok(ev.some((e) => e.kind === 'phone_ring' && typeof e.text === 'string' && e.text.length > 10));
+});
+
+test('Antons video call telegraphs its deadline and can be cancelled by changing feeds', () => {
+  const run = newNight({ night: 7, seed: 717, customAi: { anton: 20 } });
+  run.animatronics.anton.timer = 30;
+  toggleMonitor(run);
+  const events = simulate(run, 4.5);
+  assert.equal(events.filter((e) => e.kind === 'anton_video_warning').length, 1);
+  assert.ok(run.antonVideo.deadline > run.time + 3);
+  selectCam(run, '3');
+  assert.equal(run.stats.videoDodges, 1);
+  simulate(run, 4.5);
+  assert.equal(run.state, 'playing');
+  selectCam(run, '1A');
+  simulate(run, 10);
+  assert.equal(run.antonVideo.deadline, 0);
+  simulate(run, 11);
+  assert.equal(run.jumpscare.cause, 'video');
+  assert.equal(run.jumpscare.cam, '1A');
+  assert.equal(run.killedBy, 'anton');
+});
+
+test('An interrupted camera does not take out unrelated feeds', () => {
+  const run = newNight({ night: 7, seed: 110, customAi: { anton: 20 } });
+  toggleMonitor(run);
+  run.animatronics.anton.timer = STEP;
+  simulate(run, 0.15);
+  assert.equal(feedIsInterrupted(run), true);
+  selectCam(run, '6');
+  assert.equal(feedIsInterrupted(run), false);
+  selectCam(run, '1A');
+  assert.equal(feedIsInterrupted(run), true);
+  simulate(run, 1.5);
+  assert.equal(feedIsInterrupted(run), false);
+});
+
+test('Kitchen bell lures Tom from the east wing for power and has a cooldown', () => {
+  const run = newNight({ night: 7, seed: 719, customAi: { tom: 12 } });
+  run.animatronics.tom.room = 'right_door';
+  assert.equal(ringKitchenBell(run), false);
+  toggleMonitor(run);
+  selectCam(run, '6');
+  assert.equal(ringKitchenBell(run), true);
+  assert.equal(run.animatronics.tom.room, '6');
+  assert.equal(run.stats.tomLured, 1);
+  assert.equal(run.power, 96);
+  assert.equal(feedIsInterrupted(run), false);
+  assert.equal(ringKitchenBell(run), false);
+  assert.equal(run.power, 96);
+  assert.ok(simulate(run, 1).some((e) => e.kind === 'kitchen_clatter' && e.loud));
+});
+
+test('The first shift rehearses a doorway threat with time to react and a limited penalty', () => {
+  const successful = newNight({ night: 1, seed: 451 });
+  simulate(successful, 20.25);
+  assert.equal(successful.animatronics.anton.room, '2B');
+  simulate(successful, 12.25);
+  assert.equal(successful.animatronics.anton.room, 'left_door');
+  assert.ok(successful.animatronics.anton.timer > 8);
+  toggleLeftDoor(successful);
+  simulate(successful, 9);
+  assert.equal(successful.stats.antonBlocked, 1);
+  assert.equal(successful.training, 'done');
+
+  const missed = newNight({ night: 1, seed: 451 });
+  simulate(missed, 42);
+  assert.equal(missed.state, 'playing');
+  assert.equal(missed.animatronics.anton.room, '1B');
+  assert.ok(Math.abs(missed.power - (97 - 42 * 0.098)) < 0.001);
+});
+
+test('Camping on the east camera no longer wins the 4/20 challenge', () => {
+  for (const seed of [100, 200, 300, 400]) {
+    const run = newNight({ night: 7, seed, customAi: { torge: 20, anton: 20, tom: 20, hauke: 20 } });
+    toggleMonitor(run);
+    selectCam(run, '4B');
+    simulate(run, HOUR_SECONDS * 6);
+    assert.equal(run.state, 'gameover');
+  }
+});
+
+test('Anton can finish an office attack while the monitor stays raised', () => {
+  const run = newNight({ night: 7, seed: 240, customAi: { anton: 20 } });
+  run.animatronics.anton.room = 'left_door';
+  run.animatronics.anton.timer = 0.1;
+  toggleMonitor(run);
+  selectCam(run, '4B');
+  simulate(run, 0.2);
+  assert.equal(run.animatronics.anton.room, 'office');
+  assert.equal(run.monitorOpen, true);
+  simulate(run, 7.2);
+  assert.equal(run.killedBy, 'anton');
+  assert.equal(run.jumpscare.cause, 'office');
+});
+
+test('The camera fuse recovers on its own when there is too little power to reset it', () => {
+  const run = newNight({ night: 7, seed: 411, customAi: {} });
+  run.power = 2.5;
+  run.cameraFuseUntil = 1;
+  assert.equal(resetCameraFuse(run), false);
+  assert.equal(toggleMonitor(run), false);
+  simulate(run, 1.1);
+  assert.equal(toggleMonitor(run), true);
+  assert.equal(run.stats.fusesReset, 0);
 });

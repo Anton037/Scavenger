@@ -118,6 +118,12 @@ export class Controls {
       } else if (event.code === 'KeyM') {
         event.preventDefault();
         this.actions.mute?.();
+      } else if (event.code === 'KeyF') {
+        event.preventDefault();
+        this.actions.fuse?.();
+      } else if (event.code === 'KeyB') {
+        event.preventDefault();
+        this.actions.bell?.();
       } else if (event.code === 'KeyH') {
         event.preventDefault();
         this.actions.honk?.();

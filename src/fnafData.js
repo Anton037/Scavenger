@@ -11,13 +11,13 @@ export const CAMERAS = [
   { id: '1A', name: 'Döner-Bühne', short: '1A', x: 39, y: 12 },
   { id: '1B', name: 'Gastraum', short: '1B', x: 34, y: 31 },
   { id: '1C', name: 'Buffet-Bucht', short: '1C', x: 18, y: 47 },
-  { id: '5', name: 'Werkstatt', short: '5', x: 10, y: 27 },
-  { id: '3', name: 'Pfand-Lager', short: '3', x: 15, y: 69 },
   { id: '2A', name: 'West-Flur', short: '2A', x: 31, y: 69 },
   { id: '2B', name: 'West-Ecke', short: '2B', x: 31, y: 84 },
-  { id: '6', name: 'Küche (Nur Audio)', short: '6', x: 80, y: 60, audioOnly: true },
+  { id: '3', name: 'Pfand-Lager', short: '3', x: 15, y: 69 },
   { id: '4A', name: 'Ost-Flur', short: '4A', x: 56, y: 69 },
   { id: '4B', name: 'Ost-Ecke', short: '4B', x: 56, y: 84 },
+  { id: '5', name: 'Werkstatt', short: '5', x: 10, y: 27 },
+  { id: '6', name: 'Küchenfunk', short: '6', x: 80, y: 60, audioOnly: true },
 ];
 
 export const CAMERA_MAP = Object.fromEntries(CAMERAS.map((c) => [c.id, c]));
@@ -28,8 +28,9 @@ export const NIGHT_CONFIGS = {
     sub: 'Probewache — Mitternachts-Imbiss',
     ai: { torge: 0, anton: 0, tom: 0, hauke: 0 },
     hourlyBumps: {
-      2: { anton: 1 },
-      3: { anton: 1, tom: 1, hauke: 1 },
+      1: { anton: 1 },
+      2: { tom: 1 },
+      3: { anton: 1, hauke: 1 },
       4: { anton: 1, tom: 1, hauke: 1 },
     },
     passiveDrain: 0.0,
@@ -110,7 +111,7 @@ export const CHARACTERS = {
     id: 'anton',
     name: 'Lost Anton',
     role: 'Linke Tür',
-    desc: 'Schleicht aggressiv durch West-Flur und Pfand-Lager. Leuchte das linke Fenster ab — wenn er starrt: TÜR ZU!',
+    desc: 'Schleicht durch den West-Flur. Starrst du ihn auf einem Feed zu lange an, meldet er sich per Video.',
     deathLine: 'Anton stand lautlos im linken Flur. Er wollte nur fragen, ob du Kleingeld hast.',
   },
   tom: {
@@ -139,7 +140,7 @@ export const CHARACTERS = {
 export const PHONE_CALLS = {
   1: [
     { at: 2, dur: 6.5, text: '„Hallo? Hallo, hallo? Hey, wollte dir nur kurz eine Nachricht für deine erste Nacht bei Chef Torges Mitternachts-Imbiss dalassen.“' },
-    { at: 9.5, dur: 6.5, text: '„Eigentlich ist der Job super entspannt — du sitzt bis 6 Uhr im Büro, schaust auf die Kameras und passt auf die Kasse auf.“' },
+    { at: 9.5, dur: 6.5, text: '„Gleich machen wir einen Probealarm. Fang in der West-Ecke an. Und wenn Anton per Video anruft, drück ihn weg: Kamera wechseln oder Monitor runter.“' },
     { at: 17, dur: 7.0, text: '„Also... kleine Info wegen der Jungs auf der Bühne: Nachts gehen sie in den Freilauf-Modus, sonst rosten die Fritteusen-Scharniere ein.“' },
     { at: 25, dur: 7.5, text: '„Wenn sie dich nach Mitternacht sehen, halten sie dich leider für einen nicht abkassierten Gast ohne Bon. Und das... mögen sie gar nicht.“' },
     { at: 33.5, dur: 7.5, text: '„Deshalb hast du links und rechts Stahltüren und Flurlichter! Aber Achtung: Unser Notstrom reicht nicht ewig — mach Türen nur zu, wenn es ernst wird.“' },
@@ -148,9 +149,9 @@ export const PHONE_CALLS = {
   2: [
     { at: 2, dur: 6.5, text: '„Hallo, hallo! Stark, du hast Nacht 1 überlebt! Heute werden Anton und Tom leider deutlich unruhiger.“' },
     { at: 9.5, dur: 7.5, text: '„Wichtige Warnung für heute Nacht: Vergiss nicht die Buffet-Bucht auf CAM 1C! Da hinter dem gestreiften Vorhang sitzt Boss Hauke.“' },
-    { at: 18, dur: 7.5, text: '„Er mag es gar nicht, wenn man ihn beobachtet — aber noch weniger, wenn man die Kameras gar nicht benutzt. Schau regelmäßig mal rein.“' },
+    { at: 18, dur: 7.5, text: '„Schau direkt in die Buffet-Bucht. Wenn er dich dort bemerkt, hält er kurz still. Die anderen Kameras sind ihm egal.“' },
     { at: 26.5, dur: 7.5, text: '„Und wenn der Vorhang komplett offen ist... und dein Schreibtisch plötzlich anfängt zu beben: SOFORT die LINKE Stahltür runter! Vertrau mir!“' },
-    { at: 35, dur: 6.0, text: '„Ach ja — wenn in der Küche auf CAM 6 die Töpfe und Spezi-Dosen scheppern, ist das nur Tom. Halt einfach die rechte Tür im Blick!“' },
+    { at: 35, dur: 7.5, text: '„Auf CAM 6 holt der Bestellgong Tom vom rechten Flur zurück. Kostet vier Prozent Strom. Ja, auch wenn keiner was abholt.“' },
   ],
   3: [
     { at: 2, dur: 6.5, text: '„Hey, du bist echt noch da! Die meisten kündigen nach dem ersten Erdbeben im West-Flur. Respekt.“' },
@@ -184,6 +185,7 @@ export const CUSTOM_PRESETS = [
   { name: 'Standard', ai: { torge: 5, anton: 5, tom: 5, hauke: 5 } },
   { name: 'Erdbeben-Hauke', ai: { torge: 2, anton: 4, tom: 4, hauke: 20 } },
   { name: 'Doppeltür-Stress', ai: { torge: 0, anton: 18, tom: 18, hauke: 8 } },
+  { name: 'Antons Anruf', ai: { torge: 0, anton: 20, tom: 0, hauke: 0 } },
   { name: '4/20 ALPTRAUM', ai: { torge: 20, anton: 20, tom: 20, hauke: 20 } },
 ];
 

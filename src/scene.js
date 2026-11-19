@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { feedIsInterrupted } from './game.js';
 import {
   PALETTE,
   bossHaukeModel,
@@ -26,9 +27,17 @@ import {
 } from './art.js';
 
 const PIXEL_SCALE = 2.15;
+const SCARE_SHOTS = {
+  anton: { headY: 1.88, fromX: -0.84, stopZ: -0.86, speed: 14, shake: 0.4 },
+  tom: { headY: 1.62, fromX: 1.48, stopZ: -1.02, speed: 7, shake: 0.3 },
+  hauke: { headY: 1.66, fromX: -0.28, stopZ: -1.12, speed: 12, shake: 1.0 },
+  torge: { headY: 1.61, fromX: 0, stopZ: -0.94, speed: 5, shake: 0.12 },
+  duck: { headY: 1.05, fromX: 0.28, stopZ: -1.04, speed: 22, shake: 0.04 },
+};
 
 export class SceneView {
   constructor(canvas) {
+    this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     this.canvas = canvas;
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -126,7 +135,7 @@ export class SceneView {
           // Animated VHS / CRT static snow
           vec2 noiseCell = floor(vUv * vec2(260.0, 150.0));
           float snow = hash(noiseCell + fract(uTime * 19.37));
-          float grain = (snow - 0.5) * (0.06 + uCctv * 0.11);
+          float grain = (snow - 0.5) * (0.06 + uCctv * 0.07);
           col += vec3(grain);
           if (uStatic > 0.01) {
             float bandMask = step(0.68, hash(vec2(floor(vUv.y * 32.0), floor(uTime * 22.0))));
@@ -608,7 +617,7 @@ export class SceneView {
     // OFFICE VIEW
     this.setMode('office');
     const out = run.powerOutage;
-    const q = run.quake || 0;
+    const q = (run.quake || 0) * (this.reducedMotion.matches ? 0.22 : 1);
     const shakeX = q > 0.01 ? (Math.sin(run.quakeTime * 54) * 0.095 * q) : 0;
     const shakeY = q > 0.01 ? (Math.cos(run.quakeTime * 68) * 0.075 * q) : 0;
     const shakeRoll = q > 0.01 ? (Math.sin(run.quakeTime * 46) * 0.055 * q) : 0;
@@ -694,17 +703,18 @@ export class SceneView {
     this.setMode('cctv');
     const t = run.time;
     const camId = run.activeCam;
+    const videoWarning = run.antonVideo.deadline > run.time;
 
     // Audio-Only CAM 6 or signal disruption
-    if (camId === '6' || run.camDisrupt > 0) {
+    if (camId === '6' || feedIsInterrupted(run)) {
       for (const room of Object.values(this.rooms)) room.visible = false;
       for (const m of [this.cctvTorge, this.cctvAnton, this.cctvTom, this.cctvHauke]) m.root.visible = false;
       this.renderPass(t, {
         cctv: 1,
-        staticAmt: camId === '6' ? 0.55 : 0.88,
+        staticAmt: camId === '6' ? 0.27 : 0.74,
         blackout: 0.98,
         shock: 0,
-        quake: Math.min(1, run.quake || 0),
+        quake: this.reducedMotion.matches ? 0 : Math.min(1, run.quake || 0),
         flicker: 1,
       });
       return;
@@ -718,7 +728,7 @@ export class SceneView {
     }
 
     const sweep = run.camPan * 0.28;
-    const q = run.quake || 0;
+    const q = (run.quake || 0) * (this.reducedMotion.matches ? 0.22 : 1);
     const qx = q > 0.02 ? Math.sin(run.quakeTime * 58) * 0.08 * q : 0;
     const qy = q > 0.02 ? Math.cos(run.quakeTime * 66) * 0.06 * q : 0;
 
@@ -828,6 +838,12 @@ export class SceneView {
         this.cctvAnton.root.rotation.y = 0.35;
       }
       this.cctvAnton.head.rotation.z = 0.16 + Math.sin(t * 2.1) * 0.04;
+      if (videoWarning) {
+        const lean = this.reducedMotion.matches ? 0.16 : 0.25;
+        this.cctvAnton.root.position.x = THREE.MathUtils.lerp(this.cctvAnton.root.position.x, this.camera.position.x, lean);
+        this.cctvAnton.root.position.z = THREE.MathUtils.lerp(this.cctvAnton.root.position.z, this.camera.position.z, lean);
+        this.cctvAnton.head.rotation.z = -0.22;
+      }
     }
 
     if (tom.room === camId) {
@@ -870,7 +886,7 @@ export class SceneView {
       this.cctvHauke.arms[1].rotation.x = -0.8 + Math.sin(t * 22) * 0.5;
     }
 
-    const staticAmt = Math.max(0.07, run.camSwitchStatic * 2.4, run.goldenPoster && camId === '2B' ? 0.22 : 0);
+    const staticAmt = Math.max(videoWarning ? 0.18 : 0.045, run.camSwitchStatic * 2, run.goldenPoster && camId === '2B' ? 0.22 : 0);
     this.renderPass(t, {
       cctv: 1,
       staticAmt,
@@ -891,41 +907,44 @@ export class SceneView {
       m.root.visible = key === js.who;
     }
     const active = this.jsModels[js.who] ?? this.jsModels.torge;
-    const lunge = 1 - Math.exp(-t * 13);
-    const headY = js.who === 'anton' ? 1.88 : js.who === 'hauke' ? 1.72 : js.who === 'duck' ? 1.05 : 1.62;
-    const stopZ = js.who === 'hauke' ? -1.32 : js.who === 'duck' ? -1.02 : -0.86;
-    const startZ = stopZ - 1.35;
+    const shot = SCARE_SHOTS[js.who] ?? SCARE_SHOTS.torge;
+    const video = js.cause === 'video';
+    const reduced = this.reducedMotion.matches;
+    const lunge = reduced ? 0.82 : 1 - Math.exp(-t * (video ? 8 : shot.speed));
+    const shake = reduced ? 0 : shot.shake;
+    const stopZ = video ? -0.52 : shot.stopZ;
+    const startZ = stopZ - (video ? 0.62 : 1.5);
 
     active.root.position.set(
-      Math.sin(t * 58) * 0.12,
-      (js.who === 'duck' ? 0.35 : 0) + Math.cos(t * 52) * 0.08,
+      (video ? 0.10 : shot.fromX) * (1 - lunge) + Math.sin(t * 33) * 0.10 * shake,
+      (js.who === 'duck' ? 0.35 : 0) + Math.cos(t * 18) * 0.08 * shake,
       startZ + lunge * (stopZ - startZ),
     );
-    active.root.rotation.y = Math.sin(t * 44) * 0.16;
+    active.root.rotation.y = (1 - lunge) * -shot.fromX * 0.45;
     if (active.head) {
-      active.head.rotation.z = Math.sin(t * 68) * 0.22;
-      active.head.rotation.x = Math.cos(t * 54) * 0.12;
+      active.head.rotation.z = video ? -0.24 : Math.sin(t * 14) * 0.19 * shake;
+      active.head.rotation.x = video ? 0.10 : Math.cos(t * 15) * 0.15 * shake;
     }
     if (active.jaw) {
-      active.jaw.scale.y = 1.4 + Math.abs(Math.sin(t * 45)) * 1.6;
+      active.jaw.scale.y = 1.15 + lunge * 0.7;
     }
     if (active.arms) {
-      active.arms[0].rotation.x = -1.6 + Math.sin(t * 50) * 0.5;
-      active.arms[1].rotation.x = -1.6 - Math.sin(t * 50) * 0.5;
+      active.arms[0].rotation.x = -lunge * (video ? 2.1 : 1.25);
+      active.arms[1].rotation.x = -lunge * (js.who === 'tom' ? 2.05 : 1.35);
     }
 
-    this.camera.position.set(Math.sin(t * 70) * 0.06, headY + Math.cos(t * 62) * 0.05, 0.38);
-    this.camera.rotation.set(0, 0, Math.sin(t * 52) * 0.1);
+    this.camera.position.set(Math.sin(t * 28) * 0.06 * shake, shot.headY + Math.cos(t * 32) * 0.07 * shake, 0.38);
+    this.camera.rotation.set(0, 0, Math.sin(t * 24) * 0.11 * shake);
 
-    this.jsStrobe.intensity = Math.sin(t * 58) > 0 ? 13 : 5;
-    this.jsRed.intensity = Math.cos(t * 48) > 0 ? 11 : 4;
+    this.jsStrobe.intensity = video ? 17 : 8 + 5 * lunge;
+    this.jsRed.intensity = video ? 2 : 7;
 
     this.renderPass(t, {
-      cctv: 0,
-      staticAmt: 0.14 + p * 0.28,
-      blackout: p > 0.92 ? (p - 0.92) * 12 : 0,
-      shock: 0.65,
-      quake: 1.0,
+      cctv: video ? 1 : 0,
+      staticAmt: video ? 0.12 + p * 0.25 : 0.065,
+      blackout: Math.max(0, (p - 0.85) / 0.15),
+      shock: video ? 0.16 : 0.32,
+      quake: shake,
       flicker: 1,
     });
   }

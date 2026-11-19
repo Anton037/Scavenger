@@ -137,7 +137,6 @@
         <div class="hud-top-left">
           <button id="btn-pause" class="btn-crt small" type="button" title="Pause (Esc)">❚❚</button>
           <button id="btn-mute-call" class="btn-crt small" type="button" hidden>Anruf stumm <span class="kbd-hint">(M)</span></button>
-          <span id="quake-alert" class="quake-alert" hidden>⚠ ERDBEBEN IM WEST-FLUR!</span>
         </div>
 
         <div class="clock-box">
@@ -151,6 +150,12 @@
         <span class="call-tag">☎ ANRUFBEANTWORTER</span>
         <p id="call-text"></p>
       </div>
+      <div id="shift-alert" class="call-box shift-alert" hidden aria-live="polite">
+        <span id="shift-alert-title" class="call-tag"></span>
+        <p id="shift-alert-text"></p>
+        <span id="shift-alert-timer" class="alert-timer" aria-hidden="true"></span>
+      </div>
+      <div id="video-takeover" class="video-takeover" hidden aria-hidden="true">ANTON IST DEM ANRUF BEIGETRETEN</div>
 
       <!-- Office Controls (Hidden when CCTV Monitor is open or Power Outage) -->
       <div id="office-controls" class="office-controls">
@@ -192,18 +197,13 @@
       <!-- CCTV MONITOR OVERLAY (Visible only when Monitor is UP) -->
       <div id="cctv-overlay" class="cctv-overlay" hidden>
         <div class="cctv-frame" aria-hidden="true"></div>
-        <div class="cctv-rec">
-          <span class="rec-dot"></span>
-          <span>LIVE</span>
-        </div>
-
         <div id="cctv-audio-only" class="cctv-center-msg" hidden>
-          <b>— KAMERA DEFEKT —</b>
-          <span>NUR AUDIO VERFÜGBAR (KÜCHE)</span>
+          <b>KÜCHENFUNK</b>
           <div id="kitchen-wave" class="kitchen-wave" aria-hidden="true">
             <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
           </div>
           <em id="kitchen-status" class="kitchen-status">AUDIO: RUHIG</em>
+          <button id="btn-kitchen-bell" class="btn-crt small" type="button" title="Bestellgong (B)">Gong −4 %</button>
         </div>
         <div id="cctv-disrupt" class="cctv-center-msg" hidden>
           <b>SIGNAL UNTERBROCHEN</b>
@@ -211,7 +211,10 @@
         </div>
 
         <div class="cctv-map-wrap">
-          <div id="cctv-room-label" class="cctv-room-label">CAM 1A — Döner-Bühne</div>
+          <div class="cctv-heading">
+            <div id="cctv-room-label" class="cctv-room-label">CAM 1A — Döner-Bühne</div>
+            <button id="btn-map" class="btn-crt small" type="button" aria-controls="cctv-map" aria-expanded="false">Grundriss</button>
+          </div>
           <div id="cctv-map" class="cctv-map" aria-label="Überwachungskamera-Grundriss">
             <!-- Architectural FNAF 1 Imbiss Floorplan SVG -->
             <svg class="map-svg" viewBox="0 0 100 100" aria-hidden="true">
@@ -260,6 +263,7 @@
           <span id="monitor-label">KAMERAS</span>
           <span class="mon-chev">▲</span>
         </button>
+        <button id="btn-fuse" class="monitor-bar fuse-bar" type="button" title="Kamerasicherung umlegen (F)" hidden>SICHERUNG −3 %</button>
       </div>
     </section>
 
@@ -297,6 +301,7 @@
         <p id="gameover-kicker" class="title-kicker red">VERBINDUNG ABGEBROCHEN</p>
         <h2 id="gameover-title">GAME OVER</h2>
         <p id="gameover-line" class="modal-copy"></p>
+        <p id="gameover-hint" class="gameover-hint"></p>
         <p id="gameover-meta" class="gameover-meta"></p>
         <div class="modal-actions">
           <button id="gameover-retry" class="btn-crt primary" type="button">Nochmal versuchen</button>

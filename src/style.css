@@ -428,22 +428,6 @@ button {
   gap: 0.45rem;
 }
 
-.quake-alert {
-  padding: 0.34rem 0.62rem;
-  border: 1.5px solid var(--crimson);
-  background: rgba(120, 12, 24, 0.88);
-  font-family: var(--mono);
-  font-size: 0.74rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #ffe29a;
-  animation: pulseFast 0.35s infinite alternate;
-}
-@keyframes pulseFast {
-  from { opacity: 0.72; }
-  to { opacity: 1; }
-}
-
 .clock-box {
   text-align: right;
   font-family: var(--mono);
@@ -466,7 +450,7 @@ button {
 /* Phone Guy Subtitle Strip */
 .call-box {
   position: fixed;
-  top: max(54px, calc(env(safe-area-inset-top) + 46px));
+  top: max(68px, calc(env(safe-area-inset-top) + 58px));
   left: 50%;
   transform: translateX(-50%);
   width: min(620px, calc(100vw - 28px));
@@ -489,6 +473,32 @@ button {
   font-size: 0.8rem;
   line-height: 1.32;
   color: #e9ecf5;
+}
+.shift-alert {
+  border-color: rgba(114, 220, 255, 0.65);
+  background: rgba(8, 16, 24, 0.95);
+}
+.shift-alert .call-tag { color: var(--cyan); }
+.shift-alert.urgent { border-color: var(--crimson); }
+.shift-alert.urgent .call-tag { color: #ff9ca9; }
+.alert-timer {
+  display: inline-block;
+  margin-top: 0.2rem;
+  font: 700 0.72rem var(--mono);
+  color: var(--gold);
+}
+.alert-timer:empty { display: none; }
+
+.video-takeover {
+  position: fixed;
+  inset: auto 12px max(20px, env(safe-area-inset-bottom));
+  justify-self: center;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--crimson);
+  color: #fff;
+  background: rgba(15, 0, 7, 0.92);
+  text-align: center;
+  font: 800 clamp(0.75rem, 3vw, 1.05rem) var(--mono);
 }
 
 /* Left & Right Steel Door/Light Switch Panels */
@@ -613,32 +623,6 @@ button {
   pointer-events: none;
 }
 
-.cctv-rec {
-  position: fixed;
-  top: max(54px, calc(env(safe-area-inset-top) + 46px));
-  left: max(22px, env(safe-area-inset-left));
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-family: var(--mono);
-  font-size: 0.86rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  color: #ffffff;
-  text-shadow: 0 2px 8px #000;
-}
-.rec-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--crimson);
-  box-shadow: 0 0 12px var(--crimson);
-  animation: blinkRec 1s steps(2, start) infinite;
-}
-@keyframes blinkRec {
-  to { visibility: hidden; }
-}
-
 .cctv-center-msg {
   position: fixed;
   top: 44%;
@@ -684,6 +668,13 @@ button {
   letter-spacing: 0.12em;
   color: var(--jade);
 }
+#btn-kitchen-bell {
+  align-self: center;
+  margin-top: 0.32rem;
+  min-height: 36px;
+}
+
+button:disabled { opacity: 0.56; cursor: default; }
 
 /* Interactive Floorplan Map (Bottom-Right just like FNAF 1!) */
 .cctv-map-wrap {
@@ -708,6 +699,7 @@ button {
   color: #ffffff;
   text-shadow: 0 2px 8px #000;
 }
+#btn-map { display: none; }
 
 .cctv-map {
   position: relative;
@@ -749,6 +741,8 @@ button {
 }
 .cam-btn {
   position: absolute;
+  left: var(--cam-x);
+  top: var(--cam-y);
   transform: translate(-50%, -50%);
   min-width: 38px;
   padding: 0.18rem 0.24rem;
@@ -851,6 +845,7 @@ button {
   background: rgba(14, 48, 38, 0.82);
 }
 .monitor-bar[aria-pressed="true"] .mon-chev { transform: rotate(180deg); }
+.fuse-bar { border-color: var(--gold); color: var(--gold); }
 
 /* ==================== 6 AM WIN & GAME OVER ==================== */
 .win-screen {
@@ -909,6 +904,13 @@ button {
   color: var(--gold);
   margin-bottom: 0.35rem;
 }
+.gameover-hint {
+  margin: 0 0 0.85rem;
+  color: var(--cyan);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+.gameover-hint:empty { display: none; }
 
 /* ==================== RESPONSIVE (MOBILE PORTRAIT & LANDSCAPE) ==================== */
 @media (max-width: 720px), (min-width: 560px) and (max-height: 440px) {
@@ -922,6 +924,29 @@ button {
     max-width: 100%;
   }
   .cctv-map-wrap { position: static; }
+  .cctv-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+  #btn-map { display: inline-flex; white-space: nowrap; min-height: 34px; }
+  .cctv-map:not([data-expanded]) { aspect-ratio: auto; }
+  .cctv-map:not([data-expanded]) :is(.map-svg, .map-you) { display: none; }
+  .cctv-map:not([data-expanded]) .cam-buttons {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    padding: 4px;
+  }
+  .cctv-map:not([data-expanded]) .cam-btn {
+    position: static;
+    min-width: 0;
+    min-height: 36px;
+    transform: none;
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 720px) {
@@ -958,12 +983,12 @@ button {
   .cctv-map-wrap {
     grid-area: 2 / 1;
     justify-self: center;
-    width: min(290px, 100%, 45dvh);
+    width: min(390px, 100%);
   }
-  .cctv-room-label { text-align: center; font-size: 0.76rem; }
+  .cctv-map[data-expanded] { width: min(265px, 100%, 36dvh); align-self: center; }
+  .cctv-room-label { text-align: left; font-size: 0.76rem; }
   .cam-btn { min-height: 30px; }
-  .cctv-rec { left: max(18px, env(safe-area-inset-left)); top: max(54px, calc(env(safe-area-inset-top) + 48px)); font-size: 0.74rem; }
-  .call-box { top: max(50px, calc(env(safe-area-inset-top) + 44px)); padding: 0.38rem 0.56rem; }
+  .call-box { top: max(60px, calc(env(safe-area-inset-top) + 52px)); padding: 0.38rem 0.56rem; }
   .call-box p { font-size: 0.74rem; }
 }
 
@@ -976,7 +1001,7 @@ button {
   .door-panel { gap: 0.3rem; padding: 0.32rem; }
   .monitor-bar { height: 36px; font-size: 0.72rem; }
   .cam-btn { min-width: 30px; min-height: 26px; font-size: 0.52rem; padding: 0.12rem 0.16rem; }
-  .call-box { top: 44px; padding: 0.28rem 0.5rem; }
+  .call-box { top: max(56px, calc(env(safe-area-inset-top) + 48px)); padding: 0.28rem 0.5rem; }
   .call-box p { font-size: 0.7rem; }
 }
 
@@ -991,6 +1016,14 @@ button {
   }
   .cctv-map-wrap {
     grid-area: 1 / 2;
-    width: min(210px, 62dvh);
+    width: min(252px, 45vw);
   }
+  .cctv-map[data-expanded] {
+    width: min(210px, 56dvh);
+    align-self: flex-end;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gameover-static { animation: none; }
 }

@@ -1,3 +1,5 @@
+import { feedIsInterrupted } from './game.js';
+
 const AUDIO_PREFERENCE = 'fnat.sound';
 
 // Background sound picked up by each microphone. Interference is mixed separately.
@@ -479,7 +481,7 @@ export class Soundscape {
     const active = Boolean(this.enabled && run && run.state === 'playing' && !run.powerOutage);
 
     const camera = active && run.monitorOpen ? CAMERA_AUDIO[run.activeCam] : null;
-    const disrupted = camera && run.camDisrupt > 0;
+    const disrupted = camera && feedIsInterrupted(run);
     this.fanGain.gain.setTargetAtTime(active ? (camera ? 0.065 : 0.21) : 0, t, 0.08);
     this.cctvGain.gain.setTargetAtTime(camera ? (disrupted ? 0.042 : 0.009) : 0, t, 0.05);
     this.roomGain.gain.setTargetAtTime(camera && !disrupted ? camera.gain : 0, t, 0.12);
@@ -582,6 +584,33 @@ export class Soundscape {
       case 'cam_static_burst':
         this.burst(1370, 1.12, 0.21, 0.20);
         this.burst(790, 1.2, 0.19, 0.12, 0, 0.26);
+        break;
+      case 'anton_video_warning':
+        for (const offset of [0, 0.16, 0.43]) this.metal(585, 0.24, 0, offset, 0.13);
+        this.burst(1010, 1.1, 0.28, 0.17, 0, 0.45, { attack: 0.03 });
+        break;
+      case 'anton_video_dodged':
+        this.burst(680, 1.35, 0.16, 0.17);
+        break;
+      case 'door_approach':
+        this.footImpact(0.41, sidePan, 0, true);
+        this.metal(345, 0.26, sidePan, 0.16);
+        break;
+      case 'training_knock':
+        this.metal(370, 0.17, sidePan);
+        this.metal(410, 0.14, sidePan, 0.18);
+        break;
+      case 'fuse_trip':
+        this.burst(1810, 0.8, 0.15, 0.26);
+        this.burst(860, 0.9, 0.31, 0.16, 0, 0.09);
+        break;
+      case 'fuse_reset':
+        this.metal(520, 0.22);
+        this.burst(720, 1.65, 0.46, 0.14, 0, 0.08, { attack: 0.12 });
+        break;
+      case 'kitchen_bell':
+        this.metal(725, 0.30, 0.42, 0, 0.42);
+        this.tone(683, 678, 0.37, 0.10, 0.42, 0.01, 'triangle', { wet: 0.35 });
         break;
       case 'window_sting':
         this.burst(860, 0.75, 0.52, 0.37, sidePan, 0, { attack: 0.076, wet: 0.58 });
@@ -705,6 +734,13 @@ export class Soundscape {
         this.stopJingle();
         this.stopSpeech();
         const pitch = { hauke: 106, torge: 137, anton: 163, tom: 190, duck: 225 }[event.who] ?? 160;
+        if (event.cause === 'video') {
+          this.burst(1280, 0.62, 0.31, 0.43);
+          this.tone(pitch * 1.35, pitch * 0.74, 0.74, 0.36, 0, 0.095, 'sawtooth', {
+            formants: [[810, 3.0], [1680, 3.5]], distort: true, wet: 0.14,
+          });
+          break;
+        }
         this.burst(850, 0.67, 0.72, 0.48, 0, 0, { distort: true, wet: 0.24 });
         this.tone(pitch, pitch * 0.68, 0.95, 0.45, 0, 0.015, 'sawtooth', {
           formants: [[590, 3.3], [1370, 3.1], [2710, 4]], distort: true, wet: 0.40,
