@@ -213,6 +213,12 @@ export class Hud {
         ctx.fillRect(this.px(x), this.py(z), this.scale + 0.35, this.scale + 0.35);
       }
     }
+    ctx.fillStyle = `#${(map.biome?.waterHex ?? 0xc98a24).toString(16).padStart(6, '0')}44`;
+    for (const p of map.pools ?? []) {
+      ctx.beginPath();
+      ctx.ellipse(this.px(p.x), this.py(p.z), p.w * this.scale * 0.46, p.d * this.scale * 0.46, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.fillStyle = '#47506d';
     for (const blk of map.blocks ?? []) {
       ctx.fillRect(this.px(blk.x - blk.w * 0.5), this.py(blk.z - blk.d * 0.5), blk.w * this.scale, blk.d * this.scale);
@@ -257,26 +263,52 @@ export class Hud {
       }
     };
 
-    if (run.map.vending) place(run.map.vending, '#38f2af', 6.5, 'diamond');
+    if (run.map.vending) {
+      const ready = (run.map.vending.cooldown || 0) <= 0;
+      place(run.map.vending, ready ? '#38f2af' : '#9a6d3a', ready ? 6.8 : 5.4, 'diamond');
+    }
     for (const c of run.crates ?? []) {
       if (!c.broken) place(c, c.gold ? '#ffe082' : '#a86c3a', c.gold ? 5 : 3.2, c.gold ? 'diamond' : 'square');
     }
     for (const b of run.barrels ?? []) {
-      if (!b.exploded) place(b, '#ff5744', 3.6, 'square');
+      if (!b.exploded) place(b, '#ff9436', 3.6, 'square');
     }
     for (const pk of run.pickups ?? []) {
       if (pk.collected) continue;
       if (pk.kind === 'duck') {
         place(pk, '#ffe63b', 5.0, 'circle');
-      } else if (pk.kind === 'chest' || pk.kind === 'heal' || pk.kind === 'magnet_can') {
-        place(pk, pk.kind === 'chest' ? '#ffe082' : '#ffb84d', 4.4, 'circle');
+      } else if (pk.kind === 'magnet_can') {
+        place(pk, '#63e6ff', 4.4, 'circle');
+      } else if (pk.kind === 'dose') {
+        place(pk, '#ff7a45', 3.8, 'circle');
+      } else if (pk.kind === 'chest' || pk.kind === 'heal') {
+        place(pk, pk.kind === 'chest' ? '#ffe082' : '#38f2af', 4.4, 'circle');
       }
+    }
+    if (run.droppedHelmet) {
+      place(run.droppedHelmet, '#ffe63b', 6.4, 'diamond');
     }
     for (const e of run.enemies ?? []) {
       if (e.dead) continue;
-      if (e.type === 'hauke') place(e, '#ff3b56', 6.4, 'circle');
-      else if (e.type === 'tom') place(e, '#38f2af', 4.0, 'circle');
-      else place(e, e.elite ? '#ff8c24' : '#73d7ff', e.elite ? 4.4 : 3.0, 'circle');
+      if (e.type === 'hauke') {
+        place(e, '#ff1f42', 6.4, 'circle');
+        ctx.strokeStyle = '#ffe082';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(this.px(e.x), this.py(e.z), 7.2, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (e.type === 'tom') {
+        place(e, '#c8ff4d', 4.0, 'circle');
+        if (e.hasCrown) {
+          ctx.strokeStyle = '#ffe63b';
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.arc(this.px(e.x), this.py(e.z), 6.2, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      } else {
+        place(e, e.elite ? '#ff2e4c' : '#ff5e78', e.elite ? 4.4 : 3.0, 'circle');
+      }
     }
     if (run.player) {
       const px = this.px(run.player.x);
@@ -568,9 +600,10 @@ export class Hud {
 
     if (ui['crown-badge']) {
       const hasCrown = player.helmet !== false;
+      const crownStolen = !hasCrown && run.enemies?.some((e) => !e.dead && e.hasCrown);
       ui['crown-badge'].classList.toggle('on', hasCrown);
       ui['crown-badge'].classList.toggle('lost', !hasCrown);
-      write(ui['crown-label'], hasCrown ? 'Schild' : `${Math.ceil(player.crownRegen || 0)}s`);
+      write(ui['crown-label'], hasCrown ? 'Schild' : crownStolen ? 'TOM!' : `${Math.ceil(player.crownRegen || 0)}s`);
     }
 
     const combo = player.combo || 1;
@@ -657,6 +690,10 @@ export class Hud {
       write(ui['touch-lure-count'], String(player.clappers));
     }
     if (ui['slot-lure']) ui['slot-lure'].disabled = player.clappers === 0;
+    if (ui['slot-lamp']) {
+      ui['slot-lamp'].setAttribute('aria-pressed', String(player.lamp));
+      write(ui['slot-lamp'].querySelector('.slot-name'), player.lamp ? 'LICHT' : 'DUNKEL');
+    }
     if (ui['touch-bonk']) {
       const bonkCd = player.bonkCooldown > 0;
       ui['touch-bonk'].classList.toggle('on-cooldown', bonkCd);
@@ -678,7 +715,7 @@ export class Hud {
     }
     if (ui['touch-shutter']) {
       ui['touch-shutter'].setAttribute('aria-pressed', String(player.lamp));
-      write(ui['touch-shutter-label'], player.lamp ? 'Licht' : 'Tempo');
+      write(ui['touch-shutter-label'], player.lamp ? 'Licht' : 'Dunkel');
     }
 
     this.paintBarks(run, view);

@@ -49,17 +49,36 @@ function syncChallengeBanner() {
   const el = get('challenge-banner');
   if (!el) return;
   if (activeChallenge) {
-    const seedPart = activeChallenge.seed ? ` · Seed #${String(activeChallenge.seed).padStart(4, '0')}` : '';
+    const matchesSeed = !activeChallenge.seed || activeChallenge.seed === previewSeed;
+    const seedLabel = activeChallenge.seed ? `#${String(activeChallenge.seed).padStart(4, '0')}` : '';
+    const seedPart = seedLabel ? ` · Seed ${seedLabel}` : '';
     const scorePart = `${activeChallenge.score.toLocaleString('de-DE')} ⚡${seedPart}`;
-    const targetText = activeChallenge.from
-      ? `Knacke ${activeChallenge.from} (${scorePart})!`
-      : `Knacke diesen Kumpel-Rekord (${scorePart})!`;
-    write(el, `HERAUSFORDERUNG: ${targetText}`);
+    if (matchesSeed) {
+      const targetText = activeChallenge.from
+        ? `Knacke ${activeChallenge.from} (${scorePart})!`
+        : `Knacke diesen Kumpel-Rekord (${scorePart})!`;
+      write(el, `HERAUSFORDERUNG: ${targetText}`);
+      el.classList.remove('inactive');
+      el.removeAttribute('role');
+      el.removeAttribute('title');
+    } else {
+      write(el, `HERAUSFORDERUNG (${seedLabel}) PAUSIERT — Klick für Seed ${seedLabel}`);
+      el.classList.add('inactive');
+      el.setAttribute('role', 'button');
+      el.setAttribute('title', `Zurück zu Challenge-Seed ${seedLabel}`);
+    }
     el.hidden = false;
   } else {
     el.hidden = true;
   }
 }
+
+get('challenge-banner')?.addEventListener('click', () => {
+  if (!activeChallenge?.seed || previewSeed === activeChallenge.seed) return;
+  previewSeed = activeChallenge.seed;
+  updateSeedBadge();
+  refreshTitlePreview();
+});
 
 function updateSeedBadge() {
   const input = get('seed-input');
@@ -67,9 +86,9 @@ function updateSeedBadge() {
     input.value = String(previewSeed);
   }
   syncDailyButton();
+  syncChallengeBanner();
 }
 updateSeedBadge();
-syncChallengeBanner();
 
 let tickerIdx = previewSeed % TITLE_TICKERS.length;
 function paintTitleTicker() {
@@ -113,6 +132,7 @@ get('seed-input')?.addEventListener('input', (event) => {
   if (parsed !== null) {
     previewSeed = parsed;
     syncDailyButton();
+    syncChallengeBanner();
     refreshTitlePreview();
   }
 });
@@ -379,11 +399,13 @@ function showLevelChoices({ isReroll = false } = {}) {
     run,
     (upgradeId) => {
       applyUpgrade(run, upgradeId);
-      if (String(upgradeId).startsWith('evo_')) {
-        const ev = { kind: 'evolve', x: run.player.x, z: run.player.z };
-        sound.play(ev, run.player);
-        pulseHaptic(ev);
-      }
+      const ev = {
+        kind: String(upgradeId).startsWith('evo_') ? 'evolve' : 'upgrade',
+        x: run.player.x,
+        z: run.player.z,
+      };
+      sound.play(ev, run.player);
+      pulseHaptic(ev);
       view.resize();
       view.draw(run, 0, true);
       hud.paint(run, view);
@@ -427,6 +449,7 @@ function showOverlay(kind) {
   if (kind !== 'caught') get('vignette')?.classList.remove('alert');
   if (liftScreen) liftScreen.hidden = true;
   get('hud').inert = true;
+  write(get('overlay-eyebrow'), kind === 'pause' ? 'SCHICHT PAUSIERT' : "IMBISS-BILANZ · '26");
   write(get('overlay-title'), details[0]);
   write(get('overlay-copy'), details[1]);
   write(get('overlay-action'), details[2]);
@@ -475,6 +498,9 @@ function showTitle() {
 
 get('lift-cashout')?.addEventListener('click', () => {
   finishRunCashOut(run);
+  const ev = { kind: 'escaped', x: run.player.x, z: run.player.z };
+  sound.play(ev, run.player);
+  pulseHaptic(ev);
   showOverlay('escaped');
 });
 

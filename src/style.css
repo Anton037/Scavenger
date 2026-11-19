@@ -285,6 +285,13 @@ h1, h2, h3, p { margin: 0; }
   font-weight: 700;
   line-height: 1.3;
 }
+.challenge-banner.inactive {
+  cursor: pointer;
+  border-color: rgba(162, 174, 206, 0.36);
+  background: rgba(16, 20, 36, 0.78);
+  color: var(--muted);
+}
+.challenge-banner.inactive:hover { border-color: var(--gold); color: var(--ivory); }
 .arcade-sub {
   color: var(--muted);
   font-size: .82rem;
@@ -674,6 +681,9 @@ kbd {
   transition: transform .1s ease, border-color .12s ease, opacity .12s ease;
 }
 .skill-slot.compact { width: 56px; height: 56px; }
+.skill-slot.compact[aria-pressed="false"] { border-color: rgba(115, 215, 255, 0.52); background: rgba(15, 27, 42, 0.88); }
+.skill-slot.compact[aria-pressed="false"] .slot-name,
+.skill-slot.compact[aria-pressed="false"] .ico-slot { color: var(--cyan); }
 .skill-slot.accent { border-color: rgba(255, 184, 77, 0.5); }
 .skill-slot.finisher-ready { border-color: #ffe082; box-shadow: 0 0 16px rgba(255, 184, 77, 0.45); background: rgba(58, 36, 14, 0.88); }
 .skill-slot.finisher-ready small { color: var(--gold); }
@@ -777,7 +787,7 @@ kbd {
 .chart-dot, .chart-lift, .chart-enemy, .chart-barrel { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
 .chart-lift { margin-left: .28rem; transform: rotate(45deg); border-radius: 0; background: var(--jade); }
 .chart-enemy { margin-left: .28rem; background: var(--crimson); }
-.chart-barrel { margin-left: .28rem; border-radius: 1px; background: #ff5744; }
+.chart-barrel { margin-left: .28rem; border-radius: 1px; background: #ff9436; }
 
 /* Overlays & Chef-Upgrade Auswahl */
 .overlay {

@@ -547,3 +547,34 @@ test('Unnamed challenge copy, biome oil/ice palettes, loadout jacketHex, and non
     );
   }
 });
+
+test('Crown regeneration pauses while Tom wears stolen crown, clears on Titan-Krone, and never stalls at 0s on floor', () => {
+  const run = newRun({ seed: 2026 });
+  run.player.helmet = false;
+  run.player.crownRegen = 0.01;
+  run.droppedHelmet = null;
+  run.enemies = [{
+    id: 1400, type: 'tom', elite: false, x: run.player.x + 6, z: run.player.z,
+    angle: 0, hp: 50, maxHp: 50, speed: 0, radius: 0.32, damage: 5,
+    dead: false, moving: false, stunned: 0, slowed: 0, exposed: 0, hitFlash: 0,
+    burning: 0, donerCd: 0, knockX: 0, knockZ: 0, knockTime: 0, lootBank: 0,
+    hasCrown: true, panicked: 0, stuffed: 0, coma: 0, burpCd: 0,
+    slideVx: 0, slideVz: 0, chargeState: 'none', chargeTimer: 0, chargeDir: { x: 0, z: 0 }, enraged: false, koTimer: 0,
+  }];
+  advance(run, {});
+  assert.equal(run.player.helmet, false, 'should not duplicate crown while Tom wears it');
+  assert.equal(run.enemies[0].hasCrown, true);
+
+  // Picking Titan-Krone restores Torge's crown and strips Tom's duplicate
+  applyUpgrade(run, 'crown');
+  assert.equal(run.player.helmet, true);
+  assert.equal(run.enemies[0].hasCrown, false);
+
+  // Floor-dropped crown restores cleanly when crownRegen hits 0
+  run.player.helmet = false;
+  run.player.crownRegen = 0.01;
+  run.droppedHelmet = { x: run.player.x + 8, z: run.player.z };
+  advance(run, {});
+  assert.equal(run.player.helmet, true);
+  assert.equal(run.droppedHelmet, null);
+});

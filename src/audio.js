@@ -319,6 +319,10 @@ export class Soundscape {
         this.tone(420, 680, 0.07, 0.11, 0, 0, 'triangle');
         this.rustle(1600, 1.4, 0.06, 0.07, 0);
         break;
+      case 'upgrade':
+        this.tone(587.3, 880, 0.1, 0.14, 0, 0, 'triangle');
+        this.tone(880, 1174.6, 0.16, 0.13, 0, 0.06, 'sine');
+        break;
       case 'caught':
         this.tone(126, 29, 0.93, 0.27, 0, 0, 'triangle');
         this.rustle(550, 0.85, 0.89, 0.14);

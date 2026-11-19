@@ -140,7 +140,10 @@ export const TITLE_TICKERS = [
   'Achtung: Schnorrer Tom zahlt „morgen über PayPal“ — glaub ihm kein Wort!',
   'Geheimtipp: Füttere Boss Hauke mit 3 Spezi-Granaten für sofortiges Fresskoma!',
   'Kombi-Tipp: Gold-Pfanne Lv 3 + Scharfe Soße = SCHELLEN-INFERNO ★',
+  'Neu in der Karte: Knobi Lv 3 + Titan-Krone = TZATZIKI-SUPERGAU ★ (heilt & panikt!)',
+  'Strom-Tipp: Blitz-Lampe Lv 3 + Espresso = STROBO-FLUTLICHT 9000 ★ (360° Stun!)',
   'Ordnungsamt-Warnung: Alle Antons ohne Gewerbe bitte unauffällig rennen!',
+  'Späti-Tipp: Grüner Ring an der Nord-Bude = Gratis-Spezi & +30 HP mit [E]!',
   'Pro-Tipp: Teile deinen Kassenbon nach der Schicht & fordere deine Kumpels heraus!',
 ];
 
@@ -743,6 +746,7 @@ export function applyUpgrade(run, upgradeId) {
         player.helmet = true;
         run.droppedHelmet = null;
         player.crownRegen = 0;
+        for (const e of run.enemies) e.hasCrown = false;
       }
     }
     run.mods.add(def.id);
@@ -2121,9 +2125,11 @@ export function advance(run, input = {}, dt = STEP) {
       player.comboTier = 0;
     }
   }
-  if (!player.helmet && player.crownRegen > 0) {
+  const crownStolen = run.enemies.some((e) => !e.dead && e.hasCrown);
+  if (!player.helmet && !crownStolen && player.crownRegen > 0) {
     player.crownRegen = Math.max(0, player.crownRegen - dt);
-    if (player.crownRegen === 0 && !run.droppedHelmet) {
+    if (player.crownRegen === 0) {
+      run.droppedHelmet = null;
       player.helmet = true;
       emitEvent(run, 'crown_pickup', player.x, player.z);
       bark(run, player.x, 1.65, player.z, 'KRONE BEREIT!', 'gold', 0.9);
