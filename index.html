@@ -1,270 +1,298 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#090a12">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Imbiss-Survival — Chef Torge Edition: Arena-Horde-Survival im Dead-Cells Pixel-Art Look mit Lost Anton, Schnorrer Tom & Boss Hauke!">
+  <meta name="theme-color" content="#05060b">
+  <meta name="description" content="Five Nights at Torge's — Überlebe 5 Nächte als Nachtwächter in Chef Torges Mitternachts-Imbiss gegen Chef Torge, Lost Anton, Schnorrer Tom & Erdbeben-Boss Hauke!">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Imbiss-Survival — Chef Torge Edition">
-  <meta property="og:description" content="Überlebe endlose Wellen aus Antons, Toms & Boss Hauke! Sammle Pfand-XP, entwickle Super-Waffen & knacke den Kassenbon deiner Kumpels.">
+  <meta property="og:title" content="FIVE NIGHTS AT TORGE'S — Mitternachts-Imbiss">
+  <meta property="og:description" content="Linke & rechte Stahltür, 10 CCTV-Kameras, knapper Notstrom & Boss Haukes Erdbeben-Sprint im West-Flur!">
   <meta property="og:image" content="https://anton037.github.io/Scavenger/gate.png">
   <meta name="twitter:card" content="summary">
-  <title>Imbiss-Survival — Chef Torge Edition</title>
-  <link rel="icon" type="image/png" href="/gate.png">
-  <link rel="apple-touch-icon" href="/gate.png">
-  <link rel="stylesheet" href="/src/style.css">
+  <title>FIVE NIGHTS AT TORGE'S</title>
+  <link rel="icon" type="image/png" href="./gate.png">
 </head>
 <body>
   <main id="app">
-    <canvas id="arena" aria-label="Die Imbiss-Arena" tabindex="-1"></canvas>
-    <div id="vignette" aria-hidden="true" hidden></div>
-    <div id="world-barks" class="world-barks" aria-hidden="true"></div>
+    <canvas id="stage" aria-label="Five Nights at Torge's 3D Ansicht"></canvas>
 
-    <section id="title-screen" class="screen" aria-labelledby="title">
-      <div class="title-topbar">
-        <div class="highscore-pill">
-          <span class="ico-slot gold" data-ico="crown"></span>
-          <span>REKORD</span>
-          <strong id="menu-best">W1 · 0</strong>
-          <span class="ico-slot gold" data-ico="bolt"></span>
-        </div>
-        <div class="title-top-actions">
-          <button id="daily-seed" class="btn-glass btn-daily" type="button" title="Tages-Schicht: Gleicher Arena-Seed für alle heute!" aria-pressed="false">
-            <span class="ico-slot gold" data-ico="calendar"></span>
-            <span>Heute</span>
-          </button>
-          <div class="seed-pill">
-            <span class="seed-hash" aria-hidden="true">#</span>
-            <input id="seed-input" type="number" min="1" max="999999" value="2026" inputmode="numeric" aria-label="Arena-Seed">
-            <button id="shuffle-seed" class="seed-btn" type="button" title="Neuen Zufalls-Seed würfeln" aria-label="Neuen Zufalls-Seed würfeln">↻</button>
-            <button id="copy-seed" class="seed-btn" type="button" title="Seed-Link kopieren" aria-label="Seed-Link kopieren"><span class="ico-slot" data-ico="link"></span></button>
-          </div>
-          <button id="title-audio" class="btn-glass" type="button" aria-pressed="true">Ton an</button>
-        </div>
-      </div>
+    <!-- Hallucination subliminal flash overlay -->
+    <div id="hallucination" class="hallucination" hidden aria-hidden="true">
+      <span id="hallucination-text">ES BIN ICH</span>
+    </div>
 
-      <div class="arcade-panel">
-        <span class="arcade-kicker">ARENA HORDE-SURVIVAL · CHEF TORGE '26</span>
-        <h1 id="title">IMBISS SURVIVAL</h1>
-        <p id="challenge-banner" class="challenge-banner" hidden></p>
-        <p class="arcade-sub">Überlebe endlose Wellen aus <strong>Antons, Toms &amp; Boss Hauke</strong>! Sammle Pfand-XP, entwickle <strong>Super-Waffen</strong> &amp; schlag deine Kumpels!</p>
-
-        <div id="loadout-picker" class="loadout-picker" role="radiogroup" aria-label="Chef-Klasse wählen">
-          <button class="loadout-btn active" type="button" data-loadout="classic" aria-pressed="true">
-            <b>Pfannen-Chef</b><small>Gold-Pfanne · Krone</small>
-          </button>
-          <button class="loadout-btn" type="button" data-loadout="runner" aria-pressed="false">
-            <b>Spieß-Kurier</b><small>Grillspieße · +16% Tempo</small>
-          </button>
-          <button class="loadout-btn" type="button" data-loadout="brawler" aria-pressed="false">
-            <b>Döner-Meister</b><small>Döner-Orbit · 125 HP</small>
-          </button>
-          <button class="loadout-btn" type="button" data-loadout="knobi_chef" aria-pressed="false">
-            <b>Knobi-Priester</b><small>Knobi-Aura · 4 Spezis</small>
-          </button>
+    <!-- TITLE SCREEN (Authentic FNAF 1 Layout!) -->
+    <section id="title-screen" class="screen title-screen" aria-labelledby="game-title">
+      <div class="title-scanlines" aria-hidden="true"></div>
+      <div class="title-col">
+        <div class="title-header">
+          <p class="title-kicker">CHEF TORGES MITTERNACHTS-IMBISS · '26</p>
+          <h1 id="game-title">FIVE<br>NIGHTS<br>AT<br>TORGE'S</h1>
+          <div id="title-stars" class="title-stars" aria-label="Freigeschaltete Sterne"></div>
         </div>
 
-        <button id="start" class="btn-start" type="button"><span>SCHICHT STARTEN</span><span class="btn-arrow" aria-hidden="true">▶</span></button>
-        <p id="title-ticker" class="title-ticker" aria-live="polite"></p>
+        <nav class="title-menu" aria-label="Hauptmenü">
+          <button id="btn-new-game" class="fnaf-menu-btn" type="button">
+            <span class="chev">&gt;&gt;</span><span>Neues Spiel</span><small>Nacht 1</small>
+          </button>
+          <button id="btn-continue" class="fnaf-menu-btn" type="button">
+            <span class="chev">&gt;&gt;</span><span>Weiter</span><small id="continue-night-label">Nacht 1</small>
+          </button>
+          <button id="btn-night6" class="fnaf-menu-btn" type="button">
+            <span class="chev">&gt;&gt;</span><span>6. Nacht</span><small>Überstunden</small>
+          </button>
+          <button id="btn-custom" class="fnaf-menu-btn" type="button">
+            <span class="chev">&gt;&gt;</span><span>Custom Night</span><small>KI 0–20</small>
+          </button>
+        </nav>
+
+        <div class="title-footer">
+          <button id="title-audio" class="btn-crt" type="button" aria-pressed="true">Ton: AN</button>
+          <span class="title-hint">PC: Maus/A-D Schauen · Q/W &amp; E/R Türen/Licht · Space Kameras</span>
+          <span class="title-hint-touch">Handy: Wischen zum Umschauen · Buttons links/rechts · Unten Kameras</span>
+        </div>
         <p id="launch-error" class="launch-error" role="status" hidden></p>
       </div>
-
-      <div class="title-controls" aria-label="Steuerung">
-        <span><kbd>WASD</kbd> Kiten (Auto-Feuer)</span>
-        <span><kbd>Maus</kbd> Lichtkegel</span>
-        <span><kbd>L-Klick</kbd>/<kbd>C</kbd> Power-Schelle</span>
-        <span><kbd>R-Klick</kbd>/<kbd>Space</kbd> Dash</span>
-        <span><kbd>Q</kbd> Blend/Tempo</span>
-        <span><kbd>F</kbd> Spezi-Granate</span>
-      </div>
-      <p class="title-touch">Links Stick zum Ausweichen (Auto-Waffen feuern von selbst!) · Rechts Power-Schelle, Dash &amp; Spezi-Granate</p>
     </section>
 
-    <section id="hud" aria-label="Spiel-HUD" hidden>
+    <!-- CUSTOM NIGHT SCREEN (0-20 AI Sliders + 1-9-8-7 Easter Egg!) -->
+    <section id="custom-screen" class="screen modal-screen" aria-labelledby="custom-title" hidden>
+      <div class="crt-card custom-card">
+        <div class="crt-head">
+          <div>
+            <p class="title-kicker">NACHT 7 · INDIVIDUELLE KI</p>
+            <h2 id="custom-title">CUSTOM NIGHT</h2>
+          </div>
+          <button id="custom-back" class="btn-crt" type="button">Zurück</button>
+        </div>
+
+        <div id="custom-grid" class="custom-grid">
+          <div class="ai-card" data-char="torge">
+            <div class="ai-badge badge-torge">TORGE</div>
+            <b>Chef Torge</b>
+            <small>Der Hausherr (Ost)</small>
+            <div class="ai-stepper">
+              <button class="step-btn" type="button" data-step="-1" aria-label="Torge KI verringern">◀</button>
+              <span class="ai-val" id="ai-torge">5</span>
+              <button class="step-btn" type="button" data-step="1" aria-label="Torge KI erhöhen">▶</button>
+            </div>
+          </div>
+          <div class="ai-card" data-char="anton">
+            <div class="ai-badge badge-anton">ANTON</div>
+            <b>Lost Anton</b>
+            <small>Linke Tür</small>
+            <div class="ai-stepper">
+              <button class="step-btn" type="button" data-step="-1" aria-label="Anton KI verringern">◀</button>
+              <span class="ai-val" id="ai-anton">5</span>
+              <button class="step-btn" type="button" data-step="1" aria-label="Anton KI erhöhen">▶</button>
+            </div>
+          </div>
+          <div class="ai-card" data-char="tom">
+            <div class="ai-badge badge-tom">TOM</div>
+            <b>Schnorrer Tom</b>
+            <small>Rechte Tür &amp; Küche</small>
+            <div class="ai-stepper">
+              <button class="step-btn" type="button" data-step="-1" aria-label="Tom KI verringern">◀</button>
+              <span class="ai-val" id="ai-tom">5</span>
+              <button class="step-btn" type="button" data-step="1" aria-label="Tom KI erhöhen">▶</button>
+            </div>
+          </div>
+          <div class="ai-card" data-char="hauke">
+            <div class="ai-badge badge-hauke">HAUKE</div>
+            <b>Boss Hauke</b>
+            <small>Erdbeben-Sprint (1C)</small>
+            <div class="ai-stepper">
+              <button class="step-btn" type="button" data-step="-1" aria-label="Hauke KI verringern">◀</button>
+              <span class="ai-val" id="ai-hauke">5</span>
+              <button class="step-btn" type="button" data-step="1" aria-label="Hauke KI erhöhen">▶</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="custom-presets" class="preset-row"></div>
+        <div class="custom-actions">
+          <button id="custom-start" class="btn-crt primary" type="button">SCHICHT STARTEN ▶</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- NIGHT INTRO CARD (12:00 AM · NACHT X) -->
+    <section id="intro-screen" class="screen intro-screen" aria-live="polite" hidden>
+      <div class="intro-box">
+        <div class="intro-time">12:00 AM</div>
+        <h2 id="intro-night">NACHT 1</h2>
+        <p id="intro-sub">Probewache — Mitternachts-Imbiss</p>
+      </div>
+    </section>
+
+    <!-- IN-GAME HUD (Office + CCTV Monitor) -->
+    <section id="hud" class="hud" aria-label="Sicherheitsbüro HUD" hidden>
+      <!-- Top Bar: Phone Call Mute + Clock & Night -->
       <div class="hud-top">
-        <div class="zone-panel survival-panel">
-          <div class="zone-row">
-            <span id="floor-badge" class="floor-pill">W1</span>
-            <h2 id="location">00:00</h2>
-            <span id="crown-badge" class="crown-badge on"><span class="ico-slot" data-ico="crown"></span><span id="crown-label">Schild</span></span>
-          </div>
-          <div class="hp-xp-bars">
-            <div class="stat-bar hp-bar" aria-label="Lebenspunkte">
-              <div id="hp-fill" class="stat-bar-fill hp-fill"></div>
-              <span id="hp-text" class="stat-bar-text">100 / 100 HP</span>
-            </div>
-            <div class="stat-bar xp-bar" aria-label="Level und Erfahrung">
-              <div id="xp-fill" class="stat-bar-fill xp-fill"></div>
-              <span id="xp-text" class="stat-bar-text">LV 1 · 0%</span>
-            </div>
-          </div>
-          <div class="zone-meta">
-            <span id="mutator-pill" class="mutator-pill" hidden></span>
-            <span id="challenge-pill" class="challenge-pill" hidden></span>
-            <div id="active-mods" class="active-mods" aria-label="Aktive Waffen und Upgrades"></div>
-          </div>
+        <div class="hud-top-left">
+          <button id="btn-pause" class="btn-crt small" type="button" title="Pause (Esc)">❚❚</button>
+          <button id="btn-mute-call" class="btn-crt small" type="button" hidden>Anruf stumm <span class="kbd-hint">(M)</span></button>
+          <span id="quake-alert" class="quake-alert" hidden>⚠ ERDBEBEN IM WEST-FLUR!</span>
         </div>
 
-        <div id="boss-bar" class="boss-gauge">
-          <div class="boss-head">
-            <span id="boss-name"><span class="ico-slot red" data-ico="skull"></span> WELLE 1</span>
-            <span id="boss-status">00:30</span>
-          </div>
-          <div class="boss-track"><div id="boss-bar-fill" class="boss-fill"></div></div>
-        </div>
-
-        <div class="hud-right">
-          <div class="aura-chip" aria-label="Kills und Aura">
-            <span id="pfand-counter">0 ⚡</span>
-            <span class="ico-slot gold" data-ico="bolt"></span>
-          </div>
-          <div class="count-chip" aria-label="Besiegte Gegner">
-            <span id="record-counter">0 KILLS</span>
-          </div>
-          <button id="chart-toggle" class="btn-glass" type="button" aria-controls="chart" aria-expanded="false" title="Arena-Radar (M)">Radar</button>
-          <button id="pause" class="btn-glass pause" type="button" aria-label="Pause" title="Pause (Escape)"><span aria-hidden="true"></span></button>
+        <div class="clock-box">
+          <div id="clock-hour" class="clock-hour">12 AM</div>
+          <div id="clock-night" class="clock-night">Nacht 1</div>
         </div>
       </div>
 
-      <div class="notice-area" aria-live="polite">
-        <p id="notice" class="notice" hidden></p>
+      <!-- Phone Guy Radio Transcript -->
+      <div id="call-box" class="call-box" hidden aria-live="polite">
+        <span class="call-tag">☎ ANRUFBEANTWORTER</span>
+        <p id="call-text"></p>
       </div>
 
-      <aside id="chart" class="chart" aria-labelledby="chart-title" hidden>
-        <div class="chart-head">
-          <h3 id="chart-title">Arena-Radar</h3>
-          <div class="chart-head-right">
-            <span id="chart-seed" class="chart-seed">#2026</span>
-            <button id="chart-close" class="chart-close" type="button" aria-label="Radar schließen">✕</button>
-          </div>
-        </div>
-        <canvas id="chart-map" width="312" height="280" aria-label="Arena-Übersicht mit Torge, Fässern, Truhen und Boss Hauke"></canvas>
-        <p>
-          <span class="chart-dot" aria-hidden="true"></span> Beute
-          <span class="chart-lift" aria-hidden="true"></span> Späti
-          <span class="chart-enemy" aria-hidden="true"></span> Gegner
-          <span class="chart-barrel" aria-hidden="true"></span> Fass
-        </p>
-      </aside>
-
-      <div class="message-area" aria-live="polite">
-        <button id="interact" class="interact" type="button" hidden><kbd id="interact-key">E</kbd><span id="interact-label"></span></button>
-      </div>
-
-      <div class="hud-bottom">
-        <div class="meters" title="Lichtmodus (Q) & aktueller Gegner-Andrang in der Arena">
-          <div class="meter-line">
-            <span id="noise-label">+30% DMG</span>
-            <span id="lamp-state" class="lamp-pill on"><span class="ico-slot" data-ico="lamp"></span><span id="lamp-label">LICHT</span></span>
-          </div>
-          <div class="meter-crowd">
-            <span id="crowd-label" class="meter-sub">ANDRANG</span>
-            <div id="noise-meter" class="noise-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-          </div>
-        </div>
-
-        <div class="skill-rack">
-          <button id="slot-lamp" class="skill-slot compact" type="button" title="Licht / Schatten-Tempo (Q)">
+      <!-- Office Controls (Hidden when CCTV Monitor is open or Power Outage) -->
+      <div id="office-controls" class="office-controls">
+        <!-- Left Door & Light Steel Panel -->
+        <div class="door-panel left">
+          <button id="btn-left-door" class="steel-btn door-btn" type="button" aria-pressed="false" title="Linke Stahltür (Q)">
+            <span class="steel-led"></span>
+            <b>TÜR</b>
             <kbd>Q</kbd>
-            <span class="ico-slot" data-ico="lamp"></span>
-            <span class="slot-name">LICHT</span>
           </button>
-          <button id="slot-lure" class="skill-slot compact" type="button" title="Spezi-Granate werfen (F)">
-            <kbd>F</kbd>
-            <span class="ico-slot" data-ico="spezi"></span>
-            <span class="slot-name">SPEZI</span>
-            <em id="clapper-count">3</em>
+          <button id="btn-left-light" class="steel-btn light-btn" type="button" aria-pressed="false" title="Linkes Flurlicht (W)">
+            <span class="steel-led"></span>
+            <b>LICHT</b>
+            <kbd>W</kbd>
           </button>
-          <button id="orb-bonk" class="skill-slot accent" type="button" title="Power-Schelle (Linksklick / C)">
-            <div class="slot-fill" id="bonk-fill"></div>
-            <kbd>C · LMB</kbd>
-            <span class="ico-slot gold" data-ico="pan"></span>
-            <span class="slot-name">SCHELLE</span>
-            <small id="bonk-state">BEREIT</small>
+        </div>
+
+        <!-- Subtle Touch/Quick Pan Buttons -->
+        <div class="look-arrows" aria-label="Im Büro umschauen">
+          <button id="look-left" class="look-arrow" type="button" aria-label="Nach links schauen">◀</button>
+          <button id="look-right" class="look-arrow" type="button" aria-label="Nach rechts schauen">▶</button>
+        </div>
+
+        <!-- Right Door & Light Steel Panel -->
+        <div class="door-panel right">
+          <button id="btn-right-door" class="steel-btn door-btn" type="button" aria-pressed="false" title="Rechte Stahltür (E)">
+            <span class="steel-led"></span>
+            <b>TÜR</b>
+            <kbd>E</kbd>
           </button>
-          <button id="orb-dash" class="skill-slot primary-slot" type="button" title="Dash (Rechtsklick / Space)">
-            <div class="slot-fill" id="dash-fill"></div>
-            <kbd>␣ · RMB</kbd>
-            <span class="ico-slot cyan" data-ico="dash"></span>
-            <span class="slot-name">DASH</span>
-            <small id="dash-state">BEREIT</small>
+          <button id="btn-right-light" class="steel-btn light-btn" type="button" aria-pressed="false" title="Rechtes Flurlicht (R)">
+            <span class="steel-led"></span>
+            <b>LICHT</b>
+            <kbd>R</kbd>
           </button>
         </div>
       </div>
 
-      <div id="touch-ui" aria-label="Touch-Steuerung">
-        <div id="stick-zone" class="stick-zone">
-          <div id="stick" class="stick" role="img" aria-label="Bewegungs-Stick"><span id="stick-thumb"></span></div>
+      <!-- CCTV MONITOR OVERLAY (Visible only when Monitor is UP) -->
+      <div id="cctv-overlay" class="cctv-overlay" hidden>
+        <div class="cctv-frame" aria-hidden="true"></div>
+        <div class="cctv-rec">
+          <span class="rec-dot"></span>
+          <span>LIVE</span>
         </div>
-        <div class="touch-actions">
-          <button id="touch-use" class="touch-btn touch-use" type="button" disabled>
-            <span class="ico-slot" data-ico="bolt"></span>
-            <span id="touch-use-label" class="touch-label">Späti</span>
-          </button>
-          <div class="touch-utility-row">
-            <button id="touch-shutter" class="touch-btn touch-util" type="button" aria-pressed="true" aria-label="Lichtmodus">
-              <span class="ico-slot" data-ico="lamp"></span>
-              <span id="touch-shutter-label" class="touch-sub">Licht</span>
-            </button>
-            <button id="touch-lure" class="touch-btn touch-util" type="button" aria-label="Spezi-Granate werfen">
-              <span class="ico-slot" data-ico="spezi"></span>
-              <span class="touch-sub">Spezi</span>
-              <em id="touch-lure-count">3</em>
-            </button>
+
+        <div id="cctv-audio-only" class="cctv-center-msg" hidden>
+          <b>— KAMERA DEFEKT —</b>
+          <span>NUR AUDIO VERFÜGBAR (KÜCHE)</span>
+        </div>
+        <div id="cctv-disrupt" class="cctv-center-msg" hidden>
+          <b>SIGNAL UNTERBROCHEN</b>
+          <span>BEWEGUNG IM SEKTOR ERKANNT</span>
+        </div>
+
+        <div class="cctv-map-wrap">
+          <div id="cctv-room-label" class="cctv-room-label">CAM 1A — Döner-Bühne</div>
+          <div id="cctv-map" class="cctv-map" aria-label="Überwachungskamera-Grundriss">
+            <!-- Architectural FNAF 1 Imbiss Floorplan SVG -->
+            <svg class="map-svg" viewBox="0 0 100 100" aria-hidden="true">
+              <!-- Show Stage 1A -->
+              <rect x="28" y="4" width="28" height="14" />
+              <!-- Dining Area 1B -->
+              <rect x="20" y="18" width="46" height="34" />
+              <!-- Backstage 5 -->
+              <rect x="4" y="20" width="16" height="18" />
+              <!-- Buffet Cove 1C -->
+              <rect x="10" y="40" width="16" height="16" />
+              <!-- Kitchen 6 -->
+              <rect x="68" y="46" width="26" height="28" />
+              <!-- Supply Closet 3 -->
+              <rect x="8" y="62" width="14" height="16" />
+              <!-- West Hall 2A & 2B -->
+              <rect x="24" y="54" width="14" height="36" />
+              <!-- East Hall 4A & 4B -->
+              <rect x="50" y="54" width="14" height="36" />
+              <!-- Security Office (YOU) -->
+              <rect x="38" y="76" width="12" height="14" class="office-room" />
+              <!-- Connectors -->
+              <line x1="38" y1="84" x2="38" y2="88" />
+              <line x1="50" y1="84" x2="50" y2="88" />
+            </svg>
+            <div class="map-you">DU</div>
+            <div id="cam-buttons" class="cam-buttons"></div>
           </div>
-          <div class="touch-combat-row">
-            <button id="touch-dash" class="touch-btn touch-pad touch-dash" type="button" aria-label="Dash">
-              <div class="slot-fill" id="touch-dash-fill"></div>
-              <span class="ico-slot cyan" data-ico="dash"></span>
-              <span id="touch-dash-label" class="touch-sub">DASH</span>
-            </button>
-            <button id="touch-bonk" class="touch-btn touch-pad touch-bonk" type="button" aria-label="Power-Schelle">
-              <div class="slot-fill" id="touch-bonk-fill"></div>
-              <span class="ico-slot gold" data-ico="pan"></span>
-              <span id="touch-bonk-label" class="touch-sub">SCHELLE</span>
-            </button>
+        </div>
+      </div>
+
+      <!-- Bottom Bar: Battery & Usage + Classic FNAF Monitor Flip Bar -->
+      <div class="hud-bottom">
+        <div id="power-box" class="power-box">
+          <div class="power-row">Strom: <strong id="power-pct">100%</strong></div>
+          <div class="usage-row">
+            <span>Verbrauch:</span>
+            <div id="usage-bars" class="usage-bars" aria-label="Stromverbrauch">
+              <i></i><i></i><i></i><i></i><i></i>
+            </div>
           </div>
+        </div>
+
+        <button id="btn-monitor" class="monitor-bar" type="button" aria-pressed="false" title="Überwachungskameras (Space)">
+          <span class="mon-chev">▲</span>
+          <span id="monitor-label">KAMERAS</span>
+          <span class="mon-chev">▲</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- PAUSE OVERLAY -->
+    <section id="pause-screen" class="screen modal-screen" aria-labelledby="pause-title" hidden>
+      <div class="crt-card small-card">
+        <p class="title-kicker">SCHICHT PAUSIERT</p>
+        <h2 id="pause-title">PAUSE</h2>
+        <p id="pause-meta" class="modal-copy">Nacht 1 · 12 AM · Strom 100%</p>
+        <div class="modal-actions">
+          <button id="pause-resume" class="btn-crt primary" type="button">Weitermachen</button>
+          <button id="pause-audio" class="btn-crt" type="button">Ton: AN</button>
+          <button id="pause-menu" class="btn-crt" type="button">Hauptmenü</button>
         </div>
       </div>
     </section>
 
-    <section id="lift-screen" class="screen overlay" aria-labelledby="lift-title" tabindex="-1" hidden>
-      <div class="overlay-card lift-panel">
-        <p id="lift-eyebrow" class="arcade-kicker">LEVEL UP! · STUFE 2</p>
-        <h2 id="lift-title">Chef-Upgrade wählen</h2>
-        <p id="lift-copy" class="lift-preview"></p>
-        <div id="mod-list" class="mod-list"></div>
-        <div class="lift-footer">
-          <button id="lift-reroll" class="btn-glass btn-reroll" type="button">
-            <span class="ico-slot gold" data-ico="dice"></span>
-            <span id="lift-reroll-label">Neu würfeln (2)</span>
-            <kbd class="mod-kbd">R</kbd>
-          </button>
-          <button id="lift-cashout" class="btn-glass" type="button">Schicht beenden &amp; Score sichern</button>
+    <!-- 6:00 AM WIN SCREEN -->
+    <section id="win-screen" class="screen win-screen" aria-labelledby="win-clock" hidden>
+      <div class="win-box">
+        <div id="win-clock" class="win-clock">6:00 AM</div>
+        <p id="win-sub" class="win-sub">SCHICHT ÜBERLEBT!</p>
+        <p id="win-stats" class="win-stats"></p>
+        <div class="modal-actions">
+          <button id="win-next" class="btn-crt primary" type="button">Nächste Nacht ▶</button>
+          <button id="win-menu" class="btn-crt" type="button">Hauptmenü</button>
         </div>
       </div>
     </section>
 
-    <section id="overlay" class="screen overlay" aria-labelledby="overlay-title" tabindex="-1" hidden>
-      <div class="overlay-card">
-        <p id="overlay-eyebrow" class="arcade-kicker">IMBISS-BILANZ · '26</p>
-        <h2 id="overlay-title">Pause</h2>
-        <p id="overlay-copy"></p>
-        <div id="overlay-mods" class="overlay-mods" hidden></div>
-        <div id="overlay-receipt" class="receipt" hidden></div>
-        <button id="overlay-primary" class="btn-start" type="button"><span id="overlay-action">Weitermachen</span><span class="btn-arrow" aria-hidden="true">▶</span></button>
-        <div class="overlay-secondary">
-          <button id="overlay-share" class="btn-glass btn-share" type="button" hidden>
-            <span class="ico-slot gold" data-ico="share"></span>
-            <span id="overlay-share-label">Kassenbon teilen</span>
-          </button>
-          <button id="overlay-same-seed" class="btn-glass" type="button" hidden>Gleicher Seed</button>
-          <button id="menu" class="btn-glass" type="button">Hauptmenü</button>
-          <button id="pause-audio" class="btn-glass" type="button" aria-pressed="true">Ton an</button>
+    <!-- GAME OVER STATIC SCREEN -->
+    <section id="gameover-screen" class="screen gameover-screen" aria-labelledby="gameover-title" hidden>
+      <div class="gameover-static" aria-hidden="true"></div>
+      <div class="crt-card small-card">
+        <p id="gameover-kicker" class="title-kicker red">VERBINDUNG ABGEBROCHEN</p>
+        <h2 id="gameover-title">GAME OVER</h2>
+        <p id="gameover-line" class="modal-copy"></p>
+        <p id="gameover-meta" class="gameover-meta"></p>
+        <div class="modal-actions">
+          <button id="gameover-retry" class="btn-crt primary" type="button">Nochmal versuchen</button>
+          <button id="gameover-menu" class="btn-crt" type="button">Hauptmenü</button>
         </div>
       </div>
     </section>

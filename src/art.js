@@ -4,7 +4,6 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 export const TAU = Math.PI * 2;
 export const color = (hex) => new THREE.Color(hex);
 
-// Dead-Cells-inspiriertes High-Contrast Dungeon- & Neon-Farbschema
 export const PALETTE = {
   ink: 0x0b0c14,
   slate: 0x1f2438,
@@ -15,9 +14,12 @@ export const PALETTE = {
   glacier: 0x73d7ff,
   lavender: 0xb85cff,
   vermilion: 0xff3b56,
+  pink: 0xf2b5c6,
+  khaki: 0xd9c79e,
+  neonLime: 0xc8e838,
 };
 
-export const material = (hex, roughness = 0.52, metalness = 0.14) => (
+export const material = (hex, roughness = 0.56, metalness = 0.12) => (
   new THREE.MeshStandardMaterial({
     color: hex,
     roughness,
@@ -27,7 +29,7 @@ export const material = (hex, roughness = 0.52, metalness = 0.14) => (
 );
 
 export const brassMaterial = (hex = PALETTE.brass) => (
-  new THREE.MeshStandardMaterial({ color: hex, roughness: 0.32, metalness: 0.74, flatShading: true })
+  new THREE.MeshStandardMaterial({ color: hex, roughness: 0.34, metalness: 0.72, flatShading: true })
 );
 
 export const emissive = (hex) => new THREE.MeshBasicMaterial({ color: hex });
@@ -36,7 +38,7 @@ export const round = new THREE.CylinderGeometry(1, 1, 1, 12);
 export const tapered = new THREE.CylinderGeometry(0.76, 1, 1, 12);
 export const orb = new THREE.SphereGeometry(1, 14, 10);
 export const octa = new THREE.OctahedronGeometry(1, 0);
-export const hoop = new THREE.TorusGeometry(1, 0.04, 6, 24);
+export const hoop = new THREE.TorusGeometry(1, 0.045, 6, 22);
 
 export function randomFrom(seed) {
   return () => {
@@ -61,65 +63,6 @@ export function band(parent, finish, x, y, z, radius) {
   return ring;
 }
 
-export function studioEnv() {
-  return null;
-}
-
-// Knackige 64x64 Pixel-Art Dungeon-Fliesen & Ziegel-Textur (NearestFilter wie in Dead Cells)
-export function surfaceTexture() {
-  const size = 64;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  const random = randomFrom(1337);
-
-  ctx.fillStyle = '#aebcd9';
-  ctx.fillRect(0, 0, size, size);
-
-  const shades = ['#9aaac9', '#c1ceeb', '#8898b8', '#d2def7', '#7b8aa8'];
-  for (let y = 0; y < size; y += 2) {
-    for (let x = 0; x < size; x += 2) {
-      if (random() < 0.56) {
-        ctx.fillStyle = shades[Math.floor(random() * shades.length)];
-        ctx.fillRect(x, y, 2, 2);
-      }
-    }
-  }
-
-  // Klare Pixel-Fugen
-  ctx.fillStyle = '#333b52';
-  ctx.fillRect(0, 0, size, 3);
-  ctx.fillRect(0, 0, 3, size);
-  ctx.fillRect(0, 31, size, 2);
-  ctx.fillRect(31, 0, 2, 32);
-  ctx.fillRect(15, 32, 2, 32);
-
-  // Helle Pixel-Kanten-Highlights (oben/links an jedem Steinblock)
-  ctx.fillStyle = '#ebf1ff';
-  ctx.fillRect(3, 3, 27, 1);
-  ctx.fillRect(3, 3, 1, 27);
-  ctx.fillRect(33, 3, 29, 1);
-  ctx.fillRect(3, 33, 11, 1);
-  ctx.fillRect(17, 33, 44, 1);
-
-  // Leuchtende Nachtmarkt-Akzentpixel in den Fugen
-  ctx.fillStyle = '#38f2af';
-  for (let i = 0; i < 6; i++) {
-    const px = Math.floor(random() * 30) * 2;
-    const py = random() > 0.5 ? 2 : 30;
-    ctx.fillRect(px, py, 2, 1);
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.NearestFilter;
-  texture.generateMipmaps = false;
-  return texture;
-}
-
 export function batchScenery(scene, group) {
   const layers = new Map();
   group.updateMatrixWorld(true);
@@ -141,18 +84,191 @@ export function batchScenery(scene, group) {
   }
 }
 
-function stunStars(parent, height = 1.65) {
-  const crown = new THREE.Group();
-  crown.position.set(0, height, 0);
-  crown.visible = false;
-  const gold = emissive(PALETTE.brass);
-  const red = emissive(PALETTE.vermilion);
-  for (let i = 0; i < 4; i++) {
-    const a = (i * TAU) / 4;
-    piece(crown, octa, i % 2 === 0 ? gold : red, Math.cos(a) * 0.42, 0, Math.sin(a) * 0.42, 0.09, 0.09, 0.09).rotation.set(0.4, a, 0.4);
+function makePixelTexture(size, drawFn) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  drawFn(ctx, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.generateMipmaps = false;
+  return texture;
+}
+
+export function checkerFloorTexture() {
+  return makePixelTexture(64, (ctx, size) => {
+    const rng = randomFrom(404);
+    const tile = 16;
+    for (let y = 0; y < size; y += tile) {
+      for (let x = 0; x < size; x += tile) {
+        const dark = ((x / tile) + (y / tile)) % 2 === 0;
+        ctx.fillStyle = dark ? '#161926' : '#8d96ad';
+        ctx.fillRect(x, y, tile, tile);
+        ctx.fillStyle = dark ? '#0d0f18' : '#747d94';
+        ctx.fillRect(x, y, tile, 1);
+        ctx.fillRect(x, y, 1, tile);
+      }
+    }
+    // Grime & grease flecks
+    for (let i = 0; i < 90; i++) {
+      ctx.fillStyle = rng() > 0.5 ? 'rgba(8,10,16,0.34)' : 'rgba(180,145,80,0.16)';
+      ctx.fillRect(Math.floor(rng() * size), Math.floor(rng() * size), 2, 2);
+    }
+  });
+}
+
+export function wallPanelTexture() {
+  return makePixelTexture(64, (ctx, size) => {
+    const rng = randomFrom(808);
+    ctx.fillStyle = '#252a3a';
+    ctx.fillRect(0, 0, size, size);
+    // Vertical corrugated shed / tiled kitchen stripes
+    for (let x = 0; x < size; x += 8) {
+      ctx.fillStyle = '#1b1f2d';
+      ctx.fillRect(x, 0, 2, size);
+      ctx.fillStyle = '#30374c';
+      ctx.fillRect(x + 2, 0, 1, size);
+    }
+    // FNAF-style checkered wall stripe across center
+    const bandY = 32;
+    for (let x = 0; x < size; x += 8) {
+      const alt = (x / 8) % 2 === 0;
+      ctx.fillStyle = alt ? '#e4dfd2' : '#10121b';
+      ctx.fillRect(x, bandY, 8, 5);
+      ctx.fillStyle = alt ? '#10121b' : '#b82538';
+      ctx.fillRect(x, bandY + 5, 8, 5);
+    }
+    for (let i = 0; i < 65; i++) {
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.fillRect(Math.floor(rng() * size), Math.floor(rng() * size), 2, 3);
+    }
+  });
+}
+
+export function posterTexture(isGolden = false) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 96;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  if (isGolden) {
+    ctx.fillStyle = '#140c06';
+    ctx.fillRect(0, 0, 96, 128);
+    ctx.strokeStyle = '#ffcf4d';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(4, 4, 88, 120);
+    // Creepy golden duck silhouette with hollow black sockets
+    ctx.fillStyle = '#ffda38';
+    ctx.fillRect(24, 34, 48, 42);
+    ctx.fillRect(18, 44, 60, 24);
+    ctx.fillStyle = '#ff6d1f';
+    ctx.fillRect(34, 62, 28, 12);
+    ctx.fillStyle = '#07070b';
+    ctx.fillRect(30, 44, 12, 12);
+    ctx.fillRect(54, 44, 12, 12);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(35, 49, 2, 2);
+    ctx.fillRect(59, 49, 2, 2);
+    ctx.fillStyle = '#ff3b56';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('ES BIN ICH', 48, 102);
+    ctx.fillText('QUAAAK', 48, 116);
+  } else {
+    ctx.fillStyle = '#181c2e';
+    ctx.fillRect(0, 0, 96, 128);
+    ctx.strokeStyle = '#ffb84d';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(4, 4, 88, 120);
+    // Header
+    ctx.fillStyle = '#ff3b56';
+    ctx.fillRect(8, 8, 80, 18);
+    ctx.fillStyle = '#fff5dc';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('FEIERABEND!', 48, 21);
+    // Stylized Chef Torge portrait + crown + clickable honk nose/duck!
+    ctx.fillStyle = '#ffb84d';
+    ctx.fillRect(34, 30, 28, 8);
+    ctx.fillRect(36, 26, 4, 4);
+    ctx.fillRect(46, 25, 4, 5);
+    ctx.fillRect(56, 26, 4, 4);
+    // Dark green cap + dark curly hair
+    ctx.fillStyle = '#184735';
+    ctx.fillRect(30, 38, 36, 10);
+    ctx.fillStyle = '#1f1822';
+    ctx.fillRect(28, 46, 40, 8);
+    // Face
+    ctx.fillStyle = '#f0d8c0';
+    ctx.fillRect(32, 52, 32, 28);
+    // Eyes
+    ctx.fillStyle = '#111420';
+    ctx.fillRect(38, 59, 6, 5);
+    ctx.fillRect(52, 59, 6, 5);
+    ctx.fillStyle = '#73d7ff';
+    ctx.fillRect(40, 61, 2, 2);
+    ctx.fillRect(54, 61, 2, 2);
+    // Honk nose
+    ctx.fillStyle = '#ff6b4a';
+    ctx.fillRect(45, 65, 6, 5);
+    // Smile
+    ctx.fillStyle = '#331c24';
+    ctx.fillRect(40, 73, 16, 3);
+    // White tee + red chef jacket
+    ctx.fillStyle = '#d9383a';
+    ctx.fillRect(22, 80, 52, 26);
+    ctx.fillStyle = '#f2f5ff';
+    ctx.fillRect(36, 80, 24, 26);
+    // Footer
+    ctx.fillStyle = '#ffe082';
+    ctx.font = 'bold 9px monospace';
+    ctx.fillText("TORGE'S IMBISS", 48, 118);
   }
-  parent.add(crown);
-  return crown;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  return texture;
+}
+
+export function coveSignTexture(angry = false) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = angry ? '#2b0b12' : '#2a221c';
+  ctx.fillRect(0, 0, 128, 64);
+  ctx.strokeStyle = angry ? '#ff3b56' : '#ffb84d';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(4, 4, 120, 56);
+  ctx.fillStyle = angry ? '#ff3b56' : '#ffe49e';
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'center';
+  if (angry) {
+    ctx.fillText('ER HAT', 64, 28);
+    ctx.fillText('HUNGER!!', 64, 48);
+  } else {
+    ctx.fillText('AUSSER BETRIEB', 64, 28);
+    ctx.font = 'bold 11px monospace';
+    ctx.fillStyle = '#d8c5a0';
+    ctx.fillText('HAUKES FRESSPAUSE', 64, 46);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  return texture;
 }
 
 export function crownMesh(scale = 1) {
@@ -171,453 +287,375 @@ export function crownMesh(scale = 1) {
   return crown;
 }
 
-export function diver() {
-  // Chef Torge: Überlegener Boss mit roter Chef-Jacke, Goldkette, Pixel-Sonnenbrille, Krone & Bratpfannen-Schelle
+export function chefTorgeModel() {
+  // Chef Torge (Freddy): Dunkelgrüne Kappe + dunkle Locken + Goldene Chef-Krone, weißes Tee unter offener roter Imbiss-Jacke, Goldkette & Pfanne!
   const root = new THREE.Group();
-  const skin = material(PALETTE.ivory, 0.44, 0.06);
-  const hair = material(0x1f1924, 0.65, 0.05);
-  const chefJacket = material(0xd9383a, 0.38, 0.14);
-  const jacketTrim = material(0x1b2234, 0.5, 0.18);
-  const darkPants = material(0x171c2b, 0.52, 0.15);
-  const shades = emissive(PALETTE.glacier);
-  const frameMat = material(0x10131c, 0.4, 0.3);
+  const skin = material(0xf0d6be, 0.48, 0.05);
+  const darkCurlyHair = material(0x1f1920, 0.72, 0.04);
+  const forestCap = material(0x133d2e, 0.58, 0.08);
+  const whiteTee = material(0xeef2fa, 0.52, 0.04);
+  const chefJacket = material(0xb82430, 0.44, 0.12);
+  const darkPants = material(0x151926, 0.58, 0.12);
   const brass = brassMaterial(PALETTE.brass);
   const copper = brassMaterial(PALETTE.copper);
+  const socketMat = material(0x05060a, 0.9, 0);
+  const eyePin = emissive(0x88f4ff);
   const glow = emissive(0xffe082);
-  const whiteTrim = material(0xf4ebd9, 0.4, 0.1);
-
-  const body = new THREE.Group();
-  body.scale.set(1.16, 1.2, 1.16);
-  root.add(body);
-
-  // Muskulöser Torso & Jacken-Streifen
-  piece(body, tapered, darkPants, 0, 0.34, 0, 0.24, 0.34, 0.22);
-  piece(body, tapered, chefJacket, 0, 0.57, 0, 0.42, 0.42, 0.32);
-  piece(body, solid, jacketTrim, 0, 0.59, 0.17, 0.15, 0.38, 0.05);
-  // Goldkette um den Hals
-  const chain = band(body, brass, 0, 0.72, 0.03, 0.23);
-  chain.rotation.x = -Math.PI / 2 + 0.15;
-  piece(body, octa, glow, 0, 0.66, 0.24, 0.06, 0.06, 0.04);
-
-  // Kopf, Undercut-Haar & Pixel-Sonnenbrille
-  piece(body, orb, skin, 0, 0.91, 0, 0.24, 0.24, 0.24);
-  piece(body, orb, hair, 0, 0.97, -0.04, 0.24, 0.17, 0.23);
-  piece(body, solid, frameMat, 0, 0.93, 0.19, 0.34, 0.095, 0.08);
-  piece(body, solid, shades, -0.07, 0.93, 0.225, 0.11, 0.055, 0.03);
-  piece(body, solid, shades, 0.07, 0.93, 0.225, 0.11, 0.055, 0.03);
-
-  // Abnehmbare Goldene Chef-Krone
-  const helmet = crownMesh(1.0);
-  helmet.position.set(0, 1.1, 0);
-  body.add(helmet);
-
-  // Breite Schultern & kräftige Arme
-  for (const side of [-1, 1]) {
-    piece(body, orb, chefJacket, side * 0.36, 0.68, 0, 0.15, 0.16, 0.15);
-    piece(body, solid, brass, side * 0.36, 0.74, 0, 0.17, 0.04, 0.17);
-    piece(body, tapered, chefJacket, side * 0.39, 0.54, 0.04, 0.095, 0.18, 0.095);
-    piece(body, tapered, skin, side * 0.4, 0.42, 0.11, 0.08, 0.16, 0.08).rotation.x = 0.4;
-  }
-
-  // Animierte Beine & Sneaker
-  const legs = [-1, 1].map((side) => {
-    const leg = new THREE.Group();
-    leg.position.set(side * 0.135, 0.28, 0);
-    piece(leg, tapered, darkPants, 0, -0.09, 0, 0.095, 0.24, 0.095);
-    piece(leg, solid, whiteTrim, 0, -0.21, 0.04, 0.14, 0.09, 0.23);
-    piece(leg, solid, brass, 0, -0.24, 0.04, 0.145, 0.03, 0.235);
-    root.add(leg);
-    return leg;
-  });
-
-  // Taschenlampe in der rechten Hand
-  const lamp = new THREE.Group();
-  lamp.position.set(0.39, 0.41, 0.22);
-  body.add(lamp);
-  piece(lamp, round, jacketTrim, 0, 0, 0, 0.065, 0.2, 0.065).rotation.x = Math.PI / 2;
-  piece(lamp, round, brass, 0, 0, 0.1, 0.09, 0.09, 0.09).rotation.x = Math.PI / 2;
-  const bulb = piece(lamp, orb, glow, 0, 0, 0.14, 0.08, 0.08, 0.05);
-
-  // Goldene Chef-Pfanne / Megaklatscher in der linken Hand
-  const wrench = new THREE.Group();
-  wrench.position.set(-0.4, 0.43, 0.18);
-  body.add(wrench);
-  piece(wrench, round, copper, 0, 0.08, 0.16, 0.042, 0.46, 0.042).rotation.x = Math.PI / 2.2;
-  // Schwere Bratpfannen-/Schlagfläche aus Gold
-  piece(wrench, round, brass, 0, 0.16, 0.44, 0.23, 0.07, 0.23);
-  piece(wrench, round, jacketTrim, 0, 0.17, 0.44, 0.18, 0.08, 0.18);
-  piece(wrench, octa, glow, 0, 0.2, 0.44, 0.08, 0.06, 0.08);
-
-  return { root, body, bulb, legs, wrench, helmet, jacketMat: chefJacket };
-}
-
-export function dredged() {
-  // Anton: Extrem groß & dürr (Slenderman-Statur), Nadelstreifen-Kontrast & schwebendes Gelb-'?' wenn lost!
-  const root = new THREE.Group();
-  const darkSuit = material(0x28314a, 0.45, 0.18);
-  const pinstripe = material(0x6c7eb0, 0.42, 0.2);
-  const shirtMat = material(0xeef4ff, 0.38, 0.08);
-  const paleSkin = material(0xe6effa, 0.34, 0.08);
-  const tieMat = material(0xff2c4f, 0.32, 0.12);
-  const eyeGlow = emissive(0xff2644);
-  const goldMark = emissive(0xffd04d);
-  const voidMouth = material(0x07080d, 0.9, 0);
 
   const core = new THREE.Group();
+  core.scale.set(1.12, 1.15, 1.12);
   root.add(core);
 
-  // Ellenlange, animierbare Slenderman-Beine
-  const legs = [-1, 1].map((side) => {
-    const leg = new THREE.Group();
-    leg.position.set(side * 0.13, 0.96, 0);
-    piece(leg, tapered, darkSuit, 0, -0.45, 0, 0.068, 0.92, 0.068);
-    piece(leg, solid, pinstripe, 0, -0.45, 0.055, 0.025, 0.86, 0.02);
-    piece(leg, solid, darkSuit, 0, -0.92, 0.04, 0.08, 0.08, 0.18);
-    root.add(leg);
-    return leg;
-  });
+  // Beine
+  for (const side of [-1, 1]) {
+    piece(core, tapered, darkPants, side * 0.14, 0.34, 0, 0.1, 0.68, 0.1);
+    piece(core, solid, whiteTee, side * 0.14, 0.04, 0.05, 0.15, 0.09, 0.24);
+  }
 
-  // Extrem langer, dürrer Oberkörper mit hellem Hemd & roter Krawatte (gute Lesbarkeit im Dunkeln!)
-  piece(core, tapered, darkSuit, 0, 1.32, 0, 0.21, 0.88, 0.18);
-  piece(core, solid, shirtMat, 0, 1.56, 0.15, 0.12, 0.28, 0.04);
-  piece(core, solid, tieMat, 0, 1.34, 0.175, 0.055, 0.56, 0.03);
-  piece(core, solid, pinstripe, -0.11, 1.34, 0.14, 0.035, 0.72, 0.03);
-  piece(core, solid, pinstripe, 0.11, 1.34, 0.14, 0.035, 0.72, 0.03);
+  // Torso: Weißes T-Shirt in der Mitte + offene rote Chef-Jacke links/rechts + Goldkette
+  piece(core, tapered, whiteTee, 0, 0.96, 0, 0.34, 0.62, 0.25);
+  piece(core, solid, chefJacket, -0.18, 0.97, 0.02, 0.16, 0.6, 0.28);
+  piece(core, solid, chefJacket, 0.18, 0.97, 0.02, 0.16, 0.6, 0.28);
+  piece(core, solid, chefJacket, 0, 0.97, -0.09, 0.38, 0.6, 0.12);
+  const chain = band(core, brass, 0, 1.18, 0.04, 0.19);
+  chain.rotation.x = -Math.PI / 2 + 0.18;
+  piece(core, octa, glow, 0, 1.11, 0.22, 0.05, 0.05, 0.035);
 
-  // Schief gelegter, bleicher Slenderman-Kopf mit leerem Mund & irren roten Augen
-  const mask = new THREE.Group();
-  mask.position.set(0, 1.9, 0.06);
-  mask.rotation.z = 0.22;
-  core.add(mask);
-  piece(mask, orb, paleSkin, 0, 0, 0, 0.22, 0.3, 0.22);
-  piece(mask, orb, voidMouth, 0, -0.1, 0.18, 0.06, 0.075, 0.04);
+  // Kopf, lockiges dunkles Haar, dunkelgrüne Kappe + Goldene Krone obenauf
+  const head = new THREE.Group();
+  head.position.set(0, 1.48, 0.02);
+  core.add(head);
+  piece(head, orb, skin, 0, 0, 0, 0.23, 0.25, 0.23);
+  // Dunkle lockige Stirnfransen (wie im Referenzfoto!)
+  for (let i = -2; i <= 2; i++) {
+    piece(head, orb, darkCurlyHair, i * 0.075, 0.11, 0.17 - Math.abs(i) * 0.02, 0.068, 0.065, 0.068);
+  }
+  piece(head, orb, darkCurlyHair, 0, 0.08, -0.05, 0.24, 0.18, 0.23);
+  // Dunkelgrüne Kappe
+  piece(head, orb, forestCap, 0, 0.18, -0.01, 0.24, 0.11, 0.24);
+  piece(head, solid, forestCap, 0, 0.15, 0.21, 0.24, 0.035, 0.16);
+  // Goldene Chef-Krone oben auf der Kappe
+  const crown = crownMesh(0.82);
+  crown.position.set(0, 0.27, 0);
+  head.add(crown);
 
+  // Unheimliche tiefe Augenhöhlen mit leuchtenden Pinpoint-Pupillen (FNAF-Freddy-Look!)
   const eyes = new THREE.Group();
-  mask.add(eyes);
-  piece(eyes, orb, eyeGlow, -0.075, 0.04, 0.19, 0.058, 0.058, 0.04);
-  piece(eyes, orb, eyeGlow, 0.08, -0.01, 0.19, 0.042, 0.042, 0.04);
+  head.add(eyes);
+  for (const side of [-1, 1]) {
+    piece(head, orb, socketMat, side * 0.085, 0.015, 0.19, 0.052, 0.048, 0.035);
+    piece(eyes, orb, eyePin, side * 0.085, 0.015, 0.22, 0.022, 0.022, 0.018);
+  }
+  const jaw = piece(head, solid, socketMat, 0, -0.1, 0.19, 0.11, 0.045, 0.04);
 
-  // Schwebendes Pixel-Fragezeichen ("?") wenn Anton lost ist
-  const lostMark = new THREE.Group();
-  lostMark.position.set(0, 2.38, 0);
-  piece(lostMark, solid, goldMark, 0, 0.18, 0, 0.16, 0.06, 0.06);
-  piece(lostMark, solid, goldMark, 0.06, 0.11, 0, 0.06, 0.1, 0.06);
-  piece(lostMark, solid, goldMark, 0, 0.05, 0, 0.08, 0.06, 0.06);
-  piece(lostMark, solid, goldMark, 0, -0.06, 0, 0.065, 0.065, 0.065);
-  root.add(lostMark);
-
-  // Überlange herunterhängende Slenderman-Arme
+  // Arme + Goldene Pfanne
   const arms = [-1, 1].map((side) => {
     const arm = new THREE.Group();
-    arm.position.set(side * 0.28, 1.66, 0);
-    piece(arm, tapered, darkSuit, side * 0.07, -0.45, 0, 0.058, 0.94, 0.058).rotation.z = side * 0.12;
-    piece(arm, orb, paleSkin, side * 0.13, -0.94, 0, 0.08, 0.14, 0.08);
+    arm.position.set(side * 0.34, 1.18, 0);
+    piece(arm, orb, chefJacket, 0, 0, 0, 0.13, 0.14, 0.13);
+    piece(arm, tapered, chefJacket, side * 0.02, -0.22, 0.04, 0.085, 0.34, 0.085);
+    piece(arm, orb, skin, side * 0.04, -0.44, 0.1, 0.075, 0.085, 0.075);
     core.add(arm);
     return arm;
   });
 
-  const stars = stunStars(root, 2.32);
-  return { root, core, mask, arms, legs, stars, eyes, lostMark };
+  // Goldene Bratpfanne in der rechten Hand (wie Freddys Mikrofon!)
+  const pan = new THREE.Group();
+  pan.position.set(0.05, -0.42, 0.18);
+  arms[1].add(pan);
+  piece(pan, round, copper, 0, 0.05, 0.12, 0.038, 0.42, 0.038).rotation.x = Math.PI / 2.2;
+  piece(pan, round, brass, 0, 0.11, 0.36, 0.21, 0.06, 0.21);
+  piece(pan, round, socketMat, 0, 0.12, 0.36, 0.16, 0.068, 0.16);
+
+  return { root, core, head, eyes, jaw, arms, crown, pan };
 }
 
-export function haukeBoss() {
-  // Boss Hauke: MASSIV RUND — gigantischer Kugelkörper, hervorguckende weiße Bauchfalte unter engem Hoodie, dicker Goldgürtel, Zornesbrauen & Stampf-Beine!
+export function lostAntonModel() {
+  // Lost Anton (Bonnie): Groß & schlank, hellbraunes zurückgekämmtes Haar, schwarzes Shirt mit gelb-grünem Frontdruck, unheimlich leuchtende rote Augen!
   const root = new THREE.Group();
-  const hoodie = material(0xa62639, 0.4, 0.14);
-  const hoodieDark = material(0x5c1320, 0.5, 0.15);
-  const tshirt = material(0xf0ead8, 0.48, 0.05);
-  const skin = material(PALETTE.ivory, 0.38, 0.08);
-  const pants = material(0x1f263b, 0.5, 0.15);
+  const skin = material(0xebd2be, 0.46, 0.05);
+  const hairMat = material(0x8a6946, 0.65, 0.05);
+  const blackTee = material(0x12141c, 0.62, 0.08);
+  const darkPants = material(0x161a24, 0.58, 0.1);
+  const limePrint = emissive(PALETTE.neonLime);
+  const socketMat = material(0x06070b, 0.9, 0);
+  const redEye = emissive(0xff2948);
+
+  const core = new THREE.Group();
+  core.scale.set(1.02, 1.18, 1.02);
+  root.add(core);
+
+  // Lange schlanke Beine
+  for (const side of [-1, 1]) {
+    piece(core, tapered, darkPants, side * 0.13, 0.44, 0, 0.082, 0.88, 0.082);
+    piece(core, solid, blackTee, side * 0.13, 0.04, 0.05, 0.12, 0.08, 0.22);
+  }
+
+  // Schlanker langer Oberkörper im schwarzen Shirt mit neon-gelbgrünem Brust-Schriftzug (wie im Foto!)
+  piece(core, tapered, blackTee, 0, 1.18, 0, 0.28, 0.72, 0.21);
+  piece(core, solid, limePrint, -0.07, 1.24, 0.155, 0.055, 0.045, 0.015);
+  piece(core, solid, limePrint, 0.0, 1.24, 0.155, 0.065, 0.045, 0.015);
+  piece(core, solid, limePrint, 0.08, 1.24, 0.155, 0.055, 0.045, 0.015);
+
+  // Schief gelegter Kopf mit zurückgekämmtem hellbraunem Haar & roten FNAF-Augen
+  const head = new THREE.Group();
+  head.position.set(0, 1.72, 0.03);
+  head.rotation.z = 0.16;
+  core.add(head);
+  piece(head, orb, skin, 0, 0, 0, 0.21, 0.26, 0.21);
+  piece(head, orb, hairMat, 0, 0.12, -0.03, 0.215, 0.14, 0.21);
+  piece(head, solid, hairMat, 0, 0.17, 0.05, 0.18, 0.07, 0.14);
+
+  const eyes = new THREE.Group();
+  head.add(eyes);
+  for (const side of [-1, 1]) {
+    piece(head, orb, socketMat, side * 0.075, 0.02, 0.175, 0.05, 0.048, 0.035);
+    piece(eyes, orb, redEye, side * 0.075, 0.02, 0.205, 0.026, 0.026, 0.02);
+  }
+  const jaw = piece(head, orb, socketMat, 0, -0.1, 0.175, 0.058, 0.065, 0.04);
+
+  // Lange schlaksige Arme (inkl. Peace-Geste auf der Bühne!)
+  const arms = [-1, 1].map((side) => {
+    const arm = new THREE.Group();
+    arm.position.set(side * 0.28, 1.46, 0);
+    piece(arm, tapered, blackTee, side * 0.03, -0.14, 0, 0.07, 0.28, 0.07);
+    piece(arm, tapered, skin, side * 0.06, -0.46, 0.02, 0.058, 0.44, 0.058);
+    piece(arm, orb, skin, side * 0.08, -0.7, 0.04, 0.07, 0.09, 0.07);
+    core.add(arm);
+    return arm;
+  });
+
+  return { root, core, head, eyes, jaw, arms };
+}
+
+export function bossHaukeModel() {
+  // Boss Hauke (Foxy / Erdbeben-Koloss!): Braunes nach oben gestyltes Haar, weißes Shirt mit dunkelgrünem Kragen, graue Jogginghose — aber MASSIVE Erdbeben-Statur & leuchtende Zorn-Augen!
+  const root = new THREE.Group();
+  const skin = material(0xf0d5be, 0.44, 0.06);
+  const hairMat = material(0x4c3224, 0.65, 0.05);
+  const whiteTee = material(0xf0f3fa, 0.5, 0.05);
+  const greenCollar = material(0x16523b, 0.52, 0.08);
+  const greyJoggers = material(0x6e7585, 0.62, 0.06);
   const brass = brassMaterial(PALETTE.brass);
-  const browMat = material(0x1b151e, 0.6, 0.1);
-  const eyeGlow = emissive(0xffaa3b);
+  const browMat = material(0x281b15, 0.6, 0.08);
+  const socketMat = material(0x07070c, 0.9, 0);
+  const amberEye = emissive(0xffaa30);
+
   const core = new THREE.Group();
   root.add(core);
 
-  // Animierte stämmige Stampfer-Beine
+  // Wuchtige Stampf-Beine in grauer Jogginghose!
   const legs = [-1, 1].map((side) => {
     const leg = new THREE.Group();
-    leg.position.set(side * 0.42, 0.32, 0);
-    piece(leg, round, pants, 0, -0.14, 0, 0.22, 0.34, 0.22);
-    piece(leg, solid, brass, 0, -0.27, 0.07, 0.27, 0.11, 0.34);
+    leg.position.set(side * 0.38, 0.42, 0);
+    piece(leg, round, greyJoggers, 0, -0.18, 0, 0.23, 0.42, 0.23);
+    piece(leg, solid, brass, 0, -0.36, 0.08, 0.27, 0.12, 0.34);
     core.add(leg);
     return leg;
   });
 
-  // MASSIV RUNDE WAMPE + hervorstehendes zu enges T-Shirt vorne!
-  const belly = piece(core, orb, hoodie, 0, 0.86, 0.04, 1.0, 0.86, 0.98);
-  piece(core, orb, tshirt, 0, 0.72, 0.38, 0.72, 0.52, 0.7);
-  piece(core, solid, hoodieDark, -0.58, 0.9, 0.34, 0.16, 0.68, 0.28);
-  piece(core, solid, hoodieDark, 0.58, 0.9, 0.34, 0.16, 0.68, 0.28);
-  // Mega-Gürtel + riesige goldene Schnalle um die Wampe
-  band(core, brass, 0, 0.54, 0.06, 0.95);
-  piece(core, solid, brass, 0, 0.54, 1.0, 0.32, 0.2, 0.1);
+  // MASSIVER Erdbeben-Körper im weißen T-Shirt mit dunkelgrünem Kragen!
+  const belly = piece(core, orb, whiteTee, 0, 0.94, 0.04, 0.92, 0.82, 0.86);
+  piece(core, round, greyJoggers, 0, 0.54, 0.02, 0.78, 0.22, 0.74);
+  // Dunkelgrüner Kragen + Goldgürtel
+  const collar = band(core, greenCollar, 0, 1.44, 0.08, 0.34);
+  collar.scale.set(0.36, 0.36, 0.8);
+  band(core, brass, 0, 0.62, 0.04, 0.86);
+  piece(core, solid, brass, 0, 0.62, 0.9, 0.28, 0.18, 0.09);
 
-  // Runder Kopf, dicke Pausbacken, grimmige Zornesbrauen & Kappe
-  const mask = new THREE.Group();
-  mask.position.set(0, 1.62, 0.16);
-  core.add(mask);
-  piece(mask, orb, skin, 0, 0, 0, 0.39, 0.33, 0.39);
-  piece(mask, orb, skin, 0, -0.14, 0.1, 0.36, 0.16, 0.33); // Doppelkinn
+  // Kopf mit braunem hochgestyltem Haar, Zornesbrauen & glühenden Bernstein-Augen
+  const head = new THREE.Group();
+  head.position.set(0, 1.7, 0.14);
+  core.add(head);
+  piece(head, orb, skin, 0, 0, 0, 0.35, 0.31, 0.34);
+  // Braune Haar-Tolle (wie im Referenzfoto!)
+  piece(head, orb, hairMat, 0, 0.19, -0.02, 0.34, 0.16, 0.31);
+  piece(head, solid, hairMat, 0, 0.24, 0.1, 0.28, 0.13, 0.18);
 
   const eyes = new THREE.Group();
-  mask.add(eyes);
+  head.add(eyes);
   for (const side of [-1, 1]) {
-    piece(mask, orb, skin, side * 0.26, -0.06, 0.16, 0.18, 0.15, 0.17);
-    const eye = piece(eyes, orb, eyeGlow, side * 0.13, 0.05, 0.34, 0.07, 0.055, 0.04);
-    eye.userData.isEyeGlow = true;
-    const brow = piece(mask, solid, browMat, side * 0.14, 0.12, 0.35, 0.14, 0.045, 0.05);
-    brow.rotation.z = side * -0.28;
+    piece(head, orb, socketMat, side * 0.12, 0.03, 0.29, 0.068, 0.056, 0.04);
+    piece(eyes, orb, amberEye, side * 0.12, 0.03, 0.325, 0.036, 0.032, 0.024);
+    const brow = piece(head, solid, browMat, side * 0.12, 0.11, 0.31, 0.14, 0.04, 0.04);
+    brow.rotation.z = side * -0.26;
   }
-  // Rote Snapback-Kappe
-  piece(mask, orb, hoodie, 0, 0.2, 0, 0.34, 0.16, 0.34);
-  piece(mask, solid, brass, 0, 0.15, 0.31, 0.3, 0.045, 0.24);
+  const jaw = piece(head, solid, socketMat, 0, -0.11, 0.29, 0.19, 0.07, 0.05);
 
-  // Wuchtige runde Arme
+  // Breite weiße Ärmel & wuchtige Arme
   const arms = [-1, 1].map((side) => {
     const arm = new THREE.Group();
-    arm.position.set(side * 0.95, 0.96, 0.1);
-    piece(arm, orb, hoodie, 0, 0, 0, 0.31, 0.39, 0.31);
-    piece(arm, orb, skin, side * 0.07, -0.35, 0.16, 0.2, 0.2, 0.2);
+    arm.position.set(side * 0.88, 1.06, 0.08);
+    piece(arm, orb, whiteTee, 0, 0, 0, 0.28, 0.32, 0.28);
+    piece(arm, tapered, skin, side * 0.06, -0.34, 0.14, 0.16, 0.34, 0.16);
     core.add(arm);
     return arm;
   });
 
-  const stars = stunStars(root, 2.15);
-  return { root, core, mask, arms, legs, stars, eyes, belly };
+  return { root, core, head, eyes, jaw, arms, legs, belly };
 }
 
-export function haukeSnack(index) {
-  // 3 echte Snacks im Gravitations-Orbit um Hauke: Burger, Döner-Spieß & Spezi-Dose!
-  const g = new THREE.Group();
-  const bun = material(0xe09f52, 0.55, 0.05);
-  const patty = material(0x5e2c1c, 0.65, 0.05);
-  const lettuce = emissive(PALETTE.jade);
-  const brass = brassMaterial(PALETTE.brass);
-  const speziRed = emissive(PALETTE.vermilion);
-  const speziOrange = material(0xff8c24, 0.35, 0.2);
-
-  if (index % 3 === 0) {
-    // Mini-Double-Burger
-    piece(g, round, bun, 0, 0.72, 0, 0.15, 0.06, 0.15);
-    piece(g, round, patty, 0, 0.78, 0, 0.155, 0.055, 0.155);
-    piece(g, round, lettuce, 0, 0.82, 0, 0.16, 0.025, 0.16);
-    piece(g, orb, bun, 0, 0.86, 0, 0.15, 0.08, 0.15);
-  } else if (index % 3 === 1) {
-    // Mini-Döner-Spieß
-    piece(g, round, brass, 0, 0.62, 0, 0.03, 0.42, 0.03);
-    piece(g, tapered, patty, 0, 0.78, 0, 0.13, 0.24, 0.13);
-    piece(g, round, lettuce, 0, 0.9, 0, 0.12, 0.04, 0.12);
-  } else {
-    // Mini-Spezi-Dose
-    piece(g, round, speziOrange, 0, 0.78, 0, 0.11, 0.22, 0.11);
-    piece(g, round, speziRed, 0, 0.78, 0, 0.114, 0.09, 0.114);
-    piece(g, round, brass, 0, 0.9, 0, 0.105, 0.025, 0.105);
-  }
-  return g;
-}
-
-export function greedyTom() {
-  // Tom: "Einfach Tom" — flinker Schnorrer mit animierten Beinen, überfülltem Gold-Rucksack & grünen Gier-Augen!
+export function schnorrerTomModel() {
+  // Schnorrer Tom (Chica): Umgedrehte beige Cap, pastell-rosa "Surf Miami" T-Shirt mit türkisem Palmen-Kreis, Beutesack & grün glühende Augen!
   const root = new THREE.Group();
-  const hoodie = material(0x1f8a65, 0.4, 0.14);
-  const hoodieDark = material(0x124d38, 0.5, 0.15);
-  const skin = material(PALETTE.ivory, 0.4, 0.08);
-  const bag = material(PALETTE.copper, 0.44, 0.22);
+  const skin = material(0xebd2bc, 0.45, 0.06);
+  const darkHair = material(0x2a201c, 0.68, 0.05);
+  const khakiCap = material(PALETTE.khaki, 0.56, 0.06);
+  const pinkTee = material(PALETTE.pink, 0.52, 0.05);
+  const surfTeal = emissive(0x3ec2c9);
+  const surfSunset = emissive(0xff8c66);
+  const darkPants = material(0x1c202e, 0.58, 0.1);
+  const bagMat = material(PALETTE.copper, 0.46, 0.18);
   const brass = brassMaterial(PALETTE.brass);
-  const eyeGlow = emissive(PALETTE.jade);
-  const goldGlow = emissive(0xffe082);
+  const socketMat = material(0x06070b, 0.9, 0);
+  const jadeEye = emissive(PALETTE.jade);
+
   const core = new THREE.Group();
   root.add(core);
 
-  // Animierbare flinke Schnorrer-Beine
-  const legs = [-1, 1].map((side) => {
-    const leg = new THREE.Group();
-    leg.position.set(side * 0.12, 0.28, 0);
-    piece(leg, tapered, hoodieDark, 0, -0.1, 0, 0.075, 0.22, 0.075);
-    piece(leg, solid, brass, 0, -0.21, 0.04, 0.11, 0.075, 0.18);
-    core.add(leg);
-    return leg;
-  });
-
-  // Geduckter Torso + prall überfüllter Beutesack mit Goldmünzen & Dose oben dran!
-  piece(core, tapered, hoodie, 0, 0.44, 0.04, 0.3, 0.5, 0.28).rotation.x = 0.35;
-  piece(core, orb, bag, 0, 0.56, -0.25, 0.31, 0.35, 0.29);
-  piece(core, round, brass, 0, 0.82, -0.25, 0.14, 0.12, 0.14);
-  piece(core, octa, goldGlow, -0.1, 0.9, -0.27, 0.08, 0.08, 0.08);
-  piece(core, octa, goldGlow, 0.09, 0.93, -0.22, 0.07, 0.07, 0.07);
-
-  // Kopf mit umgedrehter Cap & leuchtenden Gier-Augen
-  const mask = new THREE.Group();
-  mask.position.set(0, 0.8, 0.22);
-  core.add(mask);
-  piece(mask, orb, skin, 0, 0, 0, 0.22, 0.22, 0.22);
-  piece(mask, orb, brass, 0, 0.1, -0.02, 0.235, 0.12, 0.235);
-  piece(mask, solid, brass, 0, 0.08, -0.24, 0.2, 0.045, 0.18);
-
-  const eyes = new THREE.Group();
-  mask.add(eyes);
+  // Beine
   for (const side of [-1, 1]) {
-    piece(eyes, orb, eyeGlow, side * 0.085, 0.02, 0.195, 0.055, 0.05, 0.035);
+    piece(core, tapered, darkPants, side * 0.13, 0.34, 0, 0.088, 0.68, 0.088);
+    piece(core, solid, brass, side * 0.13, 0.04, 0.05, 0.13, 0.08, 0.21);
   }
 
-  // Gier-Hände nach vorne
+  // Oberkörper im rosa "Surf Miami"-Shirt + prall gefüllter Schnorrer-Rucksack hinten!
+  piece(core, tapered, pinkTee, 0, 0.96, 0.03, 0.34, 0.62, 0.26).rotation.x = 0.12;
+  // Runder Surf-Miami Print vorne auf der Brust
+  piece(core, round, surfTeal, 0, 0.95, 0.16, 0.13, 0.025, 0.13).rotation.x = Math.PI / 2;
+  piece(core, solid, surfSunset, 0, 0.99, 0.17, 0.17, 0.045, 0.015);
+  // Überfüllter Beutesack auf dem Rücken
+  piece(core, orb, bagMat, 0, 0.96, -0.22, 0.26, 0.3, 0.24);
+  piece(core, round, brass, 0, 1.2, -0.22, 0.11, 0.1, 0.11);
+
+  // Kopf mit umgedrehter beiger Cap (wie im Referenzfoto!) & grünen Augen
+  const head = new THREE.Group();
+  head.position.set(0, 1.46, 0.1);
+  core.add(head);
+  piece(head, orb, skin, 0, 0, 0, 0.22, 0.23, 0.22);
+  piece(head, orb, darkHair, 0, 0.08, 0.08, 0.19, 0.08, 0.16);
+  piece(head, orb, khakiCap, 0, 0.12, -0.02, 0.23, 0.11, 0.23);
+  // Schirm nach HINTEN (umgedrehte Cap!)
+  piece(head, solid, khakiCap, 0, 0.09, -0.24, 0.2, 0.04, 0.18);
+
+  const eyes = new THREE.Group();
+  head.add(eyes);
+  for (const side of [-1, 1]) {
+    piece(head, orb, socketMat, side * 0.08, 0.015, 0.185, 0.05, 0.046, 0.035);
+    piece(eyes, orb, jadeEye, side * 0.08, 0.015, 0.215, 0.025, 0.025, 0.02);
+  }
+  const jaw = piece(head, solid, socketMat, 0, -0.095, 0.185, 0.11, 0.05, 0.04);
+
+  // Arme
   const arms = [-1, 1].map((side) => {
     const arm = new THREE.Group();
-    arm.position.set(side * 0.29, 0.54, 0.16);
-    piece(arm, tapered, hoodie, 0, -0.05, 0.14, 0.08, 0.28, 0.08).rotation.x = Math.PI / 2.6;
-    piece(arm, orb, skin, 0, -0.12, 0.29, 0.09, 0.09, 0.09);
+    arm.position.set(side * 0.3, 1.15, 0.06);
+    piece(arm, tapered, pinkTee, side * 0.02, -0.1, 0.02, 0.085, 0.22, 0.085);
+    piece(arm, tapered, skin, side * 0.04, -0.32, 0.09, 0.065, 0.32, 0.065);
+    piece(arm, orb, skin, side * 0.05, -0.5, 0.14, 0.075, 0.085, 0.075);
     core.add(arm);
     return arm;
   });
 
-  const stars = stunStars(root, 1.25);
-  return { root, core, mask, arms, legs, stars, eyes };
+  return { root, core, head, eyes, jaw, arms };
+}
+
+export function goldenDuckModel() {
+  // Secret Goldene Ente (Golden Freddy) — unheimlich reglos mit pechschwarzen Augenhöhlen & weißen Pinpoints!
+  const root = new THREE.Group();
+  const goldBody = material(0xf7c931, 0.38, 0.25);
+  const beak = material(0xe05818, 0.4, 0.1);
+  const socket = material(0x040408, 0.95, 0);
+  const pinpoint = emissive(0xffffff);
+
+  const core = new THREE.Group();
+  core.scale.set(2.15, 2.15, 2.15);
+  root.add(core);
+  piece(core, orb, goldBody, 0, 0.24, 0, 0.3, 0.24, 0.34);
+  piece(core, tapered, goldBody, 0, 0.34, -0.28, 0.1, 0.16, 0.12).rotation.x = -0.65;
+  for (const side of [-1, 1]) {
+    piece(core, orb, goldBody, side * 0.27, 0.25, -0.02, 0.1, 0.13, 0.22);
+  }
+  const head = new THREE.Group();
+  head.position.set(0, 0.5, 0.16);
+  head.rotation.z = -0.14;
+  core.add(head);
+  piece(head, orb, goldBody, 0, 0, 0, 0.22, 0.21, 0.22);
+  piece(head, solid, beak, 0, -0.03, 0.21, 0.17, 0.08, 0.15);
+  const eyes = new THREE.Group();
+  head.add(eyes);
+  for (const side of [-1, 1]) {
+    piece(head, orb, socket, side * 0.095, 0.05, 0.175, 0.052, 0.052, 0.04);
+    piece(eyes, orb, pinpoint, side * 0.095, 0.05, 0.21, 0.015, 0.015, 0.015);
+  }
+  return { root, core, head, eyes };
 }
 
 export function speziModel() {
-  // Echte Paulaner Spezi Dose mit charakteristischen Sunset-Farbstreifen!
   const g = new THREE.Group();
   const brown = material(0x4a2016, 0.35, 0.25);
   const orange = emissive(0xff8c24);
   const magenta = emissive(0xe83b8a);
   const brass = brassMaterial(PALETTE.brass);
-  piece(g, round, brown, 0, 0.2, 0, 0.15, 0.42, 0.15);
-  piece(g, round, orange, 0, 0.26, 0, 0.156, 0.11, 0.156);
-  piece(g, round, magenta, 0, 0.15, 0, 0.156, 0.09, 0.156);
-  piece(g, round, brass, 0, 0.41, 0, 0.14, 0.035, 0.14);
+  piece(g, round, brown, 0, 0.18, 0, 0.11, 0.34, 0.11);
+  piece(g, round, orange, 0, 0.23, 0, 0.116, 0.09, 0.116);
+  piece(g, round, magenta, 0, 0.14, 0, 0.116, 0.075, 0.116);
+  piece(g, round, brass, 0, 0.35, 0, 0.1, 0.025, 0.1);
   return g;
 }
 
-export function doenerModel() {
-  // Heiliger Mitternachts-Döner mit Alles auf Gold-Teller!
-  const g = new THREE.Group();
-  const brass = brassMaterial(PALETTE.brass);
-  const pita = material(0xe2b46d, 0.6, 0.04);
-  const meat = material(0x6e361f, 0.55, 0.05);
-  const salad = emissive(PALETTE.jade);
-  const sauce = emissive(0xfff4d4);
-  piece(g, round, brass, 0, 0.04, 0, 0.32, 0.04, 0.32);
-  const pocket = new THREE.Group();
-  pocket.position.set(0, 0.22, 0);
-  pocket.rotation.x = 0.28;
-  piece(pocket, tapered, pita, 0, -0.04, 0, 0.24, 0.34, 0.16);
-  piece(pocket, orb, meat, 0, 0.12, 0, 0.21, 0.14, 0.14);
-  piece(pocket, orb, salad, -0.09, 0.15, 0.06, 0.1, 0.08, 0.09);
-  piece(pocket, orb, sauce, 0.06, 0.18, 0.05, 0.1, 0.07, 0.09);
-  g.add(pocket);
-  return g;
-}
-
-export function skewerModel() {
-  // Goldener Grillspieß mit neon-grüner Spitze
-  const g = new THREE.Group();
-  const brass = brassMaterial(PALETTE.brass);
-  const meat = material(0x733224, 0.5, 0.08);
-  const sear = material(0xa84d2a, 0.45, 0.1);
-  const jadeGlow = emissive(PALETTE.jade);
-  piece(g, round, brass, 0, 0.04, 0, 0.28, 0.04, 0.28);
-  piece(g, round, brass, 0, 0.34, 0, 0.035, 0.56, 0.035);
+export function deskFanModel() {
+  // Klassischer FNAF-Schreibtisch-Ventilator mit rotierenden Blättern!
+  const root = new THREE.Group();
+  const darkMetal = material(0x1b2030, 0.42, 0.55);
+  const cageMat = material(0x3a435c, 0.38, 0.62);
+  const bladeMat = material(0x283044, 0.35, 0.45);
+  piece(root, round, darkMetal, 0, 0.03, 0, 0.22, 0.06, 0.22);
+  piece(root, round, darkMetal, 0, 0.18, -0.02, 0.05, 0.28, 0.05);
+  piece(root, round, darkMetal, 0, 0.36, -0.04, 0.1, 0.16, 0.1).rotation.x = Math.PI / 2;
+  const ring = band(root, cageMat, 0, 0.36, 0.06, 0.26);
+  ring.rotation.x = 0;
+  const blades = new THREE.Group();
+  blades.position.set(0, 0.36, 0.05);
   for (let i = 0; i < 4; i++) {
-    const r = 0.09 + i * 0.035;
-    piece(g, tapered, i % 2 === 0 ? meat : sear, 0, 0.18 + i * 0.1, 0, r, 0.09, r);
+    const b = piece(blades, solid, bladeMat, 0, 0, 0, 0.09, 0.38, 0.018);
+    b.rotation.z = (i * Math.PI) / 4;
   }
-  piece(g, octa, jadeGlow, 0, 0.65, 0, 0.085, 0.1, 0.085);
-  return g;
+  piece(blades, orb, darkMetal, 0, 0, 0.02, 0.06, 0.06, 0.05);
+  root.add(blades);
+  return { root, blades };
 }
 
 export function crateMesh(isGold = false) {
-  // Zerstörbare Holz-Beutekiste oder Goldene Chef-Truhe
   const g = new THREE.Group();
   const wood = isGold ? brassMaterial(PALETTE.brass) : material(0x7c4f2b, 0.72, 0.06);
-  const trim = isGold ? material(0x3a2614, 0.42, 0.3) : material(0x283044, 0.45, 0.25);
-  const gem = emissive(isGold ? PALETTE.jade : PALETTE.brass);
-  const scale = isGold ? 1.12 : 1.0;
-  piece(g, solid, wood, 0, 0.32 * scale, 0, 0.62 * scale, 0.62 * scale, 0.62 * scale);
-  piece(g, solid, trim, 0, 0.32 * scale, 0, 0.66 * scale, 0.09 * scale, 0.66 * scale);
-  piece(g, solid, trim, 0, 0.61 * scale, 0, 0.65 * scale, 0.07 * scale, 0.65 * scale);
-  piece(g, solid, trim, 0, 0.04 * scale, 0, 0.65 * scale, 0.07 * scale, 0.65 * scale);
-  piece(g, solid, gem, 0, 0.32 * scale, 0.325 * scale, 0.16 * scale, 0.14 * scale, 0.045 * scale);
-  piece(g, solid, gem, 0, 0.32 * scale, -0.325 * scale, 0.16 * scale, 0.14 * scale, 0.045 * scale);
-  if (isGold) {
-    g.userData.topGem = piece(g, octa, gem, 0, 0.78, 0, 0.11, 0.12, 0.11);
-  }
+  const trim = material(0x283044, 0.45, 0.25);
+  piece(g, solid, wood, 0, 0.32, 0, 0.62, 0.62, 0.62);
+  piece(g, solid, trim, 0, 0.32, 0, 0.66, 0.09, 0.66);
+  piece(g, solid, trim, 0, 0.61, 0, 0.65, 0.07, 0.65);
+  piece(g, solid, trim, 0, 0.04, 0, 0.65, 0.07, 0.65);
   return g;
 }
 
-export function barrelMesh() {
-  // Explosives Druckfass mit rotem Warnring
+export function partyGarland(parent, x1, x2, y, z) {
+  // Kultige bunte Party-Quasten & warme Lichterkette aus dem Imbiss-Schuppen (wie im Referenzfoto!)
   const g = new THREE.Group();
-  const shell = material(0xb32436, 0.42, 0.22);
-  const iron = material(0x1f2536, 0.5, 0.3);
-  const warn = emissive(0xffc94d);
-  const danger = emissive(0xff3b56);
-  piece(g, round, shell, 0, 0.37, 0, 0.3, 0.72, 0.3);
-  piece(g, round, iron, 0, 0.08, 0, 0.315, 0.07, 0.315);
-  piece(g, round, iron, 0, 0.68, 0, 0.315, 0.07, 0.315);
-  const glowBand = piece(g, round, warn, 0, 0.38, 0, 0.318, 0.13, 0.318);
-  const cap = piece(g, octa, danger, 0, 0.8, 0, 0.1, 0.1, 0.1);
-  return { root: g, glowBand, cap };
-}
-
-export function rubberDuck(parent) {
-  // Gold-rote Billard-Pfand-Dose als Ricochet-Projektil
-  const can = new THREE.Group();
-  const brass = brassMaterial(PALETTE.brass);
-  const red = emissive(PALETTE.vermilion);
-  piece(can, round, brass, 0, 0.12, 0, 0.11, 0.22, 0.11);
-  piece(can, round, red, 0, 0.12, 0, 0.115, 0.11, 0.115);
-  parent.add(can);
-  return can;
-}
-
-export function magnetPickupModel(parent) {
-  // Leuchtender Cyan-Pfand-Magnet mit Hufeisen-Polen & Boden-Halo (klar unterscheidbar von Spezi-Dosen)
-  const g = new THREE.Group();
-  const body = material(0x16324f, 0.32, 0.45);
-  const cyanGlow = emissive(PALETTE.glacier);
-  const redPole = emissive(PALETTE.vermilion);
-  const silver = material(0xe4f2ff, 0.25, 0.6);
-
-  // Hufeisen-Magnet (U-Form)
-  piece(g, solid, redPole, 0, 0.18, 0, 0.34, 0.1, 0.12);
-  piece(g, solid, redPole, -0.14, 0.32, 0, 0.09, 0.24, 0.12);
-  piece(g, solid, redPole, 0.14, 0.32, 0, 0.09, 0.24, 0.12);
-  piece(g, solid, silver, -0.14, 0.46, 0, 0.095, 0.09, 0.125);
-  piece(g, solid, silver, 0.14, 0.46, 0, 0.095, 0.09, 0.125);
-  piece(g, octa, cyanGlow, 0, 0.46, 0, 0.075, 0.075, 0.075);
-  piece(g, round, body, 0, 0.06, 0, 0.22, 0.06, 0.22);
-  band(g, cyanGlow, 0, 0.04, 0, 0.38);
-
-  if (parent) parent.add(g);
+  const wire = material(0x161822, 0.8, 0.1);
+  const len = Math.abs(x2 - x1);
+  piece(g, solid, wire, (x1 + x2) * 0.5, y, z, len, 0.025, 0.025);
+  const colors = [0xff3b56, 0xffb84d, 0x38f2af, 0xb85cff, 0x73d7ff, 0xf2b5c6];
+  const warmBulb = emissive(0xffd27d);
+  const count = Math.max(5, Math.floor(len * 2.1));
+  for (let i = 0; i < count; i++) {
+    const t = i / (count - 1);
+    const px = x1 + (x2 - x1) * t;
+    const sag = Math.sin(t * Math.PI) * 0.28;
+    const mat = material(colors[i % colors.length], 0.32, 0.48);
+    piece(g, tapered, mat, px, y - sag - 0.16, z, 0.085, 0.28, 0.085);
+    if (i % 2 === 1) {
+      piece(g, orb, warmBulb, px, y - sag - 0.04, z + 0.05, 0.045, 0.055, 0.045);
+    }
+  }
+  parent.add(g);
   return g;
-}
-
-export function megaDuckModel(parent) {
-  // Echte leuchtend gelbe Mega-Quietscheente mit orangem Schnabel, Flügeln & Gold-Halo!
-  const duck = new THREE.Group();
-  const yellow = material(0xffe135, 0.32, 0.08);
-  const yellowGlow = emissive(0xffea59);
-  const beak = emissive(0xff6b1a);
-  const eyeMat = material(0x0b0c14, 0.2, 0.1);
-  const halo = emissive(0xffe082);
-
-  // Runder Entenkörper & Schwanzspitze
-  piece(duck, orb, yellow, 0, 0.2, 0, 0.28, 0.22, 0.34);
-  piece(duck, tapered, yellow, 0, 0.3, -0.28, 0.1, 0.16, 0.12).rotation.x = -0.65;
-  // Flügelchen links & rechts
-  for (const side of [-1, 1]) {
-    piece(duck, orb, yellowGlow, side * 0.25, 0.22, -0.02, 0.09, 0.12, 0.2);
-  }
-  // Runder Kopf, Kulleraugen & breiter Entenschnabel
-  piece(duck, orb, yellowGlow, 0, 0.44, 0.16, 0.2, 0.19, 0.2);
-  piece(duck, solid, beak, 0, 0.41, 0.36, 0.16, 0.075, 0.14);
-  piece(duck, solid, beak, 0, 0.37, 0.34, 0.13, 0.04, 0.11);
-  for (const side of [-1, 1]) {
-    piece(duck, orb, eyeMat, side * 0.11, 0.49, 0.29, 0.04, 0.04, 0.04);
-  }
-  // Goldener Boden-Halo damit die Ente im Gewühl sofort leuchtet
-  band(duck, halo, 0, 0.04, 0, 0.44);
-  if (parent) parent.add(duck);
-  return duck;
 }

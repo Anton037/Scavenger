@@ -1,655 +1,532 @@
 import './style.css';
 import { Soundscape } from './audio.js';
 import { Controls } from './controls.js';
-import { advance, applyUpgrade, finishRunCashOut, newRun, rerollUpgrades, STEP, TITLE_TICKERS } from './game.js';
-import { formatShareReceipt, get, Hud, write } from './hud.js';
-import { getDailySeed } from './level.js';
+import { CUSTOM_PRESETS, loadProgress, NIGHT_CONFIGS, resetProgress, saveProgress } from './fnafData.js';
+import {
+  advance,
+  honkPoster,
+  muteCall,
+  newNight,
+  selectCam,
+  STEP,
+  toggleLeftDoor,
+  toggleLeftLight,
+  toggleMonitor,
+  toggleRightDoor,
+  toggleRightLight,
+} from './game.js';
+import { get, Hud, write } from './hud.js';
 
-const canvas = get('arena');
-const title = get('title-screen');
-const startButton = get('start');
-const overlay = get('overlay');
-const liftScreen = get('lift-screen');
-const hud = new Hud();
+const canvas = get('stage');
+const titleScreen = get('title-screen');
+const customScreen = get('custom-screen');
+const introScreen = get('intro-screen');
+const hudScreen = get('hud');
+const pauseScreen = get('pause-screen');
+const winScreen = get('win-screen');
+const gameoverScreen = get('gameover-screen');
+
 const sound = new Soundscape();
-const controls = new Controls(canvas, get('stick'), get('stick-thumb'), { chart: toggleChart, pause: togglePause });
-
-const freshSeed = () => Math.floor(1000 + Math.random() * 9000);
-function parseSeed(raw) {
-  const n = Math.floor(Number(raw));
-  return Number.isFinite(n) && n > 0 ? Math.min(999999, n) : null;
-}
-
-const urlParams = new URLSearchParams(window.location.search);
-const urlSeed = parseSeed(urlParams.get('seed'));
-const rawBeat = Math.floor(Number(urlParams.get('beat')));
-const activeChallenge = Number.isFinite(rawBeat) && rawBeat > 0
-  ? {
-      score: Math.min(99999999, rawBeat),
-      from: String(urlParams.get('from') || '').trim().slice(0, 18),
-      seed: urlSeed,
-    }
-  : null;
-
-let previewSeed = urlSeed ?? freshSeed();
-let selectedLoadout = 'classic';
-let titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
-let run = titlePreviewRun;
-let view;
-let stage = 'title';
-let last = 0;
+let view = null;
+let run = null;
+let stage = 'title'; // 'title' | 'custom' | 'intro' | 'play' | 'pause' | 'win' | 'gameover'
+let introTimer = null;
+let lastTs = 0;
 let lag = 0;
-
-function syncDailyButton() {
-  const btn = get('daily-seed');
-  if (btn) btn.setAttribute('aria-pressed', String(previewSeed === getDailySeed()));
-}
-
-function syncChallengeBanner() {
-  const el = get('challenge-banner');
-  if (!el) return;
-  if (activeChallenge) {
-    const matchesSeed = !activeChallenge.seed || activeChallenge.seed === previewSeed;
-    const seedLabel = activeChallenge.seed ? `#${String(activeChallenge.seed).padStart(4, '0')}` : '';
-    const seedPart = seedLabel ? ` · Seed ${seedLabel}` : '';
-    const scorePart = `${activeChallenge.score.toLocaleString('de-DE')} ⚡${seedPart}`;
-    if (matchesSeed) {
-      const targetText = activeChallenge.from
-        ? `Knacke ${activeChallenge.from} (${scorePart})!`
-        : `Knacke diesen Kumpel-Rekord (${scorePart})!`;
-      write(el, `HERAUSFORDERUNG: ${targetText}`);
-      el.classList.remove('inactive');
-      el.removeAttribute('role');
-      el.removeAttribute('title');
-    } else {
-      write(el, `HERAUSFORDERUNG (${seedLabel}) PAUSIERT — Klick für Seed ${seedLabel}`);
-      el.classList.add('inactive');
-      el.setAttribute('role', 'button');
-      el.setAttribute('title', `Zurück zu Challenge-Seed ${seedLabel}`);
-    }
-    el.hidden = false;
-  } else {
-    el.hidden = true;
-  }
-}
-
-get('challenge-banner')?.addEventListener('click', () => {
-  if (!activeChallenge?.seed || previewSeed === activeChallenge.seed) return;
-  previewSeed = activeChallenge.seed;
-  updateSeedBadge();
-  refreshTitlePreview();
-});
-
-function updateSeedBadge() {
-  const input = get('seed-input');
-  if (input && input.value !== String(previewSeed)) {
-    input.value = String(previewSeed);
-  }
-  syncDailyButton();
-  syncChallengeBanner();
-}
-updateSeedBadge();
-
-let tickerIdx = previewSeed % TITLE_TICKERS.length;
-function paintTitleTicker() {
-  const el = get('title-ticker');
-  if (el) write(el, `📢 ${TITLE_TICKERS[tickerIdx % TITLE_TICKERS.length]}`);
-}
-paintTitleTicker();
-setInterval(() => {
-  if (stage !== 'title') return;
-  tickerIdx = (tickerIdx + 1) % TITLE_TICKERS.length;
-  paintTitleTicker();
-}, 4500);
-
-function refreshTitlePreview() {
-  titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
-  if (view && stage === 'title') view.drawTitle(titlePreviewRun, performance.now() / 1000);
-}
-
-import('./scene.js').then(({ SceneView }) => {
-  view = new SceneView(canvas);
-  view.resize();
-  view.drawTitle(titlePreviewRun, 0);
-}).catch((err) => {
-  console.warn('3D preview init warning:', err.message);
-});
-
-for (const btn of document.querySelectorAll('.loadout-btn')) {
-  btn.addEventListener('click', () => {
-    selectedLoadout = btn.dataset.loadout || 'classic';
-    for (const item of document.querySelectorAll('.loadout-btn')) {
-      const on = item === btn;
-      item.classList.toggle('active', on);
-      item.setAttribute('aria-pressed', String(on));
-    }
-    refreshTitlePreview();
-  });
-}
-
-get('seed-input')?.addEventListener('input', (event) => {
-  const parsed = parseSeed(event.target.value);
-  if (parsed !== null) {
-    previewSeed = parsed;
-    syncDailyButton();
-    syncChallengeBanner();
-    refreshTitlePreview();
-  }
-});
-
-get('seed-input')?.addEventListener('blur', () => {
-  updateSeedBadge();
-});
-
-get('shuffle-seed')?.addEventListener('click', () => {
-  previewSeed = freshSeed();
-  updateSeedBadge();
-  refreshTitlePreview();
-});
-
-get('daily-seed')?.addEventListener('click', () => {
-  previewSeed = getDailySeed();
-  updateSeedBadge();
-  refreshTitlePreview();
-});
-
-async function copyShareUrl(text, shareTitle = 'Imbiss-Survival') {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      // fallback below when Clipboard API is restricted (e.g. HTTP LAN on mobile)
-    }
-  }
-  try {
-    const area = document.createElement('textarea');
-    area.value = text;
-    area.setAttribute('readonly', '');
-    area.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0;pointer-events:none;';
-    document.body.appendChild(area);
-    area.select();
-    area.setSelectionRange(0, text.length);
-    const copied = document.execCommand('copy');
-    area.remove();
-    if (copied) return true;
-  } catch {
-    // ignore execCommand restrictions
-  }
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: shareTitle, text });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
-
-get('copy-seed')?.addEventListener('click', async () => {
-  const shareUrl = `${window.location.origin}${window.location.pathname}?seed=${previewSeed}`;
-  const ok = await copyShareUrl(shareUrl, 'Imbiss-Survival Seed');
-  const btn = get('copy-seed');
-  if (btn && ok) {
-    btn.classList.add('copied');
-    setTimeout(() => btn.classList.remove('copied'), 1200);
-  }
-});
-
 let lastHapticAt = 0;
+
+const customAi = { torge: 5, anton: 5, tom: 5, hauke: 5 };
+
 function pulseHaptic(event) {
   if (!controls.touch || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
   const now = performance.now();
-  const urgent = event.kind === 'ko' || event.kind === 'wall_slam' || event.kind === 'crown_drop' || event.kind === 'caught' || event.kind === 'levelup' || event.kind === 'evolve';
-  if (!urgent && now - lastHapticAt < 90) return;
-  const pattern = event.kind === 'evolve'
-    ? [20, 24, 30, 24, 48]
-    : event.kind === 'wall_slam' || event.kind === 'ko'
-      ? [24, 28, 36]
-      : event.kind === 'crown_drop' || event.kind === 'caught'
-        ? [40, 35, 55]
-        : event.kind === 'levelup' || event.kind === 'chest_gold' || event.kind === 'wave' || event.kind === 'escaped' || event.kind === 'combo_milestone' || event.kind === 'ka_ching'
-          ? [18, 22, 24]
-          : event.kind === 'bonk' || event.kind === 'dodge' || event.kind === 'spezi_boom'
-            ? 14
+  const urgent = event.kind === 'jumpscare' || event.kind === 'hauke_door_slam' || event.kind === 'window_sting';
+  if (!urgent && now - lastHapticAt < 85) return;
+  const pattern = event.kind === 'jumpscare'
+    ? [70, 30, 90, 30, 120]
+    : event.kind === 'hauke_door_slam'
+      ? [60, 28, 80, 28, 60]
+      : event.kind === 'hauke_stomp'
+        ? 34
+        : event.kind === 'window_sting'
+          ? [36, 20, 48]
+          : event.kind === 'door'
+            ? 20
             : 0;
   if (!pattern) return;
   lastHapticAt = now;
   try {
     navigator.vibrate(pattern);
   } catch {
-    // ignore unsupported/blocked vibration
+    // ignore unsupported vibration
   }
 }
 
-function installTapGuard(container) {
-  if (!container) return;
-  container.addEventListener('click', (event) => {
-    const until = Number(container.dataset.guardUntil || 0);
-    if (performance.now() < until) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  }, true);
-}
-installTapGuard(liftScreen);
-installTapGuard(overlay);
-
-function armTouchTapGuard(container, ms = 420) {
-  if (!container) return;
-  if (!controls.touch || ms <= 0) {
-    delete container.dataset.guardUntil;
-    container.classList.remove('tap-guard');
-    return;
+function flushEvents(currentRun) {
+  if (!currentRun?.events?.length) return;
+  for (const ev of currentRun.events) {
+    sound.play(ev);
+    pulseHaptic(ev);
   }
-  const until = performance.now() + ms;
-  container.dataset.guardUntil = String(until);
-  container.classList.add('tap-guard');
-  setTimeout(() => {
-    if (Number(container.dataset.guardUntil || 0) <= until) {
-      container.classList.remove('tap-guard');
-    }
-  }, ms);
+  currentRun.events.length = 0;
 }
 
-window.addEventListener('keydown', (event) => {
-  if (stage !== 'lift' || event.repeat) return;
-  if (event.code === 'KeyR') {
-    const rerollBtn = get('lift-reroll');
-    if (rerollBtn && !rerollBtn.disabled) {
-      event.preventDefault();
-      rerollBtn.click();
-    }
-    return;
-  }
-  const idx = event.code === 'Digit1' ? 0 : event.code === 'Digit2' ? 1 : event.code === 'Digit3' ? 2 : -1;
-  if (idx >= 0) {
-    const btn = get('mod-list')?.children[idx];
-    if (btn) {
-      event.preventDefault();
-      btn.click();
-    }
+const hud = new Hud((camId) => {
+  if (stage !== 'play' || !run) return;
+  sound.open();
+  if (selectCam(run, camId)) {
+    flushEvents(run);
+    hud.paint(run);
   }
 });
 
-function toggleChart() {
-  if (stage === 'play') hud.toggleChart(run);
+const controls = new Controls(canvas, {
+  pause: () => togglePause(),
+  monitor: () => {
+    if (stage !== 'play' || !run) return;
+    sound.open();
+    if (toggleMonitor(run)) {
+      flushEvents(run);
+      hud.paint(run);
+    }
+  },
+  leftDoor: () => {
+    if (stage !== 'play' || !run) return;
+    sound.open();
+    toggleLeftDoor(run);
+    flushEvents(run);
+    hud.paint(run);
+  },
+  leftLight: () => {
+    if (stage !== 'play' || !run) return;
+    sound.open();
+    toggleLeftLight(run);
+    flushEvents(run);
+    hud.paint(run);
+  },
+  rightDoor: () => {
+    if (stage !== 'play' || !run) return;
+    sound.open();
+    toggleRightDoor(run);
+    flushEvents(run);
+    hud.paint(run);
+  },
+  rightLight: () => {
+    if (stage !== 'play' || !run) return;
+    sound.open();
+    toggleRightLight(run);
+    flushEvents(run);
+    hud.paint(run);
+  },
+  cam: (camId) => {
+    if (stage !== 'play' || !run || !run.monitorOpen) return;
+    sound.open();
+    if (selectCam(run, camId)) {
+      flushEvents(run);
+      hud.paint(run);
+    }
+  },
+  mute: () => {
+    if (stage !== 'play' || !run) return;
+    if (muteCall(run)) {
+      flushEvents(run);
+      hud.paint(run);
+    }
+  },
+  honk: () => {
+    if (stage !== 'play' || !run) return;
+    sound.open();
+    if (honkPoster(run)) flushEvents(run);
+  },
+  canvasTap: (rx, ry) => {
+    if (stage !== 'play' || !run || run.monitorOpen || run.powerOutage) return;
+    // Chef Torge poster sits cleanly centered above the desk!
+    const expectedX = 0.53 - run.lookX * 0.24;
+    if (Math.abs(rx - expectedX) < 0.14 && ry > 0.16 && ry < 0.58) {
+      sound.open();
+      if (honkPoster(run)) flushEvents(run);
+    }
+  },
+});
+
+function hideAllScreens() {
+  for (const s of [titleScreen, customScreen, introScreen, hudScreen, pauseScreen, winScreen, gameoverScreen]) {
+    if (s) s.hidden = true;
+  }
+  const hal = get('hallucination');
+  if (hal) hal.hidden = true;
+}
+
+function paintAudioButtons() {
+  const txt = sound.enabled ? 'Ton: AN' : 'Ton: AUS';
+  for (const id of ['title-audio', 'pause-audio']) {
+    const b = get(id);
+    if (b) {
+      b.setAttribute('aria-pressed', String(sound.enabled));
+      write(b, txt);
+    }
+  }
+}
+
+function toggleAudio() {
+  sound.toggle();
+  paintAudioButtons();
+}
+
+function showTitle() {
+  if (introTimer) {
+    clearTimeout(introTimer);
+    introTimer = null;
+  }
+  stage = 'title';
+  controls.enable(false);
+  sound.setActivity('title');
+  hideAllScreens();
+  hud.syncTitleProgress();
+  if (titleScreen) titleScreen.hidden = false;
+}
+
+function showCustomNight() {
+  stage = 'custom';
+  controls.enable(false);
+  hideAllScreens();
+  syncCustomValues();
+  if (customScreen) customScreen.hidden = false;
+}
+
+function syncCustomValues() {
+  for (const k of ['torge', 'anton', 'tom', 'hauke']) {
+    write(get(`ai-${k}`), String(customAi[k]));
+  }
+}
+
+async function ensureView() {
+  if (view) return view;
+  const { SceneView } = await import('./scene.js');
+  view = new SceneView(canvas);
+  view.resize();
+  return view;
+}
+
+// Kick off 3D engine load immediately for the live FNAF Title Screen!
+ensureView().catch((err) => {
+  console.warn('3D scene init warning:', err.message);
+  const el = get('launch-error');
+  if (el) {
+    write(el, 'WebGL 2 konnte nicht gestartet werden.');
+    el.hidden = false;
+  }
+});
+
+async function startNight(night, customOverride = null) {
+  if (introTimer) {
+    clearTimeout(introTimer);
+    introTimer = null;
+  }
+  sound.open();
+  sound.reset();
+  try {
+    await ensureView();
+  } catch {
+    return;
+  }
+
+  run = newNight({
+    night,
+    customAi: night === 7 ? { ...(customOverride || customAi) } : null,
+  });
+
+  // Immediate 1-9-8-7 Golden Duck Easter Egg skips intro straight into Jumpscare!
+  if (run.state === 'jumpscare') {
+    hideAllScreens();
+    hudScreen.hidden = false;
+    stage = 'play';
+    controls.enable(false);
+    sound.setActivity('play');
+    flushEvents(run);
+    hud.paint(run);
+    lastTs = 0;
+    lag = 0;
+    return;
+  }
+
+  const cfg = NIGHT_CONFIGS[night] ?? NIGHT_CONFIGS[1];
+  hideAllScreens();
+  write(get('intro-night'), cfg.title);
+  write(get('intro-sub'), cfg.sub);
+  if (introScreen) introScreen.hidden = false;
+  stage = 'intro';
+  controls.enable(false);
+  sound.setActivity('pause');
+  sound.play({ kind: 'cam_blip' });
+
+  introTimer = setTimeout(() => {
+    introTimer = null;
+    if (stage !== 'intro') return;
+    hideAllScreens();
+    hudScreen.hidden = false;
+    stage = 'play';
+    lastTs = 0;
+    lag = 0;
+    controls.enable(true);
+    sound.setActivity('play');
+    hud.paint(run);
+    view.draw(run);
+  }, 1900);
 }
 
 function togglePause() {
-  if (stage === 'play') {
-    showOverlay('pause');
+  if (stage === 'play' && run && run.state === 'playing') {
+    stage = 'pause';
+    controls.enable(false);
+    sound.setActivity('pause');
+    hud.showPause(run);
+    pauseScreen.hidden = false;
     return true;
   }
   if (stage === 'pause') {
-    resume();
+    pauseScreen.hidden = true;
+    stage = 'play';
+    lastTs = 0;
+    lag = 0;
+    controls.enable(true);
+    sound.setActivity('play');
     return true;
   }
   return false;
 }
 
-function paintSound() {
-  for (const button of [get('title-audio'), get('pause-audio')]) {
-    button.setAttribute('aria-pressed', String(sound.enabled));
-    write(button, sound.enabled ? 'Ton an' : 'Ton aus');
+function showWin() {
+  stage = 'win';
+  controls.enable(false);
+  sound.syncLoops(null);
+  saveProgress(run.night, run.customAi);
+  hud.syncTitleProgress();
+  hideAllScreens();
+  hud.showWin(run);
+  const nextBtn = get('win-next');
+  if (nextBtn) {
+    nextBtn.hidden = run.night >= 6;
+    write(nextBtn, `Nacht ${run.night + 1} starten ▶`);
   }
+  winScreen.hidden = false;
 }
 
-function changeSound() {
-  sound.toggle();
-  paintSound();
+function showGameOver() {
+  stage = 'gameover';
+  controls.enable(false);
+  sound.syncLoops(null);
+  hideAllScreens();
+  hud.showGameOver(run);
+  gameoverScreen.hidden = false;
 }
 
-function restart(explicitSeed = null) {
-  const seed = explicitSeed ?? freshSeed();
-  previewSeed = seed;
-  updateSeedBadge();
-  const useChallenge = activeChallenge && (!activeChallenge.seed || activeChallenge.seed === seed);
-  run = newRun({
-    seed,
-    floor: 1,
-    loadout: selectedLoadout,
-    beatScore: useChallenge ? activeChallenge.score : 0,
-    beatFrom: useChallenge ? activeChallenge.from : '',
-  });
-  if (run.challenge) {
-    const scoreStr = run.challenge.score.toLocaleString('de-DE');
-    const seedStr = String(seed).padStart(4, '0');
-    const msg = run.challenge.from
-      ? `CHALLENGE: Knacke ${run.challenge.from} (${scoreStr} ⚡) auf #${seedStr}!`
-      : `CHALLENGE: Knacke den Kumpel-Rekord (${scoreStr} ⚡) auf #${seedStr}!`;
-    run.notices.push({ message: msg, until: 3.6 });
-  } else if (run.map?.mutator && run.map.mutator.id !== 'classic') {
-    run.notices.push({
-      message: `${run.map.mutator.name}: ${run.map.mutator.hint}`,
-      until: 3.4,
+// Build Custom Night preset buttons
+const presetWrap = get('custom-presets');
+if (presetWrap) {
+  for (const preset of CUSTOM_PRESETS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-crt small';
+    btn.textContent = preset.name;
+    btn.addEventListener('click', () => {
+      Object.assign(customAi, preset.ai);
+      syncCustomValues();
+      sound.open();
+      sound.play({ kind: 'cam_blip' });
     });
-  } else {
-    run.notices.push({
-      message: 'Welle 1 gestartet! Pfand-XP sammeln · Auto-Waffen feuern von selbst!',
-      until: 3.2,
+    presetWrap.appendChild(btn);
+  }
+}
+
+for (const card of document.querySelectorAll('.ai-card')) {
+  const charKey = card.dataset.char;
+  for (const btn of card.querySelectorAll('.step-btn')) {
+    btn.addEventListener('click', () => {
+      const delta = Number(btn.dataset.step) || 0;
+      customAi[charKey] = Math.max(0, Math.min(20, (customAi[charKey] || 0) + delta));
+      syncCustomValues();
+      sound.open();
+      sound.play({ kind: 'cam_blip' });
     });
   }
-  if (liftScreen) liftScreen.hidden = true;
-  hud.clearFloating();
-  title.hidden = true;
-  canvas.hidden = false;
-  get('hud').hidden = false;
-  get('vignette').hidden = false;
-  get('vignette').classList.remove('alert');
-  hud.toggleChart(run, false);
-  sound.reset();
-  view.resize();
-  view.draw(run, 0, true);
-  hud.paint(run, view);
-  resume();
 }
 
-async function begin() {
-  if (stage !== 'title') return;
-  stage = 'loading';
-  startButton.disabled = true;
-  const label = startButton.querySelector('span');
-  write(label, 'STARTET…');
-  get('launch-error').hidden = true;
-  sound.open();
-  try {
-    canvas.hidden = false;
-    if (!view) {
-      const { SceneView } = await import('./scene.js');
-      view = new SceneView(canvas);
-    }
-    restart(previewSeed);
-  } catch (error) {
-    console.warn('Imbiss-Survival could not start', error.message);
-    stage = 'title';
-    title.hidden = false;
-    const message = get('launch-error');
-    write(message, 'WebGL 2 konnte nicht gestartet werden.');
-    message.hidden = false;
-  } finally {
-    startButton.disabled = false;
-    write(label, 'SCHICHT STARTEN');
-  }
-}
-
-function resume() {
-  overlay.hidden = true;
-  if (liftScreen) liftScreen.hidden = true;
-  get('hud').inert = false;
-  stage = 'play';
-  lag = 0;
-  last = 0;
-  controls.enable(true);
-  sound.open();
-  sound.setActivity('play');
-  canvas.focus({ preventScroll: true });
-}
-
-function showLevelChoices({ isReroll = false } = {}) {
-  stage = 'lift';
-  controls.enable(false);
-  sound.setActivity('pause');
-  hud.toggleChart(run, false);
-  hud.clearFloating();
-  get('vignette')?.classList.remove('alert');
-  get('hud').inert = true;
-  hud.showLevelChoices(
-    run,
-    (upgradeId) => {
-      applyUpgrade(run, upgradeId);
-      const ev = {
-        kind: String(upgradeId).startsWith('evo_') ? 'evolve' : 'upgrade',
-        x: run.player.x,
-        z: run.player.z,
-      };
-      sound.play(ev, run.player);
-      pulseHaptic(ev);
-      view.resize();
-      view.draw(run, 0, true);
-      hud.paint(run, view);
-      if (run.state === 'levelup') {
-        showLevelChoices();
-      } else {
-        resume();
-      }
-    },
-    () => {
-      if (rerollUpgrades(run)) {
-        sound.play({ kind: 'reroll', x: run.player.x, z: run.player.z }, run.player);
-        showLevelChoices({ isReroll: true });
-      }
-    },
-  );
-  armTouchTapGuard(liftScreen, isReroll ? 120 : 420);
-}
-
-function showOverlay(kind) {
-  const caughtTitle = run?.caughtBy === 'hauke'
-    ? 'Von Hauke überrollt!'
-    : run?.caughtBy === 'tom'
-      ? 'Von Tom geschnorrt!'
-      : 'Schicht beendet!';
-  const mutLabel = run?.map?.mutator?.id && run.map.mutator.id !== 'classic' ? ` · ${run.map.mutator.name}` : '';
-  const details = {
-    pause: ['Pause', `Welle ${run?.wave ?? 1} · Stufe ${run?.player?.level ?? 1}${mutLabel} · Seed #${String(run?.seed ?? previewSeed).padStart(4, '0')}`, 'Weitermachen'],
-    caught: [caughtTitle, run?.deathReason ?? 'Die Horde war stärker.', 'Neue Schicht'],
-    escaped: [
-      `Welle ${run?.wave ?? 1} gesichert!`,
-      'Chef Torge macht rechtzeitig Feierabend und behält die komplette Kasse.',
-      'Neue Schicht',
-    ],
-  }[kind];
-  stage = kind;
-  controls.enable(false);
-  sound.setActivity('pause');
-  hud.toggleChart(run, false);
-  hud.clearFloating();
-  if (kind !== 'caught') get('vignette')?.classList.remove('alert');
-  if (liftScreen) liftScreen.hidden = true;
-  get('hud').inert = true;
-  write(get('overlay-eyebrow'), kind === 'pause' ? 'SCHICHT PAUSIERT' : "IMBISS-BILANZ · '26");
-  write(get('overlay-title'), details[0]);
-  write(get('overlay-copy'), details[1]);
-  write(get('overlay-action'), details[2]);
-  hud.renderOverlayMods(run);
-  const sameSeedBtn = get('overlay-same-seed');
-  if (sameSeedBtn) sameSeedBtn.hidden = kind === 'pause';
-  const shareBtn = get('overlay-share');
-  if (shareBtn) {
-    shareBtn.hidden = kind === 'pause';
-    shareBtn.classList.remove('copied');
-    write(get('overlay-share-label'), 'Kassenbon teilen');
-  }
-  const receipt = get('overlay-receipt');
-  if (kind === 'pause') {
-    if (receipt) receipt.hidden = true;
-  } else {
-    hud.renderReceipt(run);
-  }
-  overlay.hidden = false;
-  if (kind !== 'pause') armTouchTapGuard(overlay, 420);
-  else armTouchTapGuard(overlay, 0);
-  if (!controls.touch) {
-    get('overlay-primary').focus({ preventScroll: true });
-  }
-}
-
-function showTitle() {
-  stage = 'title';
-  controls.enable(false);
-  sound.setActivity('title');
-  overlay.hidden = true;
-  if (liftScreen) liftScreen.hidden = true;
-  hud.clearFloating();
-  get('hud').hidden = true;
-  get('vignette').hidden = true;
-  get('vignette').classList.remove('alert');
-  title.hidden = false;
-  if (!titlePreviewRun || titlePreviewRun.seed !== previewSeed || titlePreviewRun.loadoutId !== selectedLoadout) {
-    titlePreviewRun = newRun({ seed: previewSeed, floor: 1, loadout: selectedLoadout });
-  }
-  if (view) view.drawTitle(titlePreviewRun, performance.now() / 1000);
-  if (!controls.touch) {
-    startButton.focus({ preventScroll: true });
-  }
-}
-
-get('lift-cashout')?.addEventListener('click', () => {
-  finishRunCashOut(run);
-  const ev = { kind: 'escaped', x: run.player.x, z: run.player.z };
-  sound.play(ev, run.player);
-  pulseHaptic(ev);
-  showOverlay('escaped');
+// Menu & Overlay bindings
+get('btn-new-game')?.addEventListener('click', () => {
+  resetProgress();
+  startNight(1);
 });
+get('btn-continue')?.addEventListener('click', () => {
+  const { night } = loadProgress();
+  startNight(Math.min(5, night));
+});
+get('btn-night6')?.addEventListener('click', () => startNight(6));
+get('btn-custom')?.addEventListener('click', () => {
+  sound.open();
+  showCustomNight();
+});
+get('custom-back')?.addEventListener('click', showTitle);
+get('custom-start')?.addEventListener('click', () => startNight(7, customAi));
+get('title-audio')?.addEventListener('click', toggleAudio);
+get('pause-audio')?.addEventListener('click', toggleAudio);
 
-get('title-audio').addEventListener('click', changeSound);
-get('pause-audio').addEventListener('click', changeSound);
-paintSound();
-startButton.addEventListener('click', begin);
-get('pause').addEventListener('click', () => {
+get('btn-pause')?.addEventListener('click', () => {
   togglePause();
-  get('pause')?.blur();
+  get('btn-pause')?.blur();
 });
-get('chart-toggle').addEventListener('click', () => {
-  toggleChart();
-  get('chart-toggle')?.blur();
-});
-get('chart-close')?.addEventListener('click', () => {
-  if (stage === 'play') hud.toggleChart(run, false);
-  get('chart-close')?.blur();
-});
-get('menu').addEventListener('click', showTitle);
-get('overlay-same-seed')?.addEventListener('click', () => {
-  restart(run?.seed ?? previewSeed);
-});
-get('overlay-share')?.addEventListener('click', async () => {
-  if (!run) return;
-  const score = Math.round(run.player?.pfand ?? 0);
-  const shareUrl = `${window.location.origin}${window.location.pathname}?seed=${run.seed}&beat=${score}`;
-  const text = formatShareReceipt(run, shareUrl);
-  const ok = await copyShareUrl(text, 'Imbiss-Survival Kassenbon');
-  const btn = get('overlay-share');
-  if (btn && ok) {
-    btn.classList.add('copied');
-    write(get('overlay-share-label'), 'Kopiert! ✓');
-    setTimeout(() => {
-      btn.classList.remove('copied');
-      write(get('overlay-share-label'), 'Kassenbon teilen');
-    }, 1800);
+get('pause-resume')?.addEventListener('click', togglePause);
+get('pause-menu')?.addEventListener('click', showTitle);
+
+get('btn-mute-call')?.addEventListener('click', () => {
+  if (run && muteCall(run)) {
+    flushEvents(run);
+    hud.paint(run);
   }
 });
-get('overlay-primary').addEventListener('click', () => {
-  if (stage === 'pause') resume();
-  else restart(null);
-});
 
-function bindActionButton(id, action, { checkLocked = false } = {}) {
+get('win-next')?.addEventListener('click', () => {
+  if (run && run.night < 6) startNight(run.night + 1);
+  else showTitle();
+});
+get('win-menu')?.addEventListener('click', showTitle);
+
+get('gameover-retry')?.addEventListener('click', () => {
+  if (run) startNight(run.night, run.customAi);
+  else showTitle();
+});
+get('gameover-menu')?.addEventListener('click', showTitle);
+
+// Office tactile button bindings (instant pointerdown for zero mobile latency!)
+function bindInstant(id, fn) {
   const el = get(id);
   if (!el) return;
-  let lastPointerAt = 0;
-  let pressTimer = 0;
-  const clearPressed = () => {
-    el.classList.remove('pressed');
-    if (pressTimer) {
-      clearTimeout(pressTimer);
-      pressTimer = 0;
-    }
-  };
+  let lastPtr = 0;
   el.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    if (el.disabled || (checkLocked && el.classList.contains('locked'))) return;
     if (event.pointerType !== 'mouse') controls.noteTouch();
-    lastPointerAt = performance.now();
+    lastPtr = performance.now();
     event.preventDefault();
-    sound.open();
-    controls.queue(action);
-    el.classList.add('pressed');
-    clearTimeout(pressTimer);
-    pressTimer = setTimeout(clearPressed, 120);
+    fn();
   });
-  for (const ev of ['pointerup', 'pointercancel']) {
-    el.addEventListener(ev, clearPressed);
-  }
   el.addEventListener('click', () => {
-    if (performance.now() - lastPointerAt < 700) return;
-    if (el.disabled || (checkLocked && el.classList.contains('locked'))) return;
-    sound.open();
-    controls.queue(action);
+    if (performance.now() - lastPtr < 500) return;
+    fn();
     el.blur?.();
   });
 }
 
-for (const [id, action, opts] of [
-  ['touch-shutter', 'lamp'], ['touch-dash', 'dash'], ['touch-lure', 'lure'], ['touch-use', 'use'],
-  ['touch-bonk', 'bonk'], ['orb-bonk', 'bonk'], ['orb-dash', 'dash'],
-  ['slot-lamp', 'lamp'], ['slot-lure', 'lure'], ['interact', 'use', { checkLocked: true }],
-]) bindActionButton(id, action, opts);
+bindInstant('btn-left-door', () => {
+  if (stage !== 'play' || !run) return;
+  sound.open();
+  toggleLeftDoor(run);
+  flushEvents(run);
+  hud.paint(run);
+});
+bindInstant('btn-left-light', () => {
+  if (stage !== 'play' || !run) return;
+  sound.open();
+  toggleLeftLight(run);
+  flushEvents(run);
+  hud.paint(run);
+});
+bindInstant('btn-right-door', () => {
+  if (stage !== 'play' || !run) return;
+  sound.open();
+  toggleRightDoor(run);
+  flushEvents(run);
+  hud.paint(run);
+});
+bindInstant('btn-right-light', () => {
+  if (stage !== 'play' || !run) return;
+  sound.open();
+  toggleRightLight(run);
+  flushEvents(run);
+  hud.paint(run);
+});
+bindInstant('btn-monitor', () => {
+  if (stage !== 'play' || !run) return;
+  sound.open();
+  toggleMonitor(run);
+  flushEvents(run);
+  hud.paint(run);
+});
 
+// Touch Quick-Look Left / Right hold buttons
+function bindHoldLook(id, dir) {
+  const el = get(id);
+  if (!el) return;
+  const start = (e) => {
+    e.preventDefault();
+    controls.setLookHold(dir);
+  };
+  const stop = () => controls.setLookHold(0);
+  el.addEventListener('pointerdown', start);
+  el.addEventListener('pointerup', stop);
+  el.addEventListener('pointercancel', stop);
+  el.addEventListener('pointerleave', stop);
+}
+bindHoldLook('look-left', -1);
+bindHoldLook('look-right', 1);
+
+// Resize & background tab pause
 function handleResize() {
   if (!view) return;
   view.resize();
-  if (stage === 'title') {
-    view.drawTitle(titlePreviewRun, performance.now() / 1000);
-  } else if (run && stage !== 'play') {
-    view.draw(run, 0, true);
-  }
+  if (stage === 'title' || stage === 'custom') view.drawTitle(performance.now() / 1000);
+  else if (run && stage !== 'play') view.draw(run);
 }
-
 window.addEventListener('resize', handleResize);
 window.addEventListener('orientationchange', () => {
   handleResize();
-  setTimeout(handleResize, 140);
-  setTimeout(handleResize, 360);
+  setTimeout(handleResize, 160);
 });
 window.visualViewport?.addEventListener('resize', handleResize);
 
-function handleBackgroundHide() {
-  sound.suspend();
-  if (stage === 'play') showOverlay('pause');
-}
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) handleBackgroundHide();
+  if (document.hidden) {
+    sound.suspend();
+    if (stage === 'play' && run?.state === 'playing') togglePause();
+  }
 });
-window.addEventListener('pagehide', handleBackgroundHide);
+window.addEventListener('pagehide', () => sound.suspend());
 
+paintAudioButtons();
+
+// Main 60 FPS fixed-step render loop
 function tick(now) {
   requestAnimationFrame(tick);
-  if (stage === 'title') {
-    if (view) view.drawTitle(titlePreviewRun, now / 1000);
+  if (stage === 'title' || stage === 'custom') {
+    if (view) view.drawTitle(now / 1000);
     return;
   }
-  if (stage !== 'play') return;
-  if (last === 0) {
-    last = now;
+  if (stage !== 'play' || !run) return;
+
+  if (lastTs === 0) {
+    lastTs = now;
     return;
   }
-  const dt = Math.min(0.1, (now - last) / 1000);
-  last = now;
-  if ((run.hitStop || 0) > 0) {
-    run.hitStop = Math.max(0, run.hitStop - dt);
-    view.draw(run, dt * 0.2);
-    hud.paint(run, view);
-    return;
-  }
+  const dt = Math.min(0.1, (now - lastTs) / 1000);
+  lastTs = now;
   lag += dt;
-  while (lag >= STEP && run.state === 'playing') {
-    advance(run, controls.read(view, run.player));
-    for (const event of run.events) {
-      sound.play(event, run.player);
-      pulseHaptic(event);
-    }
+
+  while (lag >= STEP && (run.state === 'playing' || run.state === 'jumpscare')) {
+    advance(run, controls.read(), STEP);
+    flushEvents(run);
     lag -= STEP;
   }
-  sound.background(run);
-  view.draw(run, dt);
-  hud.paint(run, view);
-  if (run.state === 'levelup') showLevelChoices();
-  else if (run.state !== 'playing') showOverlay(run.state);
+
+  sound.syncLoops(run);
+  if (view) view.draw(run);
+  hud.paint(run);
+
+  if (run.state === 'won') showWin();
+  else if (run.state === 'gameover') showGameOver();
 }
 requestAnimationFrame(tick);
 
 if (import.meta.env.DEV) {
-  Object.defineProperty(window, '__scavenger', { get: () => ({ run, view, stage, hud, controls }) });
+  Object.defineProperty(window, '__fnat', {
+    get: () => ({ run, view, stage, hud, controls, startNight }),
+  });
 }

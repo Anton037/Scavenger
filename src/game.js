@@ -1,2283 +1,810 @@
-import { buildArena, EVOLUTIONS, LOADOUTS, randomFrom, UPGRADE_POOL } from './level.js';
+import {
+  CAMERA_MAP,
+  CHARACTERS,
+  HALLUCINATIONS,
+  HOUR_SECONDS,
+  NIGHT_CONFIGS,
+  PHONE_CALLS,
+  TOTAL_NIGHT_SECONDS,
+} from './fnafData.js';
 
 export const STEP = 1 / 60;
-export const WAVE_DURATION = 30;
-export const BONK_COOLDOWN = 0.72;
-export const DASH_COOLDOWN = 0.95;
+export { HOUR_SECONDS, TOTAL_NIGHT_SECONDS };
 
-const MAX_ENEMIES = 32;
-const MAX_PICKUPS = 140;
-const BARREL_RADIUS = 3.25;
-const SPEZI_RADIUS = 2.15;
+export function randomFrom(seed) {
+  let s = (seed >>> 0) || 1;
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
 
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function bark(run, x, y, z, text, tone = 'gold', duration = 1.05) {
-  if (run.barks.length >= 22) run.barks.shift();
-  run.barks.push({
-    id: ++run.barkSeq,
-    x,
-    y,
-    z,
-    text,
-    tone,
-    duration,
-    until: run.time + duration,
-  });
+function emit(run, kind, extra = {}) {
+  run.events.push({ kind, ...extra });
 }
 
-function notice(run, message, duration = 2.6) {
-  const existing = run.notices.find((n) => n.message === message);
-  if (existing) {
-    existing.until = Math.max(existing.until, run.time + duration);
-    return;
-  }
-  run.notices.unshift({ message, until: run.time + duration });
-  if (run.notices.length > 3) run.notices.length = 3;
-}
-
-function emitEvent(run, kind, x, z, extra = {}) {
-  run.events.push({ kind, x, z, ...extra });
-}
-
-function emitVfx(run, fx) {
-  if (run.vfx.length < 48) run.vfx.push(fx);
-}
-
-const ANTON_QUIPS = [
-  'NOCH PFAND DRAUF?!',
-  'HAB NUR 50 CENT!',
-  'AU MEIN SCHIENBEIN!',
-  'SCHON WIEDER MONTAG!',
-  'WO IST MEIN DÖNER?!',
-  'KANN MAN MIT KARTE?!',
-  '1 STERN AUF GOOGLE!!',
-  'ICH RUF MEIN ANWALT!',
-  'MEIN ANZUG IST VON ZARA!',
-  'OHNE ZWIEBELN BITTE!',
-  'HABT IHR AUCH VEGAN?!',
-  'KEIN BON = STEUERBETRUG!',
-  'WO IST DER MANAGER?!',
-  'ICH WILL DIE QUITTUNG!',
-];
-const ANTON_KO_QUIPS = [
-  'ICH WOLLT NUR POMMES...',
-  'BEWERTUNG IST RAUS!!',
-  'MEIN PFAND!!',
-  'NIE WIEDER DIESER LADEN!',
-  'KRIEG ICH MEIN GELD ZURÜCK?',
-];
-const TOM_QUIPS = [
-  'MEINS!!',
-  'GRATIS SNACK!',
-  'PFAND-JACKPOT!',
-  'ICH ZAHL MORGEN BRO!',
-  'PAYPAL GEHT GRAD NICHT!',
-  'DARF ICH MAL ABBEISSEN?',
-  'NUR EIN SCHLUCK SPEZI!',
-];
-const KNOBI_QUIPS = [
-  'BOAH KNOBI!!',
-  'KEIN TZATZIKI!!',
-  'MEINE AUGEN BRENNEN!',
-  'FRISCHER ATEM!',
-  'WHOA KNOBLAUCH-KEULE!',
-  'ICH HABE HEUTE EIN DATE!!',
-];
-const HAUKE_SPAWN_QUIPS = [
-  'WO BLEIBT MEIN XXL-MENÜ?!',
-  'EINMAL ALLES MIT EXTRA KÄSE!',
-  'SEIT 15 MIN NIX GEGESSEN!!',
-];
-const HAUKE_CHARGE_QUIPS = [
-  'PLATZ DA! BUFFET ÖFFNET!',
-  'ACHTUNG KUGELBLITZ!!',
-  'ICH ROLL JETZT DURCH!',
-];
-const HAUKE_SLAM_QUIPS = [
-  'WER HAT DIE WAND DA HINGESTELLT?!',
-  'AUFSTAND DER WAMPE!',
-  'MEIN BAUCH!!',
-];
-const HAUKE_SNACK_QUIPS = [
-  'HAPS! LECKER SPEZI!',
-  'NOM NOM ZUCKER-SCHUB!',
-  'BOAH EISKALT!!',
-];
-const HAUKE_BURP_QUIPS = [
-  'BÖÖÖRPS!!',
-  'SORRY, WAR KOHLENSÄURE!',
-  'SCHULZ!! BÖÖÖRPS!',
-];
-const DODGE_QUIPS = [
-  'PERFECT DODGE!',
-  'ZU LANGSAM, BRE!',
-  'ANKLE-BREAKER!!',
-  'NICHT AUF DIE SNEAKER!',
-];
-const SLIP_QUIPS = [
-  'NASSER SOCKE!!',
-  'TOKYO DRIFT IM IMBISS!',
-  'FETT-GLITZE!!',
-  'RUTSCH-TURBO!',
-];
-const VENDING_QUIPS = [
-  'SPÄTI-REFILL! +30 HP',
-  'KALTES SPEZI RETTET LEBEN!',
-  'SCHICHT-KAFFEE BALLERT!',
-];
-const SCHELLE_MULTI_QUIPS = [
-  'GRATIS SCHELLE FÜR ALLE!',
-  'ALLE IN DIE FRITTEUSE!!',
-  'MIT SCHARF UND OHNE GNADE!',
-  'KÜCHENSCHLUSS, JUNGS!!',
-];
-
-export const TITLE_TICKERS = [
-  'Heute im Angebot: 1× Power-Schelle mit Scharf · Kartenzahlung leider defekt.',
-  'Achtung: Schnorrer Tom zahlt „morgen über PayPal“ — glaub ihm kein Wort!',
-  'Geheimtipp: Füttere Boss Hauke mit 3 Spezi-Granaten für sofortiges Fresskoma!',
-  'Kombi-Tipp: Gold-Pfanne Lv 3 + Scharfe Soße = SCHELLEN-INFERNO ★',
-  'Neu in der Karte: Knobi Lv 3 + Titan-Krone = TZATZIKI-SUPERGAU ★ (heilt & panikt!)',
-  'Strom-Tipp: Blitz-Lampe Lv 3 + Espresso = STROBO-FLUTLICHT 9000 ★ (360° Stun!)',
-  'Ordnungsamt-Warnung: Alle Antons ohne Gewerbe bitte unauffällig rennen!',
-  'Späti-Tipp: Grüner Ring an der Nord-Bude = Gratis-Spezi & +30 HP mit [E]!',
-  'Pro-Tipp: Teile deinen Kassenbon nach der Schicht & fordere deine Kumpels heraus!',
-];
-
-export const DEATH_ROASTS = {
-  hauke: [
-    'Hauke hat dich mit Menü #4 (XXL + Pommes) verwechselt!',
-    'Vom Bauch-Express überfahren — Gesundheit!',
-    'Hauke fragte nach Nachtisch. Du warst der Nachtisch.',
-    'Haukes Gravitationsfeld war heute leider stärker als deine Pfanne.',
-  ],
-  tom: [
-    'Schnorrer Tom hat dir sogar das allerletzte HP geschnorrt!',
-    'Tom zahlt dir deine HP „nächste Woche über PayPal zurück“.',
-    'Ausgeraubt von einem Typen mit umgedrehter Cap — bitter!',
-  ],
-  anton: [
-    'Anton hat dir 1 Stern auf Google gegeben — kritischer Treffer!',
-    'Von einer Horde Praktikanten ohne Kleingeld überrannt.',
-    'Anton wollte „nur kurz fragen ob die Pfanne glutenfrei ist“.',
-    'Zu viele Antons, zu wenig Bratpfanne — Schichtende!',
-  ],
+const ANTON_GRAPH = {
+  '1A': ['1B', '5'],
+  '1B': ['5', '2A'],
+  '5': ['1B', '2A'],
+  '2A': ['3', '2B'],
+  '3': ['2A', 'left_door'],
+  '2B': ['3', 'left_door'],
 };
 
-export const RECEIPT_FOOTERS = [
-  'Kartenzahlung erst ab 999.999 ⚡ — EC-Gerät „leider kaputt“.',
-  'Enthält Spuren von Knoblauch, Pfand-Ehre und Haukes Kohlensäure.',
-  'Trinkgeld: 0,00 € (Typisch Schnorrer Tom).',
-  'Google-Bewertung: 5/5 Sterne — „Schelle war knusprig, gerne wieder!“',
-  'MwSt. 7% (Mitnahme) · Rückgabe von Schellen ausgeschlossen.',
-];
+const TOM_GRAPH = {
+  '1A': ['1B'],
+  '1B': ['6', '4A'],
+  '6': ['1B', '4A'],
+  '4A': ['1B', '4B'],
+  '4B': ['4A', 'right_door'],
+};
 
-export const CHAOS_EVENTS = [
-  { id: 'ordnungsamt', title: 'ORDNUNGSAMT KOMMT!!', sub: 'Antons rennen in Panik weg!' },
-  { id: 'happy_hour', title: 'SPEZI HAPPY HOUR!!', sub: '-45% Cooldowns & Gratis-Spezis!' },
-  { id: 'fettbahn', title: 'FRITTEUSEN-ÖL AUSGELAUFEN!!', sub: 'Gegner schlittern unkontrolliert!' },
-  { id: 'kartenzahlung', title: 'NUR BARZAHLUNG!!', sub: 'Antons schockiert · 2× Pfand-XP!' },
-  { id: 'doenerpreis', title: 'DÖNER KOSTET 9,50 €!!', sub: 'Wut-Inflation · Gold-XP-Regen!' },
-  { id: 'enten_regen', title: 'QUIETSCHEENTEN-INVASION!!', sub: '3 Mega-Enten gelandet — QUAAAK!!' },
-];
+const TORGE_PATH = ['1A', '1B', '6', '4A', '4B'];
 
-function quip(run, x, y, z, list, tone = 'gold', duration = 1.05, minGap = 1.9) {
-  if (run.time - (run.lastQuipAt ?? -99) < minGap || !list.length) return false;
-  run.lastQuipAt = run.time;
-  const text = list[Math.floor(run.rng() * list.length)];
-  bark(run, x, y, z, text, tone, duration);
-  return true;
+export function isEasterEgg1987(ai) {
+  return Boolean(ai && ai.torge === 1 && ai.anton === 9 && ai.tom === 8 && ai.hauke === 7);
 }
 
-function isInPool(map, x, z) {
-  for (const p of map.pools) {
-    if (Math.abs(x - p.x) <= p.w * 0.5 && Math.abs(z - p.z) <= p.d * 0.5) return p;
-  }
-  return null;
+export function getUsageBars(run) {
+  if (!run || run.powerOutage) return 0;
+  let bars = 1;
+  if (run.leftDoor) bars += 1;
+  if (run.rightDoor) bars += 1;
+  if (run.leftLight || run.rightLight) bars += 1;
+  if (run.monitorOpen) bars += 1;
+  return Math.min(5, bars);
 }
 
-export function getStats(run) {
-  const p = run.player;
-  const loadout = LOADOUTS[run.loadoutId] ?? LOADOUTS.classic;
-  const mut = run.map.mutator ?? {};
-  const shadowMode = !p.lamp;
-  const happyHour = run.chaosEvent?.id === 'happy_hour';
-  const cashOnly = run.chaosEvent?.id === 'kartenzahlung';
-  const inflation = run.chaosEvent?.id === 'doenerpreis';
-  const espresso = p.passives.espresso || 0;
-  const magnet = p.passives.magnet || 0;
-  const chili = p.passives.chili || 0;
-  const dashMod = p.passives.dash_mod || 0;
-  const poolBoost = p.sliding > 0 ? 1.35 * (mut.slideMult || 1) : 1;
-  const rushBoost = p.beanBoost > 0 ? 1.16 : 1;
-
-  return {
-    speed: 4.35 * loadout.speedMult * (1 + espresso * 0.1) * (shadowMode ? 1.14 : 1) * poolBoost * rushBoost,
-    dmgMult: (1 + chili * 0.22 + (p.beanBoost > 0 ? 0.18 : 0)),
-    areaMult: loadout.areaMult * (1 + chili * 0.12),
-    cdMult: (mut.cdMult || 1) * Math.max(0.38, 1 - espresso * 0.12) * (shadowMode ? 0.88 : 1) * (happyHour ? 0.55 : 1),
-    dashCdMult: loadout.dashCdMult * Math.max(0.28, 1 - dashMod * 0.18),
-    bonkCdMult: loadout.bonkCdMult,
-    magnetRadius: 2.65 * loadout.magnetMult * (1 + magnet * 0.38),
-    xpMult: (mut.scoreMult || 1) * (1 + magnet * 0.18) * (cashOnly ? 2.0 : inflation ? 1.5 : 1),
-  };
+export function getHourLabel(run) {
+  const hr = Math.min(6, Math.floor((run?.time ?? 0) / HOUR_SECONDS));
+  return hr === 0 ? '12 AM' : `${hr} AM`;
 }
 
-function xpThreshold(level) {
-  return Math.round(9 + level * 6 + (level ** 1.32) * 1.8);
-}
+export function newNight(options = {}) {
+  const night = clamp(Math.floor(Number(options.night) || 1), 1, 7);
+  const cfg = NIGHT_CONFIGS[night] ?? NIGHT_CONFIGS[1];
+  const seed = Number.isFinite(Number(options.seed)) ? Math.floor(Number(options.seed)) : (Date.now() & 0xfffffff);
+  const rng = randomFrom(seed * 31 + night * 97 + 13);
 
-function pushOutOfBlocks(map, body, radius) {
-  body.x = clamp(body.x, 1.06 + radius, map.width - 1.06 - radius);
-  body.z = clamp(body.z, 1.06 + radius, map.depth - 1.06 - radius);
-  for (const b of map.blocks) {
-    const hw = b.w * 0.5 + radius;
-    const hd = b.d * 0.5 + radius;
-    const dx = body.x - b.x;
-    const dz = body.z - b.z;
-    if (Math.abs(dx) < hw && Math.abs(dz) < hd) {
-      const ox = hw - Math.abs(dx);
-      const oz = hd - Math.abs(dz);
-      if (ox < oz) body.x += dx >= 0 ? ox : -ox;
-      else body.z += dz >= 0 ? oz : -dz;
-    }
-  }
-}
-
-function moveBody(run, body, dx, dz, radius = 0.26, checkTemp = false) {
-  const { map } = run;
-  const temp = checkTemp ? { crates: run.crates, barrels: run.barrels } : null;
-  let moved = false;
-  let slammed = false;
-  if (dx !== 0) {
-    if (map.walkable(body.x + dx, body.z, radius, temp)) {
-      body.x += dx;
-      moved = true;
-    } else {
-      slammed = true;
-    }
-  }
-  if (dz !== 0) {
-    if (map.walkable(body.x, body.z + dz, radius, temp)) {
-      body.z += dz;
-      moved = true;
-    } else {
-      slammed = true;
-    }
-  }
-  pushOutOfBlocks(map, body, radius);
-  return { moved, slammed };
-}
-
-function shiftBodyWithSlam(run, body, dx, dz, radius = 0.28) {
-  const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.24));
-  const sx = dx / steps;
-  const sz = dz / steps;
-  let wallHit = false;
-  for (let i = 0; i < steps; i++) {
-    const res = moveBody(run, body, sx, sz, radius, false);
-    if (res.slammed) {
-      wallHit = true;
-      break;
-    }
-    for (const barrel of run.barrels) {
-      if (!barrel.exploded && Math.hypot(body.x - barrel.x, body.z - barrel.z) < 0.78) {
-        detonateBarrel(run, barrel);
-      }
-    }
-  }
-  return wallHit;
-}
-
-const UPGRADE_NAMES = Object.fromEntries(UPGRADE_POOL.map((u) => [u.id, u.name]));
-
-function synergyInfoFor(item, weapons, passives, evolutions) {
-  if (item.kind === 'weapon') {
-    const evo = EVOLUTIONS.find((e) => e.weapon === item.id && !evolutions?.has(e.id));
-    if (!evo) return { synergyHint: '', synergyOwned: false };
-    const partnerOwned = ((passives[evo.synergy] || 0) + (weapons[evo.synergy] || 0)) >= 1;
-    const partnerName = UPGRADE_NAMES[evo.synergy] ?? evo.synergy;
-    return {
-      synergyHint: partnerOwned
-        ? `★ Evo-Partner ${partnerName} ✓ (ab Lv 3 → ${evo.name})`
-        : `★ Evo mit ${partnerName} → ${evo.name}`,
-      synergyOwned: partnerOwned,
-    };
-  }
-  const evos = EVOLUTIONS.filter((e) => e.synergy === item.id && !evolutions?.has(e.id));
-  if (!evos.length) return { synergyHint: '', synergyOwned: false };
-  const ownedWeapons = evos.filter((e) => (weapons[e.weapon] || 0) >= 1);
-  if (ownedWeapons.length > 0) {
-    const names = ownedWeapons.map((e) => UPGRADE_NAMES[e.weapon] ?? e.weapon).join(' / ');
-    return {
-      synergyHint: `★ Evo-Synergie mit ${names} ✓`,
-      synergyOwned: true,
-    };
-  }
-  const names = evos.map((e) => UPGRADE_NAMES[e.weapon] ?? e.weapon).join(' / ');
-  return {
-    synergyHint: `★ Evo-Partner für ${names}`,
-    synergyOwned: false,
-  };
-}
-
-function buildUpgradeOffers(run, excludeIds = null) {
-  const { weapons, passives, evolutions } = run.player;
-  const readyEvos = [];
-  for (const evo of EVOLUTIONS) {
-    if (evolutions?.has(evo.id)) continue;
-    const wLv = weapons[evo.weapon] || 0;
-    const sLv = (passives[evo.synergy] || 0) + (weapons[evo.synergy] || 0);
-    if (wLv >= 3 && sLv >= 1) {
-      readyEvos.push({
-        id: evo.id,
-        kind: 'evolution',
-        isEvo: true,
-        isNew: true,
-        name: evo.name,
-        icon: evo.icon,
-        tint: evo.tint,
-        nextLevel: '★',
-        desc: evo.desc,
-      });
-    }
-  }
-  for (let i = readyEvos.length - 1; i > 0; i--) {
-    const j = Math.floor(run.rng() * (i + 1));
-    [readyEvos[i], readyEvos[j]] = [readyEvos[j], readyEvos[i]];
-  }
-
-  const candidates = [];
-  for (const item of UPGRADE_POOL) {
-    const cur = item.kind === 'weapon' ? (weapons[item.id] || 0) : (passives[item.id] || 0);
-    if (cur < item.maxLevel) {
-      const { synergyHint, synergyOwned } = synergyInfoFor(item, weapons, passives, evolutions);
-      candidates.push({
-        id: item.id,
-        kind: item.kind,
-        isEvo: false,
-        name: item.name,
-        icon: item.icon,
-        tint: item.tint,
-        nextLevel: cur + 1,
-        isNew: cur === 0,
-        desc: item.descForLevel(cur + 1),
-        synergyHint,
-        synergyOwned,
-      });
-    }
-  }
-  // Fisher-Yates using deterministic run.rng
-  for (let i = candidates.length - 1; i > 0; i--) {
-    const j = Math.floor(run.rng() * (i + 1));
-    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
-  }
-
-  const offers = [];
-  if (readyEvos.length > 0) offers.push(readyEvos[0]);
-  const needed = 3 - offers.length;
-  let pool = candidates;
-  if (excludeIds && excludeIds.size > 0) {
-    const fresh = candidates.filter((c) => !excludeIds.has(c.id));
-    if (fresh.length >= needed) pool = fresh;
-  }
-  for (let i = 0; i < Math.min(needed, pool.length); i++) offers.push(pool[i]);
-  return offers;
-}
-
-export function rerollUpgrades(run) {
-  if (!run || run.state !== 'levelup' || (run.player.rerolls || 0) <= 0) return false;
-  const prevIds = new Set(run.upgradeOffers.map((o) => o.id));
-  const next = buildUpgradeOffers(run, prevIds);
-  if (next.length === 0) return false;
-  run.player.rerolls -= 1;
-  run.upgradeOffers = next;
-  emitEvent(run, 'reroll', run.player.x, run.player.z);
-  return true;
-}
-
-export function newRun(options = {}) {
-  const seed = options.seed ?? 2026;
-  const loadoutId = LOADOUTS[options.loadout] ? options.loadout : 'classic';
-  const loadout = LOADOUTS[loadoutId];
-  const map = buildArena(seed, options.floor ?? 1);
-  const rng = randomFrom(seed * 31 + 17);
-
-  const weapons = { pan: 0, skewer: 0, doner: 0, spezi: 0, beam: 0, can: 0, knobi: 0 };
-  weapons[loadout.startWeapon] = 1;
-
-  const passives = { espresso: 0, magnet: 0, crown: 0, chili: 0, dash_mod: 0 };
-
-  const player = {
-    x: map.start.x,
-    z: map.start.z,
-    angle: -Math.PI / 2,
-    hp: loadout.maxHp,
-    maxHp: loadout.maxHp,
-    helmet: true,
-    crownRegen: 0,
-    invuln: 0.4,
-    lamp: true,
-    moving: false,
-    stride: 0,
-    dash: 0,
-    dashDir: { x: 0, z: -1 },
-    cooldown: 0,
-    bonkCooldown: 0,
-    comboStep: 0,
-    comboReset: 0,
-    swing: 0,
-    finisherSwing: 0,
-    knobiPulse: 0,
-    sliding: 0,
-    beanBoost: 0,
-    noise: 0,
-    stepMark: 0,
-    clappers: loadout.clappers,
-    level: 1,
-    xp: 0,
-    xpNext: xpThreshold(1),
-    kills: 0,
-    pfand: 0,
-    combo: 1,
-    comboTimer: 0,
-    comboTier: 0,
-    maxCombo: 1,
-    rerolls: 2,
-    evolutions: new Set(),
-    weapons,
-    passives,
-    novaRadius: 2.45 * loadout.areaMult,
-    donerRadius: 2.19 * loadout.areaMult,
-    donerAngle: 0,
-    timers: {
-      pan: 0.35,
-      skewer: 0.55,
-      spezi: 1.4,
-      beam: 1.1,
-      can: 1.5,
-      knobi: 0.45,
-    },
-    inputBuffer: { bonk: 0, dash: 0, lure: 0 },
-  };
-
-  const crates = map.crates.map((c) => ({ ...c }));
-  const barrels = map.barrels.map((b) => ({ ...b }));
-  const beatScore = Number(options.beatScore);
-  const challenge = Number.isFinite(beatScore) && beatScore > 0
+  const customAi = options.customAi && night === 7
     ? {
-        score: Math.round(beatScore),
-        from: String(options.beatFrom || '').trim().slice(0, 18),
-        beaten: false,
+        torge: clamp(Math.floor(Number(options.customAi.torge) || 0), 0, 20),
+        anton: clamp(Math.floor(Number(options.customAi.anton) || 0), 0, 20),
+        tom: clamp(Math.floor(Number(options.customAi.tom) || 0), 0, 20),
+        hauke: clamp(Math.floor(Number(options.customAi.hauke) || 0), 0, 20),
       }
     : null;
 
+  const ai = customAi ? { ...customAi } : { ...cfg.ai };
+
   const run = {
     seed,
-    floor: 1,
-    wave: 1,
-    waveTimer: 0,
-    loadoutId,
+    night,
+    nightTitle: cfg.title,
+    nightSub: cfg.sub,
+    customAi,
     rng,
-    map,
-    player,
-    challenge,
-    enemies: [],
-    antons: [],
-    listener: null,
-    hauke: null,
-    tom: null,
-    enemySeq: 0,
-    spawnTimer: 0.4,
-    crateRespawn: 14,
-    barrelRespawn: 11,
-    duckSpawnTimer: 16,
-    chaosTimer: 24,
-    chaosEvent: null,
-    lastQuipAt: -5,
-    projectiles: [],
-    bombs: [],
-    throws: [],
-    explosions: [],
-    pickups: [],
-    pickupSeq: 0,
-    crates,
-    barrels,
-    records: new Set(),
-    valves: [],
-    cans: [],
-    lift: { state: 'survival', remaining: 0 },
-    droppedHelmet: null,
-    mods: new Set([loadout.startWeapon]),
-    upgradeOffers: [],
-    pendingLevelUps: 0,
-    notices: [],
-    events: [],
-    pulses: [],
-    vfx: [],
-    barks: [],
-    barkSeq: 0,
+    state: 'playing', // 'playing' | 'jumpscare' | 'gameover' | 'won'
     time: 0,
-    state: 'playing',
-    deathReason: '',
-    caughtBy: null,
-    hitFlash: 0,
-    hitStop: 0,
-    cameraShake: 0,
-    stats: {
-      kills: 0,
-      antonKills: 0,
-      tomKills: 0,
-      haukeKills: 0,
-      elites: 0,
-      bonks: 0,
-      wallSlams: 0,
-      barrels: 0,
-      dodges: 0,
-      chests: 0,
-      ducks: 0,
-      burps: 0,
-      fresskomas: 0,
-      crownsRecovered: 0,
-      chaosEvents: 0,
-      evolutions: 0,
+    hour: 0,
+    appliedBumps: new Set(),
+
+    // Power & office hardware
+    power: 100,
+    passiveDrain: cfg.passiveDrain,
+    usage: 1,
+    leftDoor: false,
+    rightDoor: false,
+    leftDoorAnim: 0, // 0 open .. 1 closed
+    rightDoorAnim: 0,
+    leftLight: false,
+    rightLight: false,
+    leftJammed: false,
+    rightJammed: false,
+    lightFlicker: 1,
+
+    // View & CCTV monitor
+    lookX: 0, // -1 (left door) .. +1 (right door)
+    monitorOpen: false,
+    monitorAnim: 0, // 0 down .. 1 up
+    activeCam: '1A',
+    camPan: 0,
+    camSwitchStatic: 0,
+    camDisrupt: 0,
+    officeAttackWait: 0,
+
+    // Power Outage (FNAF 1 3-phase sequence)
+    powerOutage: null, // null | { phase: 'wait'|'jingle'|'blackout', timer, eyesOn }
+
+    // Animatronics
+    ai,
+    animatronics: {
+      torge: { room: '1A', pathIdx: 0, timer: 3.02, officeTimer: 0, sighted: false },
+      anton: { room: '1A', timer: 4.97, officeTimer: 0, sighted: false },
+      tom: { room: '1A', timer: 4.98, officeTimer: 0, sighted: false },
+      hauke: {
+        stage: 0, // 0 closed, 1 peeking, 2 stepping out, 3 GONE -> sprinting!
+        timer: 5.01,
+        lockTimer: 0,
+        hits: 0,
+        sprint: {
+          active: false,
+          triggered: false,
+          waitTimer: 0,
+          progress: 0,
+          duration: 2.35,
+          nextStomp: 0,
+        },
+      },
     },
+
+    // Secret Golden Duck (Golden Freddy)
+    goldenPoster: false,
+    goldenUsed: false,
+    goldenActive: false,
+    goldenTimer: 0,
+
+    // Sensory feedback & FNAF atmosphere
+    quake: 0,
+    quakeTime: 0,
+    doorSlamFlash: 0,
+    stingFlash: 0,
+    hallucination: null, // { text, timer }
+    kitchenAudioTimer: 2.2,
+    ambienceTimer: 9.0,
+    posterHonks: 0,
+    posterBounce: 0,
+
+    // Phone Guy
+    callLines: PHONE_CALLS[night] ? PHONE_CALLS[night].map((l) => ({ ...l })) : [],
+    callMuted: false,
+    callIndex: -1,
+    callText: '',
+    callActive: Boolean(PHONE_CALLS[night]?.length),
+
+    // Jumpscare & end state
+    jumpscare: null, // null | { who, timer, duration }
+    killedBy: null,
+    deathLine: '',
+
+    // Stats & event stream for audio/haptics
+    stats: {
+      doorsClosed: 0,
+      camSwitches: 0,
+      haukeBlocked: 0,
+      antonBlocked: 0,
+      tomBlocked: 0,
+      torgeStalled: 0,
+      goldenBanished: 0,
+      posterHonks: 0,
+    },
+    events: [],
   };
 
-  // Start-Gegner für sofortige Action (plus Titel-Vorschau!)
-  spawnEnemy(run, 'anton', { x: map.start.x - 6.8, z: map.start.z - 4.2 });
-  spawnEnemy(run, 'anton', { x: map.start.x + 7.2, z: map.start.z - 3.6 });
-  spawnEnemy(run, 'anton', { x: map.start.x + 5.5, z: map.start.z + 6.4 });
-  syncCompatRefs(run);
+  if (customAi && isEasterEgg1987(customAi)) {
+    triggerJumpscare(run, 'duck');
+  }
+
   return run;
 }
 
-function syncCompatRefs(run) {
-  run.antons = run.enemies.filter((e) => e.type === 'anton' && !e.dead);
-  run.tom = run.enemies.find((e) => e.type === 'tom' && !e.dead) ?? null;
-  run.hauke = run.enemies.find((e) => e.type === 'hauke' && !e.dead) ?? null;
-  run.listener = run.antons[0] ?? run.hauke ?? run.tom ?? { x: run.player.x, z: run.player.z, dead: true };
+export function triggerJumpscare(run, who) {
+  if (!run || run.state === 'jumpscare' || run.state === 'gameover' || run.state === 'won') return;
+  run.state = 'jumpscare';
+  run.killedBy = who;
+  run.deathLine = CHARACTERS[who]?.deathLine ?? 'Die Schicht ist vorbei.';
+  run.monitorOpen = false;
+  run.monitorAnim = 0;
+  run.leftLight = false;
+  run.rightLight = false;
+  run.goldenActive = false;
+  run.quake = Math.max(run.quake, 1.3);
+  run.jumpscare = { who, timer: 0, duration: 1.35 };
+  emit(run, 'jumpscare', { who });
 }
 
-function spawnEnemy(run, type, posOverride = null, options = {}) {
-  const { map, player, wave } = run;
-  const activeCount = run.enemies.filter((e) => !e.dead).length;
-  if (type !== 'hauke' && activeCount >= MAX_ENEMIES) return null;
-
-  let sx = posOverride?.x;
-  let sz = posOverride?.z;
-  if (sx === undefined || sz === undefined) {
-    for (let attempt = 0; attempt < 16; attempt++) {
-      const side = Math.floor(run.rng() * 4);
-      const t = 2.2 + run.rng() * (map.width - 4.4);
-      const candX = side === 0 ? 2.1 : side === 1 ? map.width - 2.1 : t;
-      const candZ = side === 2 ? 2.1 : side === 3 ? map.depth - 2.1 : t;
-      if (Math.hypot(candX - player.x, candZ - player.z) >= 7.5 && map.walkable(candX, candZ, 0.35)) {
-        sx = candX;
-        sz = candZ;
-        break;
-      }
-    }
-    if (sx === undefined) {
-      const angle = run.rng() * Math.PI * 2;
-      sx = clamp(player.x + Math.cos(angle) * 10, 2.2, map.width - 2.2);
-      sz = clamp(player.z + Math.sin(angle) * 10, 2.2, map.depth - 2.2);
-    }
-  }
-
-  const isElite = type === 'anton' && Boolean(options.elite);
-  const scaleHp = 1 + (wave - 1) * 0.24;
-  let hp = 14 * scaleHp;
-  let speed = 2.15 + Math.min(1.1, wave * 0.08);
-  let radius = 0.32;
-  let damage = 11 + Math.floor(wave * 1.5);
-
-  if (type === 'anton' && isElite) {
-    hp = 46 * scaleHp;
-    speed = 2.45 + Math.min(0.95, wave * 0.07);
-    radius = 0.42;
-    damage = 16 + Math.floor(wave * 2);
-  } else if (type === 'tom') {
-    hp = 18 * scaleHp;
-    speed = 3.35 + Math.min(0.9, wave * 0.08);
-    radius = 0.3;
-    damage = 9 + wave;
-  } else if (type === 'hauke') {
-    hp = 135 + (wave - 1) * 48;
-    speed = 2.25 + Math.min(0.65, wave * 0.05);
-    radius = 0.62;
-    damage = 22 + Math.floor(wave * 2.5);
-  }
-
-  const enemy = {
-    id: ++run.enemySeq,
-    type,
-    elite: isElite,
-    x: sx,
-    z: sz,
-    angle: Math.atan2(player.z - sz, player.x - sx),
-    hp,
-    maxHp: hp,
-    speed,
-    radius,
-    damage,
-    dead: false,
-    moving: true,
-    mode: 'hunt',
-    stunned: 0,
-    slowed: 0,
-    exposed: 0,
-    hitFlash: 0,
-    burning: 0,
-    donerCd: 0,
-    knockX: 0,
-    knockZ: 0,
-    knockTime: 0,
-    lootBank: type === 'tom' ? 6 : 0,
-    hasCrown: false,
-    panicked: 0,
-    stuffed: 0,
-    coma: 0,
-    burpCd: type === 'hauke' ? 5.2 : 0,
-    slideVx: 0,
-    slideVz: 0,
-    chargeState: 'none',
-    chargeTimer: type === 'hauke' ? 4.2 : 0,
-    chargeDir: { x: 0, z: 0 },
-    enraged: false,
-    koTimer: 0,
-  };
-  run.enemies.push(enemy);
-  syncCompatRefs(run);
-  return enemy;
-}
-
-function spawnPickup(run, kind, x, z, value = 1, tone = 'jade') {
-  if (run.pickups.length >= MAX_PICKUPS) {
-    // Coalesce oldest xp gem instead of dropping overflow
-    const oldest = run.pickups.find((pk) => pk.kind === 'xp' && !pk.collected);
-    if (oldest && kind === 'xp') {
-      oldest.value += value;
-      oldest.tone = oldest.value >= 6 ? 'gold' : oldest.value >= 3 ? 'cyan' : 'jade';
-      return oldest;
-    }
-  }
-  const px = clamp(x, 1.5, run.map.width - 1.5);
-  const pz = clamp(z, 1.5, run.map.depth - 1.5);
-  const item = {
-    id: ++run.pickupSeq,
-    kind,
-    x: px,
-    z: pz,
-    value,
-    tone,
-    magnetized: false,
-    collected: false,
-    age: 0,
-  };
-  run.pickups.push(item);
-  return item;
-}
-
-function addXp(run, amount) {
-  const { player } = run;
-  const mult = getStats(run).xpMult;
-  const gained = amount * mult;
-  player.xp += gained;
-  player.pfand = Math.round(player.pfand + amount * 25 * mult);
-  while (player.xp >= player.xpNext) {
-    player.xp -= player.xpNext;
-    player.level += 1;
-    player.xpNext = xpThreshold(player.level);
-    run.pendingLevelUps += 1;
-  }
-}
-
-function triggerPendingLevelUp(run) {
-  if (run.pendingLevelUps <= 0 || run.state !== 'playing') return;
-  const offers = buildUpgradeOffers(run);
-  if (offers.length === 0) {
-    run.pendingLevelUps = 0;
-    run.player.hp = Math.min(run.player.maxHp, run.player.hp + 20);
-    run.player.pfand += 400;
-    bark(run, run.player.x, 1.7, run.player.z, 'MAX BUILD! +20 HP', 'gold', 1.2);
-    return;
-  }
-  run.pendingLevelUps -= 1;
-  run.upgradeOffers = offers;
-  run.state = 'levelup';
-  emitEvent(run, 'levelup', run.player.x, run.player.z);
-}
-
-export function applyUpgrade(run, upgradeId) {
-  const { player } = run;
-  const evo = EVOLUTIONS.find((e) => e.id === upgradeId);
-  if (evo) {
-    player.evolutions.add(evo.id);
-    run.mods.add(evo.id);
-    run.stats.evolutions += 1;
-    player.hp = Math.min(player.maxHp, player.hp + 20);
-    player.pfand += 500;
-    if (evo.id === 'evo_can') player.clappers = Math.min(12, player.clappers + 3);
-    run.upgradeOffers = [];
-    run.cameraShake = Math.max(run.cameraShake, 0.42);
-    emitEvent(run, 'evolve', player.x, player.z);
-    emitVfx(run, { kind: 'coin_burst', x: player.x, z: player.z });
-    notice(run, `★ EVOLUTION: ${evo.name} freigeschaltet!`, 3.2);
-    bark(run, player.x, 1.95, player.z, `★ ${evo.name}!!`, evo.tint, 1.45);
-  } else {
-    const def = UPGRADE_POOL.find((u) => u.id === upgradeId);
-    if (!def) {
-      run.upgradeOffers = [];
-      run.state = 'playing';
-      return run;
-    }
-    if (def.kind === 'weapon') {
-      player.weapons[def.id] = Math.min(def.maxLevel, (player.weapons[def.id] || 0) + 1);
-      if (def.id === 'can') player.clappers = Math.min(12, player.clappers + 2);
-    } else {
-      player.passives[def.id] = Math.min(def.maxLevel, (player.passives[def.id] || 0) + 1);
-      if (def.id === 'crown') {
-        player.maxHp += 25;
-        player.hp = Math.min(player.maxHp, player.hp + 35);
-        player.helmet = true;
-        run.droppedHelmet = null;
-        player.crownRegen = 0;
-        for (const e of run.enemies) e.hasCrown = false;
-      }
-    }
-    run.mods.add(def.id);
-    run.upgradeOffers = [];
-    notice(run, `${def.name} Lv ${def.kind === 'weapon' ? player.weapons[def.id] : player.passives[def.id]} aktiv!`, 2.2);
-    bark(run, player.x, 1.85, player.z, `${def.name.toUpperCase()}!`, def.tint, 1.15);
-  }
-
-  if (run.pendingLevelUps > 0) {
-    const nextOffers = buildUpgradeOffers(run);
-    if (nextOffers.length > 0) {
-      run.pendingLevelUps -= 1;
-      run.upgradeOffers = nextOffers;
-      run.state = 'levelup';
-      return run;
-    }
-    run.pendingLevelUps = 0;
-  }
-  run.state = 'playing';
-  return run;
-}
-
-export const applyMod = applyUpgrade;
-
-export function finishRunCashOut(run) {
-  run.state = 'escaped';
-  emitEvent(run, 'escaped', run.player.x, run.player.z);
-  return run;
-}
-
-function releaseStolenCrown(run, tom) {
-  if (!tom?.hasCrown) return;
-  tom.hasCrown = false;
-  run.stats.crownsRecovered += 1;
-  run.player.pfand += 450;
-  const dx = run.player.x - tom.x;
-  const dz = run.player.z - tom.z;
-  const d = Math.hypot(dx, dz) || 1;
-  run.droppedHelmet = {
-    x: clamp(tom.x + (dx / d) * 0.95, 1.8, run.map.width - 1.8),
-    z: clamp(tom.z + (dz / d) * 0.95, 1.8, run.map.depth - 1.8),
-  };
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2;
-    spawnPickup(run, 'xp', tom.x + Math.cos(a) * 0.55, tom.z + Math.sin(a) * 0.55, 3, 'gold');
-  }
-  emitEvent(run, 'crown_drop', tom.x, tom.z);
-  emitVfx(run, { kind: 'coin_burst', x: tom.x, z: tom.z });
-  bark(run, tom.x, 1.75, tom.z, 'KRONE ZURÜCKGEKLATSCHT!!', 'gold', 1.3);
-}
-
-const COMBO_MILESTONES = [
-  { n: 10, label: '10× IMBISS-SERIE!', bonus: 250, heal: 8 },
-  { n: 25, label: '25× DÖNER-GOTT!!', bonus: 600, heal: 14 },
-  { n: 50, label: '50× STAMMKUNDEN-SCHRECK!!', bonus: 1200, heal: 20 },
-  { n: 100, label: '100× MICHELIN-STERN!!', bonus: 2500, heal: 30 },
-];
-
-function registerKill(run, enemy) {
-  if (enemy.dead) return;
-  enemy.dead = true;
-  const { player, stats } = run;
-  stats.kills += 1;
-  player.kills += 1;
-  player.combo = Math.min(999, player.combo + 1);
-  player.comboTimer = 3.2;
-  player.maxCombo = Math.max(player.maxCombo, player.combo);
-
-  for (const m of COMBO_MILESTONES) {
-    if (player.combo >= m.n && player.comboTier < m.n) {
-      player.comboTier = m.n;
-      player.pfand += m.bonus;
-      player.hp = Math.min(player.maxHp, player.hp + m.heal);
-      emitEvent(run, 'combo_milestone', player.x, player.z);
-      emitVfx(run, { kind: 'coin_burst', x: player.x, z: player.z });
-      bark(run, player.x, 1.95, player.z, m.label, 'gold', 1.35);
-      notice(run, `${m.label} (+${m.bonus} ⚡ & +${m.heal} HP)`, 2.6);
-    }
-  }
-
-  if (enemy.hasCrown) releaseStolenCrown(run, enemy);
-
-  if (enemy.type === 'anton') {
-    stats.antonKills += 1;
-    if (enemy.elite) stats.elites += 1;
-    player.pfand += enemy.elite ? 280 : 90;
-    const xpVal = enemy.elite ? 10 : run.wave >= 4 ? 3 : 1;
-    const xpTone = enemy.elite ? 'gold' : run.wave >= 4 ? 'cyan' : 'jade';
-    spawnPickup(run, 'xp', enemy.x, enemy.z, xpVal, xpTone);
-    if (run.chaosEvent?.id === 'doenerpreis' && run.rng() < 0.45) {
-      spawnPickup(run, 'xp', enemy.x + 0.25, enemy.z - 0.2, 4, 'gold');
-    }
-    if (enemy.elite) {
-      const dropHeal = run.rng() < 0.65;
-      spawnPickup(run, dropHeal ? 'heal' : 'magnet_can', enemy.x + 0.35, enemy.z - 0.2, dropHeal ? 25 : 1, dropHeal ? 'vermilion' : 'cyan');
-      emitVfx(run, { kind: 'coin_burst', x: enemy.x, z: enemy.z });
-    } else if (run.rng() < 0.08) {
-      spawnPickup(run, 'dose', enemy.x + 0.15, enemy.z, 2, 'gold');
-    } else if (run.rng() < 0.03) {
-      spawnPickup(run, 'heal', enemy.x - 0.15, enemy.z, 25, 'vermilion');
-    }
-    if (!enemy.elite && run.rng() < 0.22) {
-      quip(run, enemy.x, 1.45, enemy.z, ANTON_KO_QUIPS, 'vermilion', 1.0, 2.8);
-    }
-  } else if (enemy.type === 'tom') {
-    stats.tomKills += 1;
-    player.pfand += 380 + enemy.lootBank * 40;
-    const burstCount = 5 + Math.min(5, Math.floor(enemy.lootBank / 2));
-    for (let i = 0; i < burstCount; i++) {
-      const a = (i / burstCount) * Math.PI * 2;
-      spawnPickup(run, 'xp', enemy.x + Math.cos(a) * 0.65, enemy.z + Math.sin(a) * 0.65, 3, 'gold');
-    }
-    spawnPickup(run, 'heal', enemy.x, enemy.z, 25, 'vermilion');
-    emitVfx(run, { kind: 'coin_burst', x: enemy.x, z: enemy.z });
-    bark(run, enemy.x, 1.5, enemy.z, 'PIÑATA!', 'gold', 1.2);
-  } else if (enemy.type === 'hauke') {
-    stats.haukeKills += 1;
-    player.pfand += 1500;
-    emitEvent(run, 'ko', enemy.x, enemy.z);
-    emitVfx(run, { kind: 'ko_explosion', x: enemy.x, z: enemy.z });
-    run.cameraShake = Math.max(run.cameraShake, 0.72);
-    run.hitStop = Math.max(run.hitStop, 0.06);
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      spawnPickup(run, 'xp', enemy.x + Math.cos(a) * 0.9, enemy.z + Math.sin(a) * 0.9, 6, 'gold');
-    }
-    spawnPickup(run, 'chest', enemy.x, enemy.z, 1, 'gold');
-    bark(run, enemy.x, 1.9, enemy.z, 'HAUKE K.O.!!', 'jade', 1.45);
-    notice(run, 'HAUKE BESIEGT! Goldene Chef-Truhe einsammeln!', 3.2);
-  }
-  emitVfx(run, { kind: 'bonk_hit', x: enemy.x, z: enemy.z, color: enemy.type === 'tom' ? 0x38f2af : 0xffb84d });
-}
-
-function damageEnemy(run, enemy, rawDmg, opts = {}) {
-  if (!enemy || enemy.dead) return false;
-  const stats = getStats(run);
-  const inLightCone = isEnemyInPlayerCone(run.player, enemy);
-  const coneMult = run.player.lamp && inLightCone ? 1.3 : 1.0;
-  const exposedMult = enemy.exposed > 0 ? 1.25 : 1.0;
-  const dmg = rawDmg * stats.dmgMult * coneMult * exposedMult * (opts.mult ?? 1);
-
-  enemy.hp -= dmg;
-  enemy.hitFlash = 0.16;
-  if (opts.stun && opts.stun > 0) enemy.stunned = Math.max(enemy.stunned, opts.stun);
-  if (opts.slow && opts.slow > 0) enemy.slowed = Math.max(enemy.slowed, opts.slow);
-  if (opts.burn) enemy.burning = Math.max(enemy.burning, 2.5);
-
-  const kx = opts.knockX ?? (enemy.x - run.player.x);
-  const kz = opts.knockZ ?? (enemy.z - run.player.z);
-  const kd = Math.hypot(kx, kz) || 1;
-  const kForce = (opts.knock ?? 0) * (enemy.type === 'hauke' ? 0.25 : 1.0);
-  if (kForce > 0.05) {
-    enemy.knockX = (kx / kd) * kForce;
-    enemy.knockZ = (kz / kd) * kForce;
-    enemy.knockTime = 0.16;
-  }
-
-  if (enemy.hasCrown && enemy.hp > 0 && (opts.knock >= 6 || dmg >= 10)) {
-    releaseStolenCrown(run, enemy);
-  } else if (opts.label) {
-    bark(run, enemy.x, 1.45, enemy.z, opts.label, opts.tone ?? 'gold', 0.85);
-  } else if (enemy.type === 'anton' && run.rng() < 0.18) {
-    quip(run, enemy.x, 1.45, enemy.z, ANTON_QUIPS, 'gold', 0.95, 2.3);
-  }
-
-  if (enemy.type === 'hauke' && !enemy.enraged && enemy.hp > 0 && enemy.hp <= enemy.maxHp * 0.5) {
-    enemy.enraged = true;
-    bark(run, enemy.x, 2.0, enemy.z, 'WUT-MODUS!!', 'vermilion', 1.3);
-  }
-
-  if (enemy.hp <= 0) {
-    registerKill(run, enemy);
-    return true;
-  }
-  return false;
-}
-
-function isEnemyInPlayerCone(player, enemy) {
-  const dx = enemy.x - player.x;
-  const dz = enemy.z - player.z;
-  const dist = Math.hypot(dx, dz);
-  if (dist > 9.5) return false;
-  if (dist < 0.7) return true;
-  const dot = (dx * Math.cos(player.angle) + dz * Math.sin(player.angle)) / dist;
-  return dot > 0.62;
-}
-
-function detonateBarrel(run, barrel) {
-  if (!barrel || barrel.exploded) return;
-  barrel.exploded = true;
-  barrel.fuse = 0;
-  run.stats.barrels += 1;
-  run.player.pfand += 140;
-  const r = BARREL_RADIUS * getStats(run).areaMult;
-  emitEvent(run, 'wall_slam', barrel.x, barrel.z);
-  emitVfx(run, { kind: 'ko_explosion', x: barrel.x, z: barrel.z });
-  run.explosions.push({ x: barrel.x, z: barrel.z, radius: r, age: 0, maxAge: 0.42, color: 0xff5744 });
-  run.cameraShake = Math.max(run.cameraShake, 0.52);
-  run.hitStop = Math.max(run.hitStop, 0.04);
-  bark(run, barrel.x, 1.5, barrel.z, 'BOOM!', 'vermilion', 1.0);
-
-  for (const enemy of run.enemies) {
-    if (enemy.dead) continue;
-    const d = Math.hypot(enemy.x - barrel.x, enemy.z - barrel.z);
-    if (d <= r + enemy.radius) {
-      damageEnemy(run, enemy, 26 + run.wave * 4, {
-        knock: 10.5,
-        knockX: enemy.x - barrel.x,
-        knockZ: enemy.z - barrel.z,
-        stun: 0.9,
-        burn: true,
-      });
-    }
-  }
-  for (const c of run.crates) {
-    if (!c.broken && Math.hypot(c.x - barrel.x, c.z - barrel.z) <= r) smashCrate(run, c);
-  }
-  for (const other of run.barrels) {
-    if (!other.exploded && Math.hypot(other.x - barrel.x, other.z - barrel.z) <= r) {
-      other.fuse = Math.max(other.fuse, 0.01);
-      detonateBarrel(run, other);
-    }
-  }
-}
-
-function smashCrate(run, crate) {
-  if (!crate || crate.broken) return;
-  crate.broken = true;
-  emitEvent(run, crate.gold ? 'chest_gold' : 'crate_break', crate.x, crate.z);
-  emitVfx(run, { kind: 'crate_smash', x: crate.x, z: crate.z });
-  if (crate.gold) {
-    spawnPickup(run, 'chest', crate.x, crate.z, 1, 'gold');
-    bark(run, crate.x, 1.4, crate.z, 'GOLD-TRUHE!', 'gold', 1.15);
-  } else {
-    const roll = run.rng();
-    if (roll < 0.30) spawnPickup(run, 'heal', crate.x, crate.z, 25, 'vermilion');
-    else if (roll < 0.54) spawnPickup(run, 'dose', crate.x, crate.z, 2, 'gold');
-    else if (roll < 0.68) spawnPickup(run, 'duck', crate.x, crate.z, 1, 'gold');
-    else if (roll < 0.82) spawnPickup(run, 'magnet_can', crate.x, crate.z, 1, 'cyan');
-    else spawnPickup(run, 'xp', crate.x, crate.z, 6, 'gold');
-  }
-}
-
-function hurtPlayer(run, amount, attacker) {
-  const { player } = run;
-  if (player.invuln > 0 || player.dash > 0 || player.sliding > 0 || run.state !== 'playing') return false;
-
-  if (player.helmet) {
-    player.helmet = false;
-    player.crownRegen = Math.max(8, 18 - (player.passives.crown || 0) * 2.5);
-    player.invuln = 0.85;
-    run.hitFlash = 0.45;
-    run.cameraShake = Math.max(run.cameraShake, 0.45);
-    const dropA = run.rng() * Math.PI * 2;
-    const dropD = 2.4 + run.rng() * 1.1;
-    run.droppedHelmet = {
-      x: clamp(player.x + Math.cos(dropA) * dropD, 2, run.map.width - 2),
-      z: clamp(player.z + Math.sin(dropA) * dropD, 2, run.map.depth - 2),
-    };
-    emitEvent(run, 'crown_drop', player.x, player.z);
-    bark(run, player.x, 1.75, player.z, 'KRONE VERLOREN!', 'vermilion', 1.2);
-    // Shockwave pushback on crown break
-    for (const enemy of run.enemies) {
-      if (enemy.dead) continue;
-      if (Math.hypot(enemy.x - player.x, enemy.z - player.z) < 3.4) {
-        damageEnemy(run, enemy, 8, { knock: 9.5, stun: 0.5 });
-      }
-    }
+export function toggleLeftDoor(run) {
+  if (!run || run.state !== 'playing' || run.powerOutage || run.monitorOpen) return false;
+  if (run.leftJammed) {
+    emit(run, 'jammed', { side: 'left' });
     return false;
   }
-
-  player.hp = Math.max(0, player.hp - amount);
-  player.invuln = 0.58;
-  run.hitFlash = 0.52;
-  run.cameraShake = Math.max(run.cameraShake, 0.45);
-  bark(run, player.x, 1.65, player.z, `-${Math.round(amount)} HP`, 'vermilion', 0.9);
-  emitEvent(run, 'bonk', player.x, player.z);
-
-  if (player.hp <= 0) {
-    run.state = 'caught';
-    run.caughtBy = attacker?.type ?? 'anton';
-    const killerKey = DEATH_ROASTS[run.caughtBy] ? run.caughtBy : 'anton';
-    const pool = DEATH_ROASTS[killerKey];
-    const roast = pool[Math.floor(run.rng() * pool.length)];
-    run.deathReason = `${roast} (Welle ${run.wave} · Lv ${player.level})`;
-    emitEvent(run, 'caught', player.x, player.z);
-    return true;
-  }
-  return false;
-}
-
-function firePanSwing(run, isManual = false) {
-  const { player } = run;
-  const stats = getStats(run);
-  const panLv = Math.max(1, player.weapons.pan || 0);
-  const hasEvo = player.evolutions.has('evo_pan');
-  const isFinisher = isManual && player.comboStep === 2;
-  const radius = (2.4 + panLv * 0.16) * stats.areaMult * (isFinisher ? 1.28 : isManual ? 1.12 : 1.0) * (hasEvo ? 1.32 : 1.0);
-  const baseDmg = (11 + panLv * 4.5) * (isFinisher ? 1.6 : isManual ? 1.25 : 1.0) * (hasEvo ? 1.45 : 1.0);
-
-  player.swing = isFinisher || hasEvo ? 0.44 : 0.32;
-  player.finisherSwing = isFinisher || hasEvo ? 0.44 : 0;
-  player.novaRadius = radius;
-  if (isManual) {
-    run.stats.bonks += 1;
-    player.comboStep = (player.comboStep + 1) % 3;
-    player.comboReset = 1.65;
-  }
-
-  emitEvent(run, 'bonk', player.x, player.z);
-  emitVfx(run, { kind: 'bonk_swing', x: player.x, z: player.z });
-  if (hasEvo) {
-    run.explosions.push({ x: player.x, z: player.z, radius, age: 0, maxAge: 0.32, color: 0xff5a2c });
-  }
-
-  const fx = Math.cos(player.angle);
-  const fz = Math.sin(player.angle);
-  let hitCount = 0;
-
-  for (const enemy of run.enemies) {
-    if (enemy.dead) continue;
-    const dx = enemy.x - player.x;
-    const dz = enemy.z - player.z;
-    const dist = Math.hypot(dx, dz);
-    if (dist > radius + enemy.radius) continue;
-    if (!hasEvo && !isFinisher && isManual && dist > radius * 0.65) {
-      const dot = (dx * fx + dz * fz) / (dist || 1);
-      if (dot < -0.45) continue;
-    }
-    hitCount++;
-    damageEnemy(run, enemy, baseDmg, {
-      knock: (isFinisher ? 14 : 9.5) * (hasEvo ? 1.45 : 1.0),
-      stun: isFinisher || hasEvo ? 0.55 : 0.2,
-      burn: hasEvo || panLv >= 4,
-      label: hasEvo && hitCount === 1 ? 'SCHELLEN-INFERNO!' : isFinisher && hitCount === 1 ? 'MEGA-SCHELLE!' : null,
-      tone: hasEvo ? 'vermilion' : 'gold',
-    });
-  }
-
-  for (const crate of run.crates) {
-    if (!crate.broken && Math.hypot(crate.x - player.x, crate.z - player.z) <= radius + 0.4) {
-      smashCrate(run, crate);
-    }
-  }
-  for (const barrel of run.barrels) {
-    if (!barrel.exploded && Math.hypot(barrel.x - player.x, barrel.z - player.z) <= radius + 0.4) {
-      detonateBarrel(run, barrel);
-    }
-  }
-  // Slapshot manual or auto throws
-  for (const tossed of run.throws) {
-    if (!tossed.slapshot && Math.hypot(tossed.x - player.x, tossed.z - player.z) <= radius) {
-      tossed.slapshot = true;
-      tossed.vx = fx * 19;
-      tossed.vz = fz * 19;
-      tossed.bounces += 2;
-      tossed.damage *= 1.8;
-      bark(run, tossed.x, 1.35, tossed.z, 'SLAPSHOT!', 'cyan', 0.9);
-    }
-  }
-
-  if (hitCount > 0) {
-    run.cameraShake = Math.max(run.cameraShake, isFinisher || hasEvo ? 0.36 : 0.18);
-    if (isManual && hitCount >= 4) {
-      const line = SCHELLE_MULTI_QUIPS[Math.floor(run.rng() * SCHELLE_MULTI_QUIPS.length)];
-      bark(run, player.x, 1.9, player.z, line, 'gold', 1.15);
-    }
-  }
-}
-
-function fireSkewers(run) {
-  const { player } = run;
-  const lv = player.weapons.skewer;
-  if (lv <= 0) return;
-  const alive = run.enemies.filter((e) => !e.dead);
-  if (alive.length === 0) return;
-
-  alive.sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));
-  const hasEvo = player.evolutions.has('evo_skewer');
-  const count = (hasEvo ? 3 : 1) + lv;
-  const pierce = (hasEvo ? 3 : 1) + Math.floor(lv / 2);
-  const dmg = (10 + lv * 3.5) * (hasEvo ? 1.3 : 1);
-
-  for (let i = 0; i < count; i++) {
-    const target = alive[i % alive.length];
-    const baseAngle = Math.atan2(target.z - player.z, target.x - player.x);
-    const spread = count > 1 && i >= alive.length ? ((i % 3) - 1) * 0.16 : 0;
-    const angle = baseAngle + spread;
-    run.projectiles.push({
-      kind: 'skewer',
-      evo: hasEvo,
-      x: player.x + Math.cos(angle) * 0.45,
-      z: player.z + Math.sin(angle) * 0.45,
-      vx: Math.cos(angle) * (hasEvo ? 19.5 : 16.5),
-      vz: Math.sin(angle) * (hasEvo ? 19.5 : 16.5),
-      angle,
-      damage: dmg,
-      pierce,
-      hitIds: new Set(),
-      life: 1.4,
-    });
-  }
-  emitEvent(run, 'skewer', player.x, player.z);
-}
-
-function launchSpeziBomb(run, targetX, targetZ, radiusMult = 1, dmgBoost = 1) {
-  const { player } = run;
-  const lv = Math.max(1, player.weapons.spezi || 0);
-  const dx = targetX - player.x;
-  const dz = targetZ - player.z;
-  const dist = clamp(Math.hypot(dx, dz), 1.8, 8.8);
-  const angle = Math.atan2(dz, dx);
-  const tx = clamp(player.x + Math.cos(angle) * dist, 1.5, run.map.width - 1.5);
-  const tz = clamp(player.z + Math.sin(angle) * dist, 1.5, run.map.depth - 1.5);
-
-  run.bombs.push({
-    fromX: player.x,
-    fromZ: player.z,
-    toX: tx,
-    toZ: tz,
-    x: player.x,
-    z: player.z,
-    elapsed: 0,
-    duration: 0.46,
-    radius: (SPEZI_RADIUS + lv * 0.22) * getStats(run).areaMult * radiusMult,
-    damage: (19 + lv * 5.5) * dmgBoost,
-  });
-  emitEvent(run, 'throw', player.x, player.z);
-}
-
-function fireSpeziAuto(run) {
-  const lv = run.player.weapons.spezi;
-  if (lv <= 0) return;
-  const alive = run.enemies.filter((e) => !e.dead);
-  if (alive.length === 0) return;
-  const hasEvo = run.player.evolutions.has('evo_spezi');
-  if (hasEvo) {
-    const pick = alive[Math.floor(run.rng() * alive.length)];
-    for (let i = 0; i < 3; i++) {
-      const a = (i / 3) * Math.PI * 2 + run.time;
-      launchSpeziBomb(run, pick.x + Math.cos(a) * 1.15, pick.z + Math.sin(a) * 1.15, 1.28, 1.3);
-    }
-    return;
-  }
-  const count = 1 + Math.floor(lv / 3);
-  for (let i = 0; i < count; i++) {
-    const pick = alive[Math.floor(run.rng() * alive.length)];
-    launchSpeziBomb(run, pick.x, pick.z);
-  }
-}
-
-function fireLampBeam(run) {
-  const { player } = run;
-  const lv = player.weapons.beam;
-  if (lv <= 0) return;
-  const stats = getStats(run);
-  const hasEvo = player.evolutions.has('evo_beam');
-  const dmg = (13 + lv * 4.5) * (hasEvo ? 1.45 : 1);
-  const maxTargets = hasEvo ? 14 : 3 + lv * 2;
-  const evoRadius = 7.2 * stats.areaMult;
-  let zapped = 0;
-
-  if (hasEvo) {
-    run.explosions.push({ x: player.x, z: player.z, radius: evoRadius, age: 0, maxAge: 0.34, color: 0x73d7ff });
-  }
-
-  for (const enemy of run.enemies) {
-    if (enemy.dead || zapped >= maxTargets) continue;
-    const dist = Math.hypot(enemy.x - player.x, enemy.z - player.z);
-    const hit = hasEvo
-      ? dist <= evoRadius + enemy.radius
-      : player.lamp
-        ? isEnemyInPlayerCone(player, enemy)
-        : dist <= 4.6 * stats.areaMult;
-    if (!hit) continue;
-    zapped++;
-    enemy.exposed = hasEvo ? 3.2 : 2.0;
-    damageEnemy(run, enemy, dmg, {
-      stun: (hasEvo ? 1.05 : 0.65) + lv * 0.12,
-      slow: hasEvo ? 2.2 : 1.5,
-      knock: hasEvo ? 5.2 : 3.5,
-      burn: hasEvo,
-      label: zapped === 1 ? (hasEvo ? 'STROBO-FLUTLICHT!' : player.lamp ? 'BLEND-BLITZ!' : 'SCHATTEN-SCHOCK!') : null,
-      tone: 'cyan',
-    });
-    emitVfx(run, { kind: 'can_pickup', x: enemy.x, z: enemy.z, color: 0x73d7ff });
-  }
-  if (zapped > 0) emitEvent(run, 'shutter', player.x, player.z);
-}
-
-function fireKnobiAura(run) {
-  const { player } = run;
-  const lv = player.weapons.knobi;
-  if (lv <= 0) return;
-  const stats = getStats(run);
-  const hasEvo = player.evolutions.has('evo_knobi');
-  const r = (2.15 + lv * 0.28) * stats.areaMult * (hasEvo ? 1.42 : 1);
-  const dmg = (6 + lv * 2.5) * (hasEvo ? 1.65 : 1);
-  player.knobiPulse = hasEvo ? 0.44 : 0.34;
-  player.knobiRadius = r;
-  let hits = 0;
-  let firstHit = null;
-
-  if (hasEvo) {
-    run.explosions.push({ x: player.x, z: player.z, radius: r, age: 0, maxAge: 0.36, color: 0x38f2af });
-  }
-
-  for (const enemy of run.enemies) {
-    if (enemy.dead) continue;
-    const d = Math.hypot(enemy.x - player.x, enemy.z - player.z);
-    if (d <= r + enemy.radius) {
-      hits++;
-      if (!firstHit) firstHit = enemy;
-      if (hasEvo && enemy.type !== 'hauke') {
-        enemy.panicked = Math.max(enemy.panicked || 0, 2.2);
-      }
-      damageEnemy(run, enemy, dmg, {
-        knock: (4.8 + lv * 0.85) * (hasEvo ? 1.45 : 1),
-        slow: hasEvo ? 1.6 : 0.9,
-        label: hasEvo && hits === 1 ? 'TZATZIKI-SUPERGAU!' : null,
-        tone: 'jade',
-      });
-    }
-  }
-  if (hits > 0) {
-    if (hasEvo && hits >= 2 && player.hp < player.maxHp) {
-      player.hp = Math.min(player.maxHp, player.hp + 4);
-    }
-    emitEvent(run, 'knobi', player.x, player.z);
-    emitVfx(run, { kind: 'can_pickup', x: player.x, z: player.z, color: 0x38f2af });
-    if (firstHit && !hasEvo && run.rng() < 0.35) {
-      quip(run, firstHit.x, 1.45, firstHit.z, KNOBI_QUIPS, 'jade', 0.95, 2.2);
-    }
-  }
-}
-
-export function triggerDuckQuack(run, x = run.player.x, z = run.player.z) {
-  run.stats.ducks += 1;
-  const radius = 7.5 * getStats(run).areaMult;
-  emitEvent(run, 'duck_quack', x, z);
-  emitVfx(run, { kind: 'coin_burst', x, z });
-  run.explosions.push({ x, z, radius, age: 0, maxAge: 0.5, color: 0xffe082 });
-  run.cameraShake = Math.max(run.cameraShake, 0.65);
-  run.hitStop = Math.max(run.hitStop, 0.045);
-  bark(run, run.player.x, 1.9, run.player.z, 'QUAAAK!!', 'gold', 1.3);
-
-  let panickingBark = false;
-  for (const enemy of run.enemies) {
-    if (enemy.dead) continue;
-    const dist = Math.hypot(enemy.x - x, enemy.z - z);
-    if (dist <= radius + enemy.radius) {
-      if (enemy.type !== 'hauke') enemy.panicked = Math.max(enemy.panicked, 3.6);
-      damageEnemy(run, enemy, 28 + run.wave * 5, {
-        knock: 15.5,
-        knockX: enemy.x - x,
-        knockZ: enemy.z - z,
-        stun: enemy.type === 'hauke' ? 0.9 : 1.9,
-        label: !panickingBark ? 'MEINE OHREN!!' : null,
-        tone: 'cyan',
-      });
-      panickingBark = true;
-    }
-  }
-  for (const crate of run.crates) {
-    if (!crate.broken && Math.hypot(crate.x - x, crate.z - z) <= radius) smashCrate(run, crate);
-  }
-  for (const barrel of run.barrels) {
-    if (!barrel.exploded && Math.hypot(barrel.x - x, barrel.z - z) <= radius) detonateBarrel(run, barrel);
-  }
-}
-
-function throwCanProjectile(run, angleOverride = null, manual = false) {
-  const { player } = run;
-  if (manual) {
-    if (player.clappers <= 0) return false;
-    player.clappers -= 1;
-  }
-  const lv = Math.max(1, player.weapons.can || 0);
-  const hasEvo = player.evolutions.has('evo_can');
-  let angle = angleOverride;
-  if (angle === null) {
-    const nearest = run.enemies
-      .filter((e) => !e.dead)
-      .sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z))[0];
-    angle = nearest ? Math.atan2(nearest.z - player.z, nearest.x - player.x) : player.angle;
-  }
-  const speed = hasEvo ? 19.5 : 13.8 + lv * 0.8;
-  run.throws.push({
-    x: player.x + Math.cos(angle) * 0.4,
-    z: player.z + Math.sin(angle) * 0.4,
-    vx: Math.cos(angle) * speed,
-    vz: Math.sin(angle) * speed,
-    bounces: hasEvo ? 8 : (manual ? 3 : 2) + lv,
-    damage: ((manual ? 22 : 12) + lv * 3.5) * (hasEvo ? 1.55 : 1),
-    elapsed: 0,
-    duration: hasEvo ? 2.8 : 2.1,
-    hitCooldowns: new Map(),
-    slapshot: false,
-    superCan: hasEvo,
-  });
-  emitEvent(run, 'throw', player.x, player.z);
+  run.leftDoor = !run.leftDoor;
+  if (run.leftDoor) run.stats.doorsClosed += 1;
+  emit(run, 'door', { side: 'left', closed: run.leftDoor });
   return true;
 }
 
-function updateAutoWeapons(run, dt) {
-  const { player } = run;
-  const stats = getStats(run);
-
-  if (player.weapons.pan > 0) {
-    player.timers.pan -= dt;
-    if (player.timers.pan <= 0) {
-      player.timers.pan = Math.max(0.55, (1.28 - player.weapons.pan * 0.1) * stats.cdMult);
-      firePanSwing(run, false);
-    }
+export function toggleRightDoor(run) {
+  if (!run || run.state !== 'playing' || run.powerOutage || run.monitorOpen) return false;
+  if (run.rightJammed) {
+    emit(run, 'jammed', { side: 'right' });
+    return false;
   }
-  if (player.weapons.skewer > 0) {
-    player.timers.skewer -= dt;
-    if (player.timers.skewer <= 0) {
-      const evoMult = player.evolutions.has('evo_skewer') ? 0.62 : 1;
-      player.timers.skewer = Math.max(0.24, (1.1 - player.weapons.skewer * 0.08) * stats.cdMult * evoMult);
-      fireSkewers(run);
-    }
-  }
-  if (player.weapons.doner > 0) {
-    const lv = player.weapons.doner;
-    const hasEvo = player.evolutions.has('evo_doner');
-    player.donerAngle = (player.donerAngle + dt * (2.9 + lv * 0.42) * (hasEvo ? 1.45 : 1)) % (Math.PI * 2);
-    const count = hasEvo ? 6 : 1 + lv;
-    const orbitR = (2.05 + lv * 0.14) * stats.areaMult * (hasEvo ? 1.28 : 1);
-    player.donerRadius = orbitR;
-    for (let i = 0; i < count; i++) {
-      const a = player.donerAngle + (i * Math.PI * 2) / count;
-      const bx = player.x + Math.cos(a) * orbitR;
-      const bz = player.z + Math.sin(a) * orbitR;
-      for (const enemy of run.enemies) {
-        if (enemy.dead || enemy.donerCd > 0) continue;
-        if (Math.hypot(enemy.x - bx, enemy.z - bz) <= (hasEvo ? 0.8 : 0.62) + enemy.radius) {
-          enemy.donerCd = hasEvo ? 0.25 : 0.34;
-          damageEnemy(run, enemy, hasEvo ? 12 + lv * 4 : 8 + lv * 3, {
-            knock: hasEvo ? 6.5 : 4.5,
-            slow: hasEvo ? 0.85 : 0,
-            knockX: enemy.x - player.x,
-            knockZ: enemy.z - player.z,
-          });
-        }
-      }
-      for (const crate of run.crates) {
-        if (!crate.broken && Math.hypot(crate.x - bx, crate.z - bz) <= 0.72) smashCrate(run, crate);
-      }
-      for (const barrel of run.barrels) {
-        if (!barrel.exploded && Math.hypot(barrel.x - bx, barrel.z - bz) <= 0.68) detonateBarrel(run, barrel);
-      }
-    }
-  }
-  if (player.weapons.spezi > 0) {
-    player.timers.spezi -= dt;
-    if (player.timers.spezi <= 0) {
-      player.timers.spezi = Math.max(0.85, (2.6 - player.weapons.spezi * 0.2) * stats.cdMult);
-      fireSpeziAuto(run);
-    }
-  }
-  if (player.weapons.beam > 0) {
-    player.timers.beam -= dt;
-    if (player.timers.beam <= 0) {
-      const evoMult = player.evolutions.has('evo_beam') ? 0.68 : 1;
-      player.timers.beam = Math.max(0.55, (2.1 - player.weapons.beam * 0.16) * stats.cdMult * evoMult);
-      fireLampBeam(run);
-    }
-  }
-  if (player.weapons.can > 0) {
-    player.timers.can -= dt;
-    if (player.timers.can <= 0) {
-      player.timers.can = Math.max(0.85, (2.35 - player.weapons.can * 0.18) * stats.cdMult);
-      const shots = 1 + Math.floor(player.weapons.can / 2) + (player.evolutions.has('evo_can') ? 1 : 0);
-      for (let i = 0; i < shots; i++) {
-        throwCanProjectile(run, i === 0 ? null : player.angle + i * 0.45, false);
-      }
-    }
-  }
-  if (player.weapons.knobi > 0) {
-    player.timers.knobi -= dt;
-    if (player.timers.knobi <= 0) {
-      const evoMult = player.evolutions.has('evo_knobi') ? 0.78 : 1;
-      player.timers.knobi = Math.max(0.36, (0.95 - player.weapons.knobi * 0.08) * stats.cdMult * evoMult);
-      fireKnobiAura(run);
-    }
-  }
+  run.rightDoor = !run.rightDoor;
+  if (run.rightDoor) run.stats.doorsClosed += 1;
+  emit(run, 'door', { side: 'right', closed: run.rightDoor });
+  return true;
 }
 
-function advanceProjectilesAndBombs(run, dt) {
-  // Skewers
-  for (let i = run.projectiles.length - 1; i >= 0; i--) {
-    const p = run.projectiles[i];
-    p.life -= dt;
-    p.x += p.vx * dt;
-    p.z += p.vz * dt;
-    if (p.life <= 0 || !run.map.walkable(p.x, p.z, 0.12)) {
-      run.projectiles.splice(i, 1);
-      continue;
-    }
-    for (const enemy of run.enemies) {
-      if (enemy.dead || p.hitIds.has(enemy.id)) continue;
-      if (Math.hypot(enemy.x - p.x, enemy.z - p.z) <= enemy.radius + 0.34) {
-        p.hitIds.add(enemy.id);
-        p.pierce -= 1;
-        damageEnemy(run, enemy, p.damage, { knock: 4.0, knockX: p.vx, knockZ: p.vz });
-        if (p.evo && run.rng() < 0.35) {
-          spawnPickup(run, 'xp', enemy.x, enemy.z, 2, 'gold');
-        }
-        if (p.pierce <= 0) break;
-      }
-    }
-    for (const barrel of run.barrels) {
-      if (!barrel.exploded && Math.hypot(barrel.x - p.x, barrel.z - p.z) <= 0.55) {
-        detonateBarrel(run, barrel);
-        p.pierce = 0;
-        break;
-      }
-    }
-    if (p.pierce <= 0) run.projectiles.splice(i, 1);
+export function toggleLeftLight(run) {
+  if (!run || run.state !== 'playing' || run.powerOutage || run.monitorOpen) return false;
+  if (run.leftJammed) {
+    emit(run, 'jammed', { side: 'left' });
+    return false;
   }
-
-  // Arcing Spezi Bombs
-  for (let i = run.bombs.length - 1; i >= 0; i--) {
-    const b = run.bombs[i];
-    b.elapsed += dt;
-    const t = Math.min(1, b.elapsed / b.duration);
-    b.x = b.fromX + (b.toX - b.fromX) * t;
-    b.z = b.fromZ + (b.toZ - b.fromZ) * t;
-    if (t >= 1) {
-      run.bombs.splice(i, 1);
-      emitEvent(run, 'spezi_boom', b.toX, b.toZ);
-      emitVfx(run, { kind: 'ko_explosion', x: b.toX, z: b.toZ });
-      run.explosions.push({ x: b.toX, z: b.toZ, radius: b.radius, age: 0, maxAge: 0.38, color: 0xff8c24 });
-      for (const enemy of run.enemies) {
-        if (enemy.dead) continue;
-        if (Math.hypot(enemy.x - b.toX, enemy.z - b.toZ) <= b.radius + enemy.radius) {
-          damageEnemy(run, enemy, b.damage, {
-            knock: 8.5,
-            knockX: enemy.x - b.toX,
-            knockZ: enemy.z - b.toZ,
-            stun: 0.45,
-          });
-        }
-      }
-      for (const crate of run.crates) {
-        if (!crate.broken && Math.hypot(crate.x - b.toX, crate.z - b.toZ) <= b.radius) smashCrate(run, crate);
-      }
-      for (const barrel of run.barrels) {
-        if (!barrel.exploded && Math.hypot(barrel.x - b.toX, barrel.z - b.toZ) <= b.radius) detonateBarrel(run, barrel);
-      }
+  run.leftLight = !run.leftLight;
+  if (run.leftLight) {
+    run.rightLight = false;
+    emit(run, 'light', { side: 'left', on: true });
+    if (run.animatronics.anton.room === 'left_door' && !run.animatronics.anton.sighted) {
+      run.animatronics.anton.sighted = true;
+      run.stingFlash = 0.55;
+      emit(run, 'window_sting', { who: 'anton', side: 'left' });
     }
-  }
-
-  // Ricochet Cans
-  for (let i = run.throws.length - 1; i >= 0; i--) {
-    const t = run.throws[i];
-    t.elapsed += dt;
-    if (t.elapsed >= t.duration) {
-      run.throws.splice(i, 1);
-      continue;
-    }
-    const nx = t.x + t.vx * dt;
-    const nz = t.z + t.vz * dt;
-    let bounced = false;
-    if (!run.map.walkable(nx, t.z, 0.16)) {
-      t.vx = -t.vx;
-      bounced = true;
-    } else {
-      t.x = nx;
-    }
-    if (!run.map.walkable(t.x, nz, 0.16)) {
-      t.vz = -t.vz;
-      bounced = true;
-    } else {
-      t.z = nz;
-    }
-    if (bounced) {
-      t.bounces -= 1;
-      emitEvent(run, 'can', t.x, t.z);
-      if (t.bounces < 0) {
-        run.throws.splice(i, 1);
-        continue;
-      }
-    }
-    for (const barrel of run.barrels) {
-      if (!barrel.exploded && Math.hypot(barrel.x - t.x, barrel.z - t.z) <= 0.56) {
-        detonateBarrel(run, barrel);
-      }
-    }
-    for (const crate of run.crates) {
-      if (!crate.broken && Math.hypot(crate.x - t.x, crate.z - t.z) <= 0.56) {
-        smashCrate(run, crate);
-      }
-    }
-    for (const enemy of run.enemies) {
-      if (enemy.dead) continue;
-      const lastHit = t.hitCooldowns.get(enemy.id) ?? -9;
-      if (t.elapsed - lastHit < 0.28) continue;
-      if (Math.hypot(enemy.x - t.x, enemy.z - t.z) <= enemy.radius + 0.34) {
-        t.hitCooldowns.set(enemy.id, t.elapsed);
-        damageEnemy(run, enemy, t.damage, { knock: 6.5, knockX: t.vx, knockZ: t.vz, stun: 0.35 });
-        t.vx = -t.vx * 0.92 + (run.rng() - 0.5) * 3;
-        t.vz = -t.vz * 0.92 + (run.rng() - 0.5) * 3;
-        t.bounces -= 1;
-        if (t.bounces < 0) {
-          run.throws.splice(i, 1);
-          break;
-        }
-      }
-    }
-  }
-
-  for (let i = run.explosions.length - 1; i >= 0; i--) {
-    run.explosions[i].age += dt;
-    if (run.explosions[i].age >= run.explosions[i].maxAge) run.explosions.splice(i, 1);
-  }
-}
-
-export function triggerChaosEvent(run, eventId = null) {
-  const pick = eventId
-    ? (CHAOS_EVENTS.find((ev) => ev.id === eventId) ?? CHAOS_EVENTS[0])
-    : CHAOS_EVENTS[Math.floor(run.rng() * CHAOS_EVENTS.length)];
-  run.chaosEvent = { ...pick, timer: 12 };
-  run.stats.chaosEvents += 1;
-  emitEvent(run, 'chaos_event', run.player.x, run.player.z);
-  notice(run, `${pick.title} ${pick.sub}`, 3.4);
-  bark(run, run.player.x, 1.95, run.player.z, pick.title, 'cyan', 1.35);
-
-  if (pick.id === 'ordnungsamt') {
-    for (const e of run.enemies) {
-      if (!e.dead && e.type === 'anton') e.panicked = Math.max(e.panicked, 5.5);
-    }
-    const sample = run.enemies.find((e) => !e.dead && e.type === 'anton');
-    if (sample) bark(run, sample.x, 1.5, sample.z, 'HAB KEIN GEWERBE!!', 'vermilion', 1.2);
-  } else if (pick.id === 'happy_hour') {
-    run.player.clappers = Math.min(12, run.player.clappers + 3);
-    for (let i = 0; i < 2; i++) {
-      const bx = 3 + run.rng() * (run.map.width - 6);
-      const bz = 3 + run.rng() * (run.map.depth - 6);
-      if (run.map.walkable(bx, bz, 0.5)) {
-        const slot = run.barrels.find((b) => b.exploded);
-        if (slot) {
-          slot.x = bx;
-          slot.z = bz;
-          slot.exploded = false;
-          slot.fuse = 0;
-        } else if (run.barrels.length < 14) {
-          run.barrels.push({ x: bx, z: bz, exploded: false, fuse: 0 });
-        }
-      }
-    }
-  } else if (pick.id === 'fettbahn') {
-    bark(run, run.player.x, 1.55, run.player.z, 'ACHTUNG ÖL-TEPPICH!', 'gold', 1.15);
-  } else if (pick.id === 'kartenzahlung') {
-    emitEvent(run, 'ka_ching', run.player.x, run.player.z);
-    for (const e of run.enemies) {
-      if (!e.dead && e.type === 'anton') e.stunned = Math.max(e.stunned, 2.0);
-    }
-    const sample = run.enemies.find((e) => !e.dead && e.type === 'anton');
-    if (sample) bark(run, sample.x, 1.5, sample.z, 'WAS?! KEIN APPLE PAY?!', 'cyan', 1.25);
-  } else if (pick.id === 'doenerpreis') {
-    const sample = run.enemies.find((e) => !e.dead && e.type === 'anton');
-    if (sample) bark(run, sample.x, 1.5, sample.z, '9,50 €?! FRECHHEIT!!', 'vermilion', 1.25);
-    for (let i = 0; i < 3; i++) {
-      const gx = 3 + run.rng() * (run.map.width - 6);
-      const gz = 3 + run.rng() * (run.map.depth - 6);
-      if (run.map.walkable(gx, gz, 0.4)) spawnPickup(run, 'xp', gx, gz, 5, 'gold');
-    }
-  } else if (pick.id === 'enten_regen') {
-    let spawned = 0;
-    for (let attempt = 0; attempt < 24 && spawned < 3; attempt++) {
-      const dx = 3 + run.rng() * (run.map.width - 6);
-      const dz = 3 + run.rng() * (run.map.depth - 6);
-      if (run.map.walkable(dx, dz, 0.5)) {
-        spawnPickup(run, 'duck', dx, dz, 1, 'gold');
-        spawned++;
-      }
-    }
-  }
-  return run.chaosEvent;
-}
-
-function advanceWaveDirector(run, dt) {
-  run.waveTimer += dt;
-  const mut = run.map.mutator ?? {};
-  const bossInterval = mut.bossInterval || 3;
-
-  if (run.waveTimer >= WAVE_DURATION) {
-    run.waveTimer -= WAVE_DURATION;
-    run.wave += 1;
-    emitEvent(run, 'wave', run.player.x, run.player.z);
-
-    const isBossWave = run.wave % bossInterval === 0;
-    if (isBossWave) {
-      const boss = spawnEnemy(run, 'hauke');
-      notice(run, `WELLE ${run.wave}: MASSIV-RUND HAUKE ROLLT AN!`, 3.5);
-      bark(run, run.player.x, 1.85, run.player.z, `BOSS WELLE ${run.wave}!`, 'vermilion', 1.4);
-      if (boss) {
-        const line = HAUKE_SPAWN_QUIPS[Math.floor(run.rng() * HAUKE_SPAWN_QUIPS.length)];
-        bark(run, boss.x, 2.05, boss.z, line, 'gold', 1.45);
-      }
-    } else if (run.wave % 2 === 0 || mut.extraTom) {
-      spawnEnemy(run, 'tom');
-      notice(run, `WELLE ${run.wave}: Zechpreller Tom & Anton-Schwarm!`, 2.8);
-    } else {
-      notice(run, `WELLE ${run.wave} — Halte den Imbiss!`, 2.5);
-    }
-  }
-
-  // Continuous Vampire-Survivors horde stream
-  run.spawnTimer -= dt;
-  if (run.spawnTimer <= 0) {
-    const rate = Math.max(0.42, (1.55 - run.wave * 0.14) / (mut.spawnMult || 1));
-    run.spawnTimer = rate;
-    const batch = run.wave >= 5 ? 2 : 1;
-    for (let i = 0; i < batch; i++) {
-      const roll = run.rng();
-      if (run.wave >= 2 && roll < (mut.extraTom ? 0.24 : 0.13) && run.enemies.filter((e) => !e.dead && e.type === 'tom').length < 3) {
-        spawnEnemy(run, 'tom');
-      } else {
-        const elite = run.wave >= 2 && run.rng() < Math.min(0.28, 0.08 + run.wave * 0.03);
-        spawnEnemy(run, 'anton', null, { elite });
-      }
-    }
-  }
-
-  // Barrel & Crate periodic drops
-  run.barrelRespawn -= dt;
-  if (run.barrelRespawn <= 0) {
-    run.barrelRespawn = mut.barrelExtra ? 6.5 : 10.5;
-    if (run.barrels.filter((b) => !b.exploded).length < 7) {
-      const rx = 2.5 + run.rng() * (run.map.width - 5);
-      const rz = 2.5 + run.rng() * (run.map.depth - 5);
-      if (Math.hypot(rx - run.player.x, rz - run.player.z) > 3.5 && run.map.walkable(rx, rz, 0.5)) {
-        const slot = run.barrels.find((b) => b.exploded);
-        if (slot) {
-          slot.x = rx;
-          slot.z = rz;
-          slot.exploded = false;
-          slot.fuse = 0;
-        } else if (run.barrels.length < 12) {
-          run.barrels.push({ x: rx, z: rz, exploded: false, fuse: 0 });
-        }
-      }
-    }
-  }
-
-  run.crateRespawn -= dt;
-  if (run.crateRespawn <= 0) {
-    run.crateRespawn = 13;
-    if (run.crates.filter((c) => !c.broken).length < 6) {
-      const rx = 2.5 + run.rng() * (run.map.width - 5);
-      const rz = 2.5 + run.rng() * (run.map.depth - 5);
-      if (Math.hypot(rx - run.player.x, rz - run.player.z) > 3.5 && run.map.walkable(rx, rz, 0.5)) {
-        const slot = run.crates.find((c) => c.broken);
-        if (slot) {
-          slot.x = rx;
-          slot.z = rz;
-          slot.broken = false;
-          slot.gold = run.rng() < 0.14;
-        } else if (run.crates.length < 10) {
-          run.crates.push({ x: rx, z: rz, broken: false, gold: run.rng() < 0.14 });
-        }
-      }
-    }
-  }
-  // Mega-Quietscheente Chaos-Drop
-  run.duckSpawnTimer -= dt;
-  if (run.duckSpawnTimer <= 0) {
-    run.duckSpawnTimer = 22;
-    const duckCount = run.pickups.filter((pk) => !pk.collected && pk.kind === 'duck').length;
-    if (duckCount < 2) {
-      const rx = 3 + run.rng() * (run.map.width - 6);
-      const rz = 3 + run.rng() * (run.map.depth - 6);
-      if (run.map.walkable(rx, rz, 0.5)) {
-        spawnPickup(run, 'duck', rx, rz, 1, 'gold');
-        notice(run, 'MEGA-QUIETSCHEENTE gelandet! Aufheben für QUAAAK-Bombe!', 2.8);
-      }
-    }
-  }
-
-  // Imbiss-Chaos-Durchsagen (alle ~34s ein 12s-Event!)
-  if (run.chaosEvent) {
-    run.chaosEvent.timer -= dt;
-    if (run.chaosEvent.timer <= 0) run.chaosEvent = null;
   } else {
-    run.chaosTimer -= dt;
-    if (run.chaosTimer <= 0) {
-      run.chaosTimer = 32 + run.rng() * 10;
-      triggerChaosEvent(run);
+    emit(run, 'light', { side: 'left', on: false });
+  }
+  return true;
+}
+
+export function toggleRightLight(run) {
+  if (!run || run.state !== 'playing' || run.powerOutage || run.monitorOpen) return false;
+  if (run.rightJammed) {
+    emit(run, 'jammed', { side: 'right' });
+    return false;
+  }
+  run.rightLight = !run.rightLight;
+  if (run.rightLight) {
+    run.leftLight = false;
+    emit(run, 'light', { side: 'right', on: true });
+    if (run.animatronics.tom.room === 'right_door' && !run.animatronics.tom.sighted) {
+      run.animatronics.tom.sighted = true;
+      run.stingFlash = 0.55;
+      emit(run, 'window_sting', { who: 'tom', side: 'right' });
     }
+  } else {
+    emit(run, 'light', { side: 'right', on: false });
+  }
+  return true;
+}
+
+export function toggleMonitor(run) {
+  if (!run || run.state !== 'playing' || run.powerOutage) return false;
+  run.monitorOpen = !run.monitorOpen;
+  if (run.monitorOpen) {
+    run.leftLight = false;
+    run.rightLight = false;
+    run.camSwitchStatic = 0.28;
+    emit(run, 'monitor_open');
+
+    // Banish Golden Duck immediately when flipping monitor back up!
+    if (run.goldenActive) {
+      run.goldenActive = false;
+      run.goldenPoster = false;
+      run.goldenTimer = 0;
+      run.stats.goldenBanished += 1;
+      emit(run, 'cam_blip');
+    }
+
+    onCameraViewed(run, run.activeCam);
+  } else {
+    emit(run, 'monitor_close');
+    // Closing monitor locks Hauke for a short authentic FNAF 1 grace window
+    run.animatronics.hauke.lockTimer = 1.1 + run.rng() * 4.4;
+
+    // If Golden Duck poster was seen on CAM 2B, summon it into the Office!
+    if (run.goldenPoster && !run.goldenActive) {
+      run.goldenActive = true;
+      run.goldenTimer = 3.8;
+      run.hallucination = { text: 'ES BIN ICH', timer: 0.9 };
+      emit(run, 'duck_giggle');
+    }
+
+    // If Anton or Tom already slipped into the office, jumpscare the moment monitor drops!
+    if (run.animatronics.anton.room === 'office') {
+      triggerJumpscare(run, 'anton');
+      return true;
+    }
+    if (run.animatronics.tom.room === 'office') {
+      triggerJumpscare(run, 'tom');
+      return true;
+    }
+  }
+  return true;
+}
+
+function onCameraViewed(run, camId) {
+  // Viewing CAM 2A while Hauke is in stage 3 immediately triggers his Earthquake Sprint!
+  const sprint = run.animatronics.hauke.sprint;
+  if (camId === '2A' && sprint.active && !sprint.triggered) {
+    startHaukeCharge(run);
+  }
+  // Rare Golden Duck poster hallucination on CAM 2B (Night 2+)
+  if (camId === '2B' && run.night >= 2 && !run.goldenUsed && !run.goldenPoster && run.rng() < 0.03) {
+    run.goldenPoster = true;
+    run.goldenUsed = true;
+    emit(run, 'duck_giggle');
   }
 }
 
-function advanceEnemies(run, dt) {
-  const { player } = run;
-  const stats = getStats(run);
-  const alive = run.enemies.filter((e) => !e.dead);
-  const slipperyFloor = run.chaosEvent?.id === 'fettbahn';
-  const inflationRage = run.chaosEvent?.id === 'doenerpreis';
+export function selectCam(run, camId) {
+  if (!run || run.state !== 'playing' || run.powerOutage || !run.monitorOpen) return false;
+  if (!CAMERA_MAP[camId]) return false;
+  if (run.activeCam !== camId) {
+    run.activeCam = camId;
+    run.camSwitchStatic = 0.24;
+    run.stats.camSwitches += 1;
+    emit(run, 'cam_blip', { cam: camId });
+    onCameraViewed(run, camId);
+  }
+  return true;
+}
 
-  for (const enemy of alive) {
-    enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
-    enemy.donerCd = Math.max(0, enemy.donerCd - dt);
-    enemy.exposed = Math.max(0, enemy.exposed - dt);
-    enemy.slowed = Math.max(0, enemy.slowed - dt);
-    enemy.panicked = Math.max(0, (enemy.panicked || 0) - dt);
+export function honkPoster(run) {
+  if (!run || run.state !== 'playing' || run.monitorOpen || run.powerOutage) return false;
+  run.posterHonks += 1;
+  run.stats.posterHonks += 1;
+  run.posterBounce = 0.3;
+  emit(run, 'honk');
+  return true;
+}
 
-    if (enemy.coma > 0) {
-      enemy.coma = Math.max(0, enemy.coma - dt);
-      enemy.moving = false;
-      continue;
+export function muteCall(run) {
+  if (!run || run.callMuted) return false;
+  run.callMuted = true;
+  run.callActive = false;
+  run.callText = '';
+  emit(run, 'cam_blip');
+  return true;
+}
+
+function noteRoomTransition(run, fromRoom, toRoom, who) {
+  if (run.monitorOpen && (run.activeCam === fromRoom || run.activeCam === toRoom)) {
+    run.camDisrupt = 2.25;
+    emit(run, 'cam_static_burst', { who });
+  }
+}
+
+function startHaukeCharge(run) {
+  const sprint = run.animatronics.hauke.sprint;
+  if (sprint.triggered) return;
+  sprint.triggered = true;
+  sprint.progress = 0;
+  sprint.duration = 2.35;
+  sprint.nextStomp = 0.05;
+  run.quake = Math.max(run.quake, 0.42);
+  emit(run, 'hauke_charge_start');
+}
+
+function stepAnton(run, dt) {
+  const a = run.animatronics.anton;
+  if (a.room === 'office') {
+    a.officeTimer += dt;
+    if (a.officeTimer > 12.5 && !run.monitorOpen) {
+      triggerJumpscare(run, 'anton');
     }
+    return;
+  }
+  a.timer -= dt;
+  if (a.timer > 0) return;
+  a.timer = 4.97;
+  if (run.ai.anton <= 0) return;
+  if (Math.ceil(run.rng() * 20) > run.ai.anton) return;
 
-    if (enemy.burning > 0) {
-      enemy.burning = Math.max(0, enemy.burning - dt);
-      enemy.hp -= 5.5 * stats.dmgMult * dt;
-      if (enemy.hp <= 0) {
-        registerKill(run, enemy);
-        continue;
-      }
-    }
-
-    if (enemy.knockTime > 0) {
-      enemy.knockTime = Math.max(0, enemy.knockTime - dt);
-      const wallHit = shiftBodyWithSlam(run, enemy, enemy.knockX * dt, enemy.knockZ * dt, enemy.radius * 0.8);
-      if (wallHit) {
-        run.stats.wallSlams += 1;
-        emitVfx(run, { kind: 'wall_slam', x: enemy.x, z: enemy.z });
-        damageEnemy(run, enemy, 8 + run.wave * 2, { stun: 0.45, label: 'WAND-KLATSCHER!', tone: 'vermilion' });
-        enemy.knockTime = 0;
-        if (enemy.dead) continue;
-      }
-    }
-
-    if (enemy.stunned > 0) {
-      enemy.stunned = Math.max(0, enemy.stunned - dt);
-      enemy.moving = false;
-      continue;
-    }
-
-    // Target calculation
-    let targetX = player.x;
-    let targetZ = player.z;
-    if (enemy.type === 'tom') {
-      if (enemy.hasCrown) {
-        // Kronen-Dieb flieht kichernd im Zickzack weg von Chef Torge!
-        const awayX = enemy.x - player.x;
-        const awayZ = enemy.z - player.z;
-        const ad = Math.hypot(awayX, awayZ) || 1;
-        const zig = Math.sin(run.time * 5.2 + enemy.id) * 0.65;
-        targetX = clamp(enemy.x + (awayX / ad) * 4 - (awayZ / ad) * zig * 2.5, 2, run.map.width - 2);
-        targetZ = clamp(enemy.z + (awayZ / ad) * 4 + (awayX / ad) * zig * 2.5, 2, run.map.depth - 2);
-      } else if (run.droppedHelmet && Math.hypot(run.droppedHelmet.x - enemy.x, run.droppedHelmet.z - enemy.z) < 7.5) {
-        targetX = run.droppedHelmet.x;
-        targetZ = run.droppedHelmet.z;
-        if (Math.hypot(run.droppedHelmet.x - enemy.x, run.droppedHelmet.z - enemy.z) < 1.05) {
-          run.droppedHelmet = null;
-          enemy.hasCrown = true;
-          emitEvent(run, 'steal', enemy.x, enemy.z);
-          bark(run, enemy.x, 1.75, enemy.z, 'ICH BIN JETZT CHEF!!', 'gold', 1.4);
-          notice(run, 'SCHNORRER TOM HAT DEINE KRONE GEKLAUT! Klatsch ihn ab!', 3.0);
-        }
-      } else {
-        const gem = run.pickups.find((pk) => !pk.collected && pk.kind === 'xp' && Math.hypot(pk.x - enemy.x, pk.z - enemy.z) < 5.2);
-        if (gem) {
-          targetX = gem.x;
-          targetZ = gem.z;
-          if (Math.hypot(gem.x - enemy.x, gem.z - enemy.z) < 0.65) {
-            gem.collected = true;
-            enemy.lootBank += gem.value;
-            emitEvent(run, 'steal', enemy.x, enemy.z);
-            if (run.rng() < 0.4) quip(run, enemy.x, 1.45, enemy.z, TOM_QUIPS, 'jade', 0.9, 2.3);
-          }
-        }
-      }
-    } else if (enemy.panicked > 0) {
-      const awayX = enemy.x - player.x;
-      const awayZ = enemy.z - player.z;
-      const ad = Math.hypot(awayX, awayZ) || 1;
-      targetX = clamp(enemy.x + (awayX / ad) * 4.5, 2, run.map.width - 2);
-      targetZ = clamp(enemy.z + (awayZ / ad) * 4.5, 2, run.map.depth - 2);
-    }
-
-    // Hauke Boss Charge, Snacks & Mega-Rülps / Fresskoma!
-    if (enemy.type === 'hauke') {
-      // Hauke mampft vorbeifliegende Spezi-Bomben!
-      if (enemy.chargeState === 'none') {
-        for (let bi = run.bombs.length - 1; bi >= 0; bi--) {
-          const b = run.bombs[bi];
-          if (Math.hypot(b.x - enemy.x, b.z - enemy.z) <= enemy.radius + 0.75) {
-            run.bombs.splice(bi, 1);
-            enemy.stuffed = (enemy.stuffed || 0) + 1;
-            enemy.hp = Math.min(enemy.maxHp, enemy.hp + 12);
-            emitEvent(run, 'steal', enemy.x, enemy.z);
-            const snackLine = HAUKE_SNACK_QUIPS[Math.floor(run.rng() * HAUKE_SNACK_QUIPS.length)];
-            bark(run, enemy.x, 1.95, enemy.z, snackLine, 'gold', 1.15);
-            if (enemy.stuffed >= 3) {
-              enemy.stuffed = 0;
-              enemy.coma = 2.6;
-              enemy.exposed = 2.6;
-              run.stats.fresskomas += 1;
-              emitEvent(run, 'ko', enemy.x, enemy.z);
-              bark(run, enemy.x, 2.05, enemy.z, 'Zzz... FRESSKOMA!!', 'jade', 1.5);
-              for (let k = 0; k < 3; k++) {
-                const a = (k / 3) * Math.PI * 2;
-                spawnPickup(run, 'xp', enemy.x + Math.cos(a) * 1.1, enemy.z + Math.sin(a) * 1.1, 4, 'gold');
-              }
-              spawnPickup(run, 'heal', enemy.x, enemy.z + 1.0, 25, 'vermilion');
-              break;
-            }
-          }
-        }
-        if (enemy.coma > 0) continue;
-
-        // Kohlensäure-Mega-Rülps kegelt eigene Antons um!
-        enemy.burpCd -= dt;
-        if (enemy.burpCd <= 0) {
-          enemy.burpCd = enemy.enraged ? 5.0 : 7.0;
-          run.stats.burps += 1;
-          const burpR = 4.6;
-          emitEvent(run, 'hauke_burp', enemy.x, enemy.z);
-          run.explosions.push({ x: enemy.x, z: enemy.z, radius: burpR, age: 0, maxAge: 0.45, color: 0x38f2af });
-          run.cameraShake = Math.max(run.cameraShake, 0.34);
-          const burpLine = HAUKE_BURP_QUIPS[Math.floor(run.rng() * HAUKE_BURP_QUIPS.length)];
-          bark(run, enemy.x, 2.0, enemy.z, burpLine, 'jade', 1.2);
-          for (const ally of alive) {
-            if (ally === enemy || ally.dead) continue;
-            if (Math.hypot(ally.x - enemy.x, ally.z - enemy.z) <= burpR) {
-              damageEnemy(run, ally, 18 + run.wave * 3, {
-                knock: 14.5,
-                knockX: ally.x - enemy.x,
-                knockZ: ally.z - enemy.z,
-                stun: 0.85,
-                label: 'EIGEN-RÜLPS!',
-                tone: 'jade',
-              });
-            }
-          }
-        }
-      }
-
-      if (enemy.chargeState === 'none') {
-        enemy.chargeTimer -= dt;
-        const distP = Math.hypot(player.x - enemy.x, player.z - enemy.z);
-        if (enemy.chargeTimer <= 0 && distP < 11) {
-          enemy.chargeState = 'windup';
-          enemy.chargeTimer = enemy.enraged ? 0.62 : 0.82;
-          const a = Math.atan2(player.z - enemy.z, player.x - enemy.x);
-          enemy.chargeDir = { x: Math.cos(a), z: Math.sin(a) };
-          enemy.angle = a;
-          emitEvent(run, 'charge_windup', enemy.x, enemy.z);
-          const chargeLine = HAUKE_CHARGE_QUIPS[Math.floor(run.rng() * HAUKE_CHARGE_QUIPS.length)];
-          bark(run, enemy.x, 2.0, enemy.z, chargeLine, 'vermilion', 1.15);
-        }
-      } else if (enemy.chargeState === 'windup') {
-        enemy.chargeTimer -= dt;
-        enemy.moving = false;
-        if (enemy.chargeTimer <= 0) {
-          enemy.chargeState = 'rush';
-          enemy.chargeTimer = 0.72;
-          emitEvent(run, 'stomp', enemy.x, enemy.z);
-        }
-        continue;
-      } else if (enemy.chargeState === 'rush') {
-        enemy.chargeTimer -= dt;
-        enemy.moving = true;
-        const rushSpd = enemy.enraged ? 10.5 : 8.6;
-        const res = moveBody(run, enemy, enemy.chargeDir.x * rushSpd * dt, enemy.chargeDir.z * rushSpd * dt, enemy.radius * 0.85, false);
-        if (res.slammed || enemy.chargeTimer <= 0) {
-          enemy.chargeState = 'none';
-          enemy.chargeTimer = enemy.enraged ? 3.2 : 4.5;
-          if (res.slammed) {
-            enemy.stunned = 0.7;
-            run.cameraShake = Math.max(run.cameraShake, 0.35);
-            emitEvent(run, 'wall_slam', enemy.x, enemy.z);
-            const slamLine = HAUKE_SLAM_QUIPS[Math.floor(run.rng() * HAUKE_SLAM_QUIPS.length)];
-            bark(run, enemy.x, 2.0, enemy.z, slamLine, 'gold', 1.15);
-          }
-        }
-        if (Math.hypot(enemy.x - player.x, enemy.z - player.z) <= enemy.radius + 0.38) {
-          hurtPlayer(run, enemy.damage * 1.25, enemy);
-        }
-        continue;
-      }
-    }
-
-    const dx = targetX - enemy.x;
-    const dz = targetZ - enemy.z;
-    const dist = Math.hypot(dx, dz) || 1;
-    let vx = dx / dist;
-    let vz = dz / dist;
-
-    // Swarm separation
-    for (const other of alive) {
-      if (other === enemy || other.dead) continue;
-      const sx = enemy.x - other.x;
-      const sz = enemy.z - other.z;
-      const sd = Math.hypot(sx, sz);
-      const minGap = enemy.radius + other.radius + 0.14;
-      if (sd > 0.001 && sd < minGap) {
-        const push = (minGap - sd) * 2.6;
-        vx += (sx / sd) * push;
-        vz += (sz / sd) * push;
-      }
-    }
-
-    const vLen = Math.hypot(vx, vz) || 1;
-    const coneSlow = player.lamp && isEnemyInPlayerCone(player, enemy) ? 0.76 : 1.0;
-    const slowMult = enemy.slowed > 0 ? 0.55 : coneSlow;
-    const crownBoost = enemy.hasCrown ? 1.32 : 1.0;
-    const inflationBoost = inflationRage && enemy.type === 'anton' ? 1.22 : 1.0;
-    const spd = enemy.speed * slowMult * crownBoost * inflationBoost * (enemy.enraged ? 1.18 : 1.0);
-    const goalVx = (vx / vLen) * spd;
-    const goalVz = (vz / vLen) * spd;
-
-    if (slipperyFloor && enemy.type !== 'hauke') {
-      const blend = 1 - Math.exp(-1.9 * dt);
-      enemy.slideVx = (enemy.slideVx || goalVx) + (goalVx * 1.38 - (enemy.slideVx || goalVx)) * blend;
-      enemy.slideVz = (enemy.slideVz || goalVz) + (goalVz * 1.38 - (enemy.slideVz || goalVz)) * blend;
-      enemy.angle = Math.atan2(enemy.slideVz, enemy.slideVx);
-      enemy.moving = true;
-      const slideRes = moveBody(run, enemy, enemy.slideVx * dt, enemy.slideVz * dt, enemy.radius * 0.75, false);
-      if (slideRes.slammed) {
-        enemy.slideVx *= -0.75;
-        enemy.slideVz *= -0.75;
-      }
-      for (const barrel of run.barrels) {
-        if (!barrel.exploded && Math.hypot(enemy.x - barrel.x, enemy.z - barrel.z) < 0.78) {
-          detonateBarrel(run, barrel);
-        }
-      }
+  if (a.room === 'left_door') {
+    if (run.leftDoor) {
+      // Blocked! Retreats to Dining Area
+      a.room = '1B';
+      a.sighted = false;
+      run.stats.antonBlocked += 1;
+      noteRoomTransition(run, 'left_door', '1B', 'anton');
+      emit(run, 'footstep', { side: 'left', who: 'anton' });
     } else {
-      enemy.slideVx = goalVx;
-      enemy.slideVz = goalVz;
-      enemy.angle = Math.atan2(goalVz, goalVx);
-      enemy.moving = true;
-      moveBody(run, enemy, goalVx * dt, goalVz * dt, enemy.radius * 0.75, false);
+      // Slipped into office! Jams left controls and waits for monitor close
+      a.room = 'office';
+      a.officeTimer = 0;
+      run.leftJammed = true;
+      run.leftLight = false;
+      emit(run, 'sneak_in', { side: 'left', who: 'anton' });
     }
-
-    if (!enemy.hasCrown && enemy.panicked <= 0 && Math.hypot(enemy.x - player.x, enemy.z - player.z) <= enemy.radius + 0.34) {
-      hurtPlayer(run, enemy.damage, enemy);
-    }
+    return;
   }
 
-  // Cleanup dead enemies cleanly so arrays stay bounded
-  if (run.enemies.length > 48) {
-    run.enemies = run.enemies.filter((e) => !e.dead);
-  }
-  syncCompatRefs(run);
+  const choices = ANTON_GRAPH[a.room] ?? ['1B'];
+  const next = choices[Math.floor(run.rng() * choices.length)];
+  const prev = a.room;
+  a.room = next;
+  if (next === 'left_door') a.sighted = false;
+  noteRoomTransition(run, prev, next, 'anton');
+  emit(run, 'footstep', { side: 'left', who: 'anton', loud: next === 'left_door' || next === '2B' });
 }
 
-function advancePickups(run, dt) {
-  const { player } = run;
-  const magnetR = getStats(run).magnetRadius;
+function stepTom(run, dt) {
+  const t = run.animatronics.tom;
+  if (t.room === 'office') {
+    t.officeTimer += dt;
+    if (t.officeTimer > 12.5 && !run.monitorOpen) {
+      triggerJumpscare(run, 'tom');
+    }
+    return;
+  }
+  t.timer -= dt;
+  if (t.timer > 0) return;
+  t.timer = 4.98;
+  if (run.ai.tom <= 0) return;
+  if (Math.ceil(run.rng() * 20) > run.ai.tom) return;
 
-  for (const pk of run.pickups) {
-    if (pk.collected) continue;
-    pk.age += dt;
-    const dx = player.x - pk.x;
-    const dz = player.z - pk.z;
-    const dist = Math.hypot(dx, dz);
-    if (pk.kind !== 'chest' && pk.kind !== 'duck' && dist <= magnetR) pk.magnetized = true;
+  if (t.room === 'right_door') {
+    if (run.rightDoor) {
+      t.room = run.rng() < 0.6 ? '1B' : '4A';
+      t.sighted = false;
+      run.stats.tomBlocked += 1;
+      noteRoomTransition(run, 'right_door', t.room, 'tom');
+      emit(run, 'footstep', { side: 'right', who: 'tom' });
+    } else {
+      t.room = 'office';
+      t.officeTimer = 0;
+      run.rightJammed = true;
+      run.rightLight = false;
+      emit(run, 'sneak_in', { side: 'right', who: 'tom' });
+    }
+    return;
+  }
 
-    if (pk.magnetized && dist > 0.01) {
-      const pullSpd = 10.5 + Math.min(8, pk.age * 2);
-      pk.x += (dx / dist) * pullSpd * dt;
-      pk.z += (dz / dist) * pullSpd * dt;
+  const choices = TOM_GRAPH[t.room] ?? ['1B'];
+  const next = choices[Math.floor(run.rng() * choices.length)];
+  const prev = t.room;
+  t.room = next;
+  if (next === 'right_door') t.sighted = false;
+  noteRoomTransition(run, prev, next, 'tom');
+  emit(run, 'footstep', { side: 'right', who: 'tom', loud: next === 'right_door' || next === '4B' });
+}
+
+function stepHauke(run, dt) {
+  const h = run.animatronics.hauke;
+  const sprint = h.sprint;
+
+  if (sprint.active) {
+    if (!sprint.triggered) {
+      sprint.waitTimer -= dt;
+      // Subtle ominous distant rumble while Hauke is missing from 1C!
+      run.quake = Math.max(run.quake, 0.08 + 0.04 * Math.sin(run.time * 9));
+      if (sprint.waitTimer <= 0) {
+        startHaukeCharge(run);
+      }
+      return;
     }
 
-    if (Math.hypot(player.x - pk.x, player.z - pk.z) <= (pk.kind === 'chest' || pk.kind === 'duck' ? 1.05 : 0.72)) {
-      pk.collected = true;
-      if (pk.kind === 'xp') {
-        addXp(run, pk.value);
-        emitEvent(run, 'gem', player.x, player.z);
-      } else if (pk.kind === 'heal') {
-        player.hp = Math.min(player.maxHp, player.hp + pk.value);
-        player.beanBoost = Math.max(player.beanBoost, 4.0);
-        emitEvent(run, 'heal', player.x, player.z);
-        bark(run, player.x, 1.55, player.z, `+${pk.value} HP DÖNER!`, 'jade', 1.0);
-      } else if (pk.kind === 'dose') {
-        player.clappers = Math.min(12, player.clappers + pk.value);
-        emitEvent(run, 'can', player.x, player.z);
-        bark(run, player.x, 1.5, player.z, `+${pk.value} SPEZIS`, 'gold', 0.9);
-      } else if (pk.kind === 'duck') {
-        triggerDuckQuack(run, pk.x, pk.z);
-      } else if (pk.kind === 'magnet_can') {
-        for (const gem of run.pickups) {
-          if (!gem.collected && gem.kind === 'xp') gem.magnetized = true;
-        }
-        emitEvent(run, 'can', player.x, player.z);
-        bark(run, player.x, 1.65, player.z, 'PFAND-MAGNET!!', 'cyan', 1.2);
-      } else if (pk.kind === 'chest') {
-        run.stats.chests += 1;
-        player.pfand += 500;
-        player.hp = Math.min(player.maxHp, player.hp + 25);
-        player.helmet = true;
-        run.droppedHelmet = null;
-        run.pendingLevelUps += 1;
-        emitEvent(run, 'chest_gold', player.x, player.z);
-        bark(run, player.x, 1.85, player.z, 'CHEF-TRUHE!!', 'gold', 1.3);
+    // EARTHQUAKE SPRINT DOWN WEST HALL!!
+    sprint.progress += dt / sprint.duration;
+    const seismic = 0.35 + Math.min(1, sprint.progress) * 0.72;
+    run.quake = Math.max(run.quake, seismic);
+    sprint.nextStomp -= dt;
+    if (sprint.nextStomp <= 0) {
+      sprint.nextStomp = 0.25;
+      emit(run, 'hauke_stomp', { intensity: seismic, onCam: run.monitorOpen && run.activeCam === '2A' });
+    }
+
+    if (sprint.progress >= 1) {
+      sprint.active = false;
+      sprint.triggered = false;
+      sprint.progress = 0;
+      if (run.leftDoor) {
+        // COLOSSAL EARTHQUAKE DOOR SLAM!
+        const drain = 1 + h.hits * 5;
+        h.hits += 1;
+        run.power = Math.max(0, run.power - drain);
+        run.quake = 1.45;
+        run.doorSlamFlash = 0.5;
+        run.stats.haukeBlocked += 1;
+        h.stage = run.rng() < 0.5 ? 0 : 1;
+        h.lockTimer = 3.2;
+        noteRoomTransition(run, '2A', '1C', 'hauke');
+        emit(run, 'hauke_door_slam', { drain, hits: h.hits });
+      } else {
+        triggerJumpscare(run, 'hauke');
       }
     }
+    return;
   }
-  if (run.pickups.length > 90) {
-    run.pickups = run.pickups.filter((pk) => !pk.collected);
+
+  if (h.lockTimer > 0 && !run.monitorOpen) {
+    h.lockTimer = Math.max(0, h.lockTimer - dt);
+  }
+
+  h.timer -= dt;
+  if (h.timer > 0) return;
+  h.timer = 5.01;
+  if (run.ai.hauke <= 0) return;
+
+  // Authentic FNAF 1 Foxy camera lock: any open camera OR recent camera close blocks Hauke!
+  if (run.monitorOpen || h.lockTimer > 0) return;
+  if (Math.ceil(run.rng() * 20) > run.ai.hauke) return;
+
+  h.stage += 1;
+  if (h.stage >= 3) {
+    h.stage = 3;
+    sprint.active = true;
+    sprint.triggered = false;
+    sprint.waitTimer = Math.max(4.5, 9.0 - run.ai.hauke * 0.18);
+    sprint.progress = 0;
+    emit(run, 'hauke_curtain_open');
+  } else {
+    emit(run, 'footstep', { side: 'left', who: 'hauke', loud: false });
   }
 }
 
-export function interaction(run) {
-  if (!run || run.state !== 'playing') return null;
-  const { player, map, droppedHelmet } = run;
-  if (droppedHelmet && Math.hypot(player.x - droppedHelmet.x, player.z - droppedHelmet.z) < 1.75) {
-    return { kind: 'helmet', helmet: true, enabled: true, text: 'Chef-Krone aufheben' };
-  }
-  const vend = map.vending;
-  if (vend && Math.hypot(player.x - vend.x, player.z - vend.z) < 1.85) {
-    if (vend.cooldown <= 0) {
-      return { kind: 'vending', vending: true, enabled: true, text: 'Späti-Automat: Spezi & Heal' };
+function stepTorge(run, dt) {
+  const f = run.animatronics.torge;
+  if (f.room === 'office') {
+    f.officeTimer -= dt;
+    if (f.officeTimer <= 0 && !run.monitorOpen) {
+      triggerJumpscare(run, 'torge');
     }
-    return { kind: 'vending', vending: true, enabled: false, text: `Automat (${Math.ceil(vend.cooldown)}s)` };
+    return;
   }
-  return null;
+
+  f.timer -= dt;
+  if (f.timer > 0) return;
+  f.timer = 3.02;
+  if (run.ai.torge <= 0) return;
+
+  // Freddy stays on Show Stage until Anton and Tom have left
+  if (f.room === '1A' && (run.animatronics.anton.room === '1A' || run.animatronics.tom.room === '1A')) {
+    return;
+  }
+
+  // Authentic FNAF 1 Freddy camera stall
+  if (run.monitorOpen && run.activeCam === f.room) {
+    run.stats.torgeStalled += 1;
+    return;
+  }
+
+  if (Math.ceil(run.rng() * 20) > run.ai.torge) return;
+
+  if (f.room === '4B') {
+    if (run.rightDoor) {
+      // Blocked by right door — backs off to 4A!
+      f.room = '4A';
+      f.pathIdx = 3;
+      noteRoomTransition(run, '4B', '4A', 'torge');
+      emit(run, 'torge_laugh', { close: true });
+    } else if (!run.monitorOpen || run.activeCam !== '4B') {
+      // Slipped into office!
+      f.room = 'office';
+      f.officeTimer = 3.2 + run.rng() * 5.2;
+      noteRoomTransition(run, '4B', 'office', 'torge');
+      emit(run, 'torge_laugh', { close: true });
+    }
+    return;
+  }
+
+  const prev = f.room;
+  f.pathIdx = Math.min(TORGE_PATH.length - 1, f.pathIdx + 1);
+  f.room = TORGE_PATH[f.pathIdx];
+  noteRoomTransition(run, prev, f.room, 'torge');
+  emit(run, 'torge_laugh', { close: f.room === '4B' || f.room === '4A' });
 }
 
-function checkChallengeBeat(run) {
-  if (!run.challenge || run.challenge.beaten) return;
-  if (run.player.pfand > run.challenge.score) {
-    run.challenge.beaten = true;
-    emitEvent(run, 'ka_ching', run.player.x, run.player.z);
-    emitVfx(run, { kind: 'coin_burst', x: run.player.x, z: run.player.z });
-    bark(run, run.player.x, 1.98, run.player.z, 'REKORD GEKNACKT!!', 'gold', 1.5);
-    const scoreStr = run.challenge.score.toLocaleString('de-DE');
-    const msg = run.challenge.from
-      ? `DU HAST ${run.challenge.from.toUpperCase()} (${scoreStr} ⚡) ÜBERHOLT!!`
-      : `DU HAST DEN KUMPEL-REKORD (${scoreStr} ⚡) GEKNACKT!!`;
-    notice(run, msg, 3.6);
+function stepPowerOutage(run, dt) {
+  const out = run.powerOutage;
+  out.timer -= dt;
+  if (out.phase === 'jingle') {
+    out.eyesOn = Math.sin(run.time * 17) > -0.25 && Math.sin(run.time * 5.3) > -0.65;
+  } else {
+    out.eyesOn = false;
   }
+
+  if (out.timer <= 0) {
+    if (out.phase === 'wait') {
+      out.phase = 'jingle';
+      out.timer = 6.5 + run.rng() * 4.5;
+      emit(run, 'torge_jingle_start');
+    } else if (out.phase === 'jingle') {
+      out.phase = 'blackout';
+      out.timer = 2.6 + run.rng() * 3.4;
+      emit(run, 'torge_jingle_stop');
+    } else {
+      triggerJumpscare(run, 'torge');
+    }
+  }
+}
+
+function stepPhoneCall(run) {
+  if (run.callMuted || !run.callLines.length || run.powerOutage) {
+    run.callText = '';
+    run.callActive = false;
+    return;
+  }
+  let foundIdx = -1;
+  let activeLine = null;
+  for (let i = 0; i < run.callLines.length; i++) {
+    const line = run.callLines[i];
+    if (run.time >= line.at && run.time <= line.at + line.dur) {
+      foundIdx = i;
+      activeLine = line;
+      break;
+    }
+  }
+  const lastEnd = run.callLines[run.callLines.length - 1].at + run.callLines[run.callLines.length - 1].dur;
+  run.callActive = run.time <= lastEnd + 0.5;
+  if (foundIdx !== -1 && foundIdx !== run.callIndex) {
+    run.callIndex = foundIdx;
+    emit(run, foundIdx === 0 ? 'phone_ring' : 'phone_line', { night: run.night });
+  }
+  run.callText = activeLine ? activeLine.text : '';
 }
 
 export function advance(run, input = {}, dt = STEP) {
-  if (!run || run.state !== 'playing') return run;
-  run.events = [];
+  run.events.length = 0;
+
+  if (run.state === 'jumpscare') {
+    run.jumpscare.timer += dt;
+    run.quake = Math.max(0.85, run.quake);
+    run.quakeTime += dt;
+    if (run.jumpscare.timer >= run.jumpscare.duration) {
+      run.state = 'gameover';
+      emit(run, 'gameover_static');
+    }
+    return run;
+  }
+  if (run.state !== 'playing') return run;
+
+  // Smooth office pan
+  if (!run.monitorOpen && typeof input.lookDelta === 'number' && input.lookDelta !== 0) {
+    run.lookX = clamp(run.lookX + input.lookDelta * dt, -1, 1);
+  }
+  if (typeof input.lookTarget === 'number') {
+    run.lookX = clamp(run.lookX + (clamp(input.lookTarget, -1, 1) - run.lookX) * Math.min(1, dt * 10), -1, 1);
+  }
+
+  // Smooth animations
+  const doorSpeed = 6.2;
+  run.leftDoorAnim += ((run.leftDoor ? 1 : 0) - run.leftDoorAnim) * Math.min(1, dt * doorSpeed * 2);
+  run.rightDoorAnim += ((run.rightDoor ? 1 : 0) - run.rightDoorAnim) * Math.min(1, dt * doorSpeed * 2);
+  run.monitorAnim += ((run.monitorOpen ? 1 : 0) - run.monitorAnim) * Math.min(1, dt * 12);
+  run.camPan = Math.sin(run.time * 0.42);
+
+  // Decay visual timers
+  run.camSwitchStatic = Math.max(0, run.camSwitchStatic - dt);
+  run.camDisrupt = Math.max(0, run.camDisrupt - dt);
+  run.doorSlamFlash = Math.max(0, run.doorSlamFlash - dt);
+  run.stingFlash = Math.max(0, run.stingFlash - dt);
+  run.posterBounce = Math.max(0, run.posterBounce - dt);
+  run.quake = Math.max(0, run.quake - dt * 1.45);
+  run.quakeTime += dt;
+  if (run.hallucination) {
+    run.hallucination.timer -= dt;
+    if (run.hallucination.timer <= 0) run.hallucination = null;
+  }
+
+  // Authentic fluorescent light micro-flicker
+  run.lightFlicker = run.rng() < 0.045 ? (0.45 + run.rng() * 0.45) : 1.0;
+
+  // Advance Night Clock
   run.time += dt;
-  run.hitFlash = Math.max(0, run.hitFlash - dt);
-  run.cameraShake = Math.max(0, run.cameraShake - dt * 1.45);
-  run.notices = run.notices.filter((n) => n.until > run.time);
-  run.barks = run.barks.filter((b) => b.until > run.time);
-  run.pulses = run.pulses.filter((p) => {
-    p.age += dt;
-    return p.age < 0.7;
-  });
-
-  const { player, map } = run;
-  const stats = getStats(run);
-
-  if (map.vending) map.vending.cooldown = Math.max(0, map.vending.cooldown - dt);
-  player.invuln = Math.max(0, player.invuln - dt);
-  player.swing = Math.max(0, player.swing - dt);
-  player.finisherSwing = Math.max(0, player.finisherSwing - dt);
-  player.knobiPulse = Math.max(0, (player.knobiPulse || 0) - dt);
-  player.sliding = Math.max(0, player.sliding - dt);
-  player.beanBoost = Math.max(0, player.beanBoost - dt);
-  player.bonkCooldown = Math.max(0, player.bonkCooldown - dt);
-  player.cooldown = Math.max(0, player.cooldown - dt);
-
-  if (player.comboReset > 0) {
-    player.comboReset = Math.max(0, player.comboReset - dt);
-    if (player.comboReset === 0) player.comboStep = 0;
-  }
-  if (player.comboTimer > 0) {
-    player.comboTimer = Math.max(0, player.comboTimer - dt);
-    if (player.comboTimer === 0) {
-      player.combo = 1;
-      player.comboTier = 0;
+  const newHour = Math.floor(run.time / HOUR_SECONDS);
+  if (newHour > run.hour) {
+    run.hour = newHour;
+    if (run.hour >= 6) {
+      run.state = 'won';
+      run.monitorOpen = false;
+      run.powerOutage = null;
+      emit(run, 'win_6am');
+      return run;
     }
-  }
-  const crownStolen = run.enemies.some((e) => !e.dead && e.hasCrown);
-  if (!player.helmet && !crownStolen && player.crownRegen > 0) {
-    player.crownRegen = Math.max(0, player.crownRegen - dt);
-    if (player.crownRegen === 0) {
-      run.droppedHelmet = null;
-      player.helmet = true;
-      emitEvent(run, 'crown_pickup', player.x, player.z);
-      bark(run, player.x, 1.65, player.z, 'KRONE BEREIT!', 'gold', 0.9);
-    }
-  }
-  if (run.droppedHelmet && Math.hypot(player.x - run.droppedHelmet.x, player.z - run.droppedHelmet.z) < 1.25) {
-    run.droppedHelmet = null;
-    player.helmet = true;
-    player.crownRegen = 0;
-    emitEvent(run, 'crown_pickup', player.x, player.z);
-    bark(run, player.x, 1.65, player.z, 'KRONE ZURÜCK!', 'gold', 0.9);
-  }
-
-  // Input buffering for crispy combat feel
-  player.inputBuffer.bonk = input.bonk ? 0.16 : Math.max(0, player.inputBuffer.bonk - dt);
-  player.inputBuffer.dash = input.dash ? 0.16 : Math.max(0, player.inputBuffer.dash - dt);
-  player.inputBuffer.lure = input.lure ? 0.16 : Math.max(0, player.inputBuffer.lure - dt);
-
-  if (input.lamp) {
-    player.lamp = !player.lamp;
-    emitEvent(run, 'shutter', player.x, player.z);
-    bark(run, player.x, 1.65, player.z, player.lamp ? 'BLEND-LICHT AN!' : 'SCHATTEN-TEMPO!', player.lamp ? 'gold' : 'cyan', 0.85);
-  }
-
-  if (input.use) {
-    const act = interaction(run);
-    if (act?.enabled && act.helmet && run.droppedHelmet) {
-      run.droppedHelmet = null;
-      player.helmet = true;
-      player.crownRegen = 0;
-      emitEvent(run, 'crown_pickup', player.x, player.z);
-      bark(run, player.x, 1.65, player.z, 'KRONE ZURÜCK!', 'gold', 0.9);
-    } else if (act?.enabled && act.vending) {
-      map.vending.cooldown = 24;
-      player.hp = Math.min(player.maxHp, player.hp + 30);
-      player.clappers = Math.min(12, player.clappers + 2);
-      player.beanBoost = Math.max(player.beanBoost, 5.0);
-      emitEvent(run, 'chest_gold', player.x, player.z);
-      const vLine = VENDING_QUIPS[Math.floor(run.rng() * VENDING_QUIPS.length)];
-      bark(run, player.x, 1.75, player.z, vLine, 'jade', 1.1);
-    }
-  }
-
-  // Movement & aiming
-  let mx = input.x || 0;
-  let mz = input.z || 0;
-  const mLen = Math.hypot(mx, mz);
-  if (mLen > 1) {
-    mx /= mLen;
-    mz /= mLen;
-  }
-
-  if (Number.isFinite(input.angle)) {
-    player.angle = input.angle;
-  } else if (mLen > 0.12) {
-    player.angle = Math.atan2(mz, mx);
-  }
-
-  // Dash trigger
-  if (player.inputBuffer.dash > 0 && player.cooldown <= 0) {
-    player.inputBuffer.dash = 0;
-    player.cooldown = DASH_COOLDOWN * stats.dashCdMult;
-    player.dash = 0.16;
-    const dx = mLen > 0.12 ? mx / (mLen || 1) : Math.cos(player.angle);
-    const dz = mLen > 0.12 ? mz / (mLen || 1) : Math.sin(player.angle);
-    const dl = Math.hypot(dx, dz) || 1;
-    player.dashDir = { x: dx / dl, z: dz / dl };
-    emitEvent(run, 'dash', player.x, player.z);
-    emitVfx(run, { kind: 'dash', x: player.x, z: player.z });
-
-    // Perfect Dodge if near active enemy
-    const nearThreat = run.enemies.some((e) => !e.dead && Math.hypot(e.x - player.x, e.z - player.z) < 2.35);
-    if (nearThreat) {
-      run.stats.dodges += 1;
-      player.bonkCooldown = 0;
-      emitEvent(run, 'dodge', player.x, player.z);
-      const dLine = DODGE_QUIPS[Math.floor(run.rng() * DODGE_QUIPS.length)];
-      bark(run, player.x, 1.6, player.z, dLine, 'cyan', 0.9);
-    }
-  }
-
-  if (player.dash > 0) {
-    player.dash = Math.max(0, player.dash - dt);
-    const dashSpd = 12.2;
-    moveBody(run, player, player.dashDir.x * dashSpd * dt, player.dashDir.z * dashSpd * dt, 0.28, false);
-    if ((player.passives.dash_mod || 0) > 0 && player.dash === 0) {
-      // Shockwave at end of Turbo-Dash
-      for (const e of run.enemies) {
-        if (!e.dead && Math.hypot(e.x - player.x, e.z - player.z) <= 2.3) {
-          damageEnemy(run, e, 10 + player.passives.dash_mod * 4, { knock: 7, stun: 0.4 });
-        }
+    emit(run, 'hour_tick', { hour: run.hour });
+    const bumps = NIGHT_CONFIGS[run.night]?.hourlyBumps?.[run.hour];
+    if (bumps && !run.appliedBumps.has(run.hour)) {
+      run.appliedBumps.add(run.hour);
+      for (const [k, delta] of Object.entries(bumps)) {
+        run.ai[k] = clamp((run.ai[k] || 0) + delta, 0, 20);
       }
-      run.pulses.push({ x: player.x, z: player.z, age: 0, kind: 'splash' });
     }
-    player.moving = true;
-    player.stride += dt * 2;
-  } else if (mLen > 0.04) {
-    if (isInPool(map, player.x, player.z) && player.sliding <= 0) {
-      player.sliding = 0.6;
-      emitEvent(run, 'slip', player.x, player.z);
-      emitVfx(run, { kind: 'water_slip', x: player.x, z: player.z });
-      run.pulses.push({ x: player.x, z: player.z, age: 0, kind: 'splash' });
-      quip(run, player.x, 1.5, player.z, SLIP_QUIPS, 'cyan', 0.9, 3.6);
-    }
-    const moveSpd = stats.speed;
-    moveBody(run, player, mx * moveSpd * dt, mz * moveSpd * dt, 0.28, true);
-    player.moving = true;
-    player.stride += dt * (moveSpd / 4.2);
-    player.stepMark += dt;
-    if (player.stepMark > 0.24) {
-      player.stepMark = 0;
-      emitEvent(run, 'step', player.x, player.z);
-    }
-  } else {
-    player.moving = false;
   }
 
-  // Manual Power-Schelle
-  if (player.inputBuffer.bonk > 0 && player.bonkCooldown <= 0) {
-    player.inputBuffer.bonk = 0;
-    player.bonkCooldown = BONK_COOLDOWN * stats.bonkCdMult;
-    firePanSwing(run, true);
+  stepPhoneCall(run);
+
+  // Power Outage branch
+  if (run.powerOutage) {
+    stepPowerOutage(run, dt);
+    return run;
   }
 
-  // Manual Spezi/Billard Dose
-  if (player.inputBuffer.lure > 0 && player.clappers > 0) {
-    player.inputBuffer.lure = 0;
-    player.clappers -= 1;
-    const nearest = run.enemies
-      .filter((e) => !e.dead)
-      .sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z))[0];
-    const tx = input.isTouch && nearest
-      ? nearest.x
-      : player.x + Math.cos(player.angle) * 5.2;
-    const tz = input.isTouch && nearest
-      ? nearest.z
-      : player.z + Math.sin(player.angle) * 5.2;
-    launchSpeziBomb(run, tx, tz, 1.18, 1.35);
-    bark(run, player.x, 1.5, player.z, 'SPEZI-GRANATE!', 'gold', 0.8);
+  // Battery Drain
+  run.usage = getUsageBars(run);
+  const drainPerSec = 0.098 * run.usage + run.passiveDrain;
+  run.power = Math.max(0, run.power - drainPerSec * dt);
+  if (run.power <= 0) {
+    run.power = 0;
+    run.usage = 0;
+    run.leftDoor = false;
+    run.rightDoor = false;
+    run.leftLight = false;
+    run.rightLight = false;
+    run.monitorOpen = false;
+    run.goldenActive = false;
+    run.callText = '';
+    run.callActive = false;
+    run.powerOutage = {
+      phase: 'wait',
+      timer: 3.5 + run.rng() * 3.8,
+      eyesOn: false,
+    };
+    emit(run, 'power_out');
+    return run;
   }
 
-  updateAutoWeapons(run, dt);
-  advanceProjectilesAndBombs(run, dt);
-  advanceWaveDirector(run, dt);
-  advanceEnemies(run, dt);
-  advancePickups(run, dt);
-  checkChallengeBeat(run);
-  triggerPendingLevelUp(run);
+  // Golden Duck countdown in Office
+  if (run.goldenActive) {
+    run.goldenTimer -= dt;
+    if (run.rng() < 0.08) {
+      run.hallucination = {
+        text: HALLUCINATIONS[Math.floor(run.rng() * HALLUCINATIONS.length)],
+        timer: 0.16,
+      };
+    }
+    if (run.goldenTimer <= 0) {
+      triggerJumpscare(run, 'duck');
+      return run;
+    }
+  }
+
+  // Kitchen Audio-Only clatter when Tom or Torge is in CAM 6!
+  const tomInKitchen = run.animatronics.tom.room === '6';
+  const torgeInKitchen = run.animatronics.torge.room === '6';
+  if (tomInKitchen || torgeInKitchen) {
+    run.kitchenAudioTimer -= dt;
+    if (run.kitchenAudioTimer <= 0) {
+      run.kitchenAudioTimer = 1.9 + run.rng() * 2.2;
+      const watchingKitchen = run.monitorOpen && run.activeCam === '6';
+      emit(run, tomInKitchen ? 'kitchen_clatter' : 'torge_jingle_distant', { loud: watchingKitchen });
+    }
+  }
+
+  // Rare eerie ambience & subliminal hallucination flash
+  run.ambienceTimer -= dt;
+  if (run.ambienceTimer <= 0) {
+    run.ambienceTimer = 11 + run.rng() * 14;
+    const nearDoor = run.animatronics.anton.room === 'left_door'
+      || run.animatronics.tom.room === 'right_door'
+      || run.animatronics.torge.room === '4B';
+    emit(run, 'ambience', { tense: nearDoor });
+    if (nearDoor && run.rng() < 0.22 && !run.hallucination) {
+      run.hallucination = {
+        text: HALLUCINATIONS[Math.floor(run.rng() * HALLUCINATIONS.length)],
+        timer: 0.22,
+      };
+    }
+  }
+
+  // Animatronic AI Steps
+  stepAnton(run, dt);
+  if (run.state !== 'playing') return run;
+  stepTom(run, dt);
+  if (run.state !== 'playing') return run;
+  stepHauke(run, dt);
+  if (run.state !== 'playing') return run;
+  stepTorge(run, dt);
 
   return run;
+}
+
+export function getRoomOccupants(run, camId) {
+  const list = [];
+  if (!run?.animatronics) return list;
+  if (run.animatronics.torge.room === camId) list.push('torge');
+  if (run.animatronics.anton.room === camId) list.push('anton');
+  if (run.animatronics.tom.room === camId) list.push('tom');
+  if (camId === '1C') list.push(`hauke_${run.animatronics.hauke.stage}`);
+  if (camId === '2A' && run.animatronics.hauke.sprint.active && run.animatronics.hauke.sprint.triggered) {
+    list.push('hauke_sprint');
+  }
+  return list;
 }
