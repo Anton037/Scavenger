@@ -1,32 +1,29 @@
 import {
   ACHIEVEMENTS,
   ACHIEVEMENT_MAP,
+  BON_REWARD_POWER,
+  BON_RUSTY_REWARD_POWER,
   CAMERAS,
   CAMERA_MAP,
   CHARACTERS,
   computeShiftRank,
+  IR_FLASH_COST,
   loadAchievements,
   loadProgress,
   loadRecords,
+  RETRY_HINTS,
+  STEAM_BURST_MIN_HEAT,
 } from './fnafData.js';
 import {
   feedIsInterrupted,
   FUSE_RESET_COST,
   getFormattedShiftTime,
   getHourLabel,
+  getTemperatureCelsius,
   hasMotionBlip,
+  isVentingSteam,
   KITCHEN_BELL_COST,
 } from './game.js';
-
-const RETRY_HINTS = {
-  video: 'Wenn Anton im Kamerabild anruft, wechsle den Feed oder senke rechtzeitig den Monitor.',
-  blackout: 'Der Notstrom war aufgebraucht. Mach Tür, Licht und Monitor nach dem Check wieder aus.',
-  hallucination: 'Wenn die Ente im Büro auftaucht, öffne sofort wieder die Kameras.',
-  anton: 'Wenn du Schritte links hörst, prüfe das Licht und sichere die linke Tür.',
-  tom: 'Schleifen rechts kündigt Tom an. Sichere die Tür oder lock ihn über CAM 6 zurück.',
-  hauke: 'Wenn der Boden bebt, senke den Monitor und schließ die linke Tür.',
-  torge: 'Achte auf Torges Lachen. Er kommt über die Ost-Ecke an die rechte Tür.',
-};
 
 export const get = (id) => document.getElementById(id);
 
@@ -41,8 +38,11 @@ export class Hud {
     this.toastTimer = null;
     this.el = Object.fromEntries([
       'hud', 'clock-hour', 'clock-night', 'power-box', 'power-pct', 'usage-bars', 'seismic-bars',
+      'thermal-label', 'thermal-fill',
       'office-controls', 'btn-left-door', 'btn-left-light', 'btn-right-door', 'btn-right-light',
+      'desk-actions', 'btn-vent-steam', 'vent-btn-label', 'btn-stamp-bon', 'bon-btn-label', 'bon-btn-bar',
       'btn-monitor', 'btn-fuse', 'btn-kitchen-bell', 'monitor-label', 'cctv-overlay', 'cctv-room-label', 'cctv-audio-only',
+      'cctv-tools', 'btn-ir-flash', 'ir-flash-label', 'btn-steam-burst', 'steam-burst-label',
       'cctv-telemetry', 'cctv-time', 'cctv-signal', 'cctv-hint',
       'anton-call-overlay', 'anton-call-progress',
       'kitchen-wave', 'kitchen-status', 'cctv-disrupt', 'cam-buttons', 'call-box', 'call-text', 'btn-mute-call',
@@ -131,7 +131,7 @@ export class Hud {
       summary.innerHTML = `
         <div class="record-chip"><small>Stempel</small><strong>${unlocked.size} / ${ACHIEVEMENTS.length}</strong></div>
         <div class="record-chip"><small>Schichten überlebt</small><strong>${rec.nightsWon}</strong></div>
-        <div class="record-chip"><small>Türen verteidigt</small><strong>${rec.totalBlocks}×</strong></div>
+        <div class="record-chip"><small>Bons &amp; Dampf-Hits</small><strong>${rec.totalBons} · ${rec.totalSteamHits}×</strong></div>
         <div class="record-chip"><small>Best-Reststrom</small><strong>${bestList || 'Noch offen'}</strong></div>
       `;
     }
@@ -228,9 +228,41 @@ export class Hud {
       }
     }
 
-    // Office Steel Switches
+    const heat = Math.round(run.thermal?.heat ?? 16);
+    const tempC = getTemperatureCelsius(run);
+    const venting = isVentingSteam(run);
+    if (ui['thermal-label']) {
+      write(ui['thermal-label'], `${tempC}°C`);
+      ui['thermal-label'].className = `thermal-val${heat >= 72 ? ' hot' : heat >= 45 ? ' warm' : ''}`;
+    }
+    if (ui['thermal-fill']) {
+      ui['thermal-fill'].style.width = `${Math.max(6, Math.min(100, heat))}%`;
+      ui['thermal-fill'].className = heat >= 72 ? 'hot' : heat >= 45 ? 'warm' : '';
+    }
+
+    // Office Steel Switches & Desk Tools
     if (ui['office-controls']) {
       ui['office-controls'].hidden = run.monitorOpen || out || inJumpscare;
+    }
+    const ventBtn = ui['btn-vent-steam'];
+    if (ventBtn) {
+      ventBtn.disabled = venting || heat < 10;
+      ventBtn.classList.toggle('hot', heat >= 70);
+      ventBtn.classList.toggle('steam-ready', heat >= STEAM_BURST_MIN_HEAT && heat < 70);
+      write(ui['vent-btn-label'], venting ? 'ABLUFT ZISCHT...' : `VENTIL · ${tempC}°C`);
+    }
+    const bonBtn = ui['btn-stamp-bon'];
+    const activeBon = run.orders?.active;
+    if (bonBtn) {
+      bonBtn.hidden = !activeBon;
+      if (activeBon) {
+        const leftSec = Math.max(0, activeBon.deadline - run.time);
+        const pctBon = Math.max(0, Math.min(100, (leftSec / activeBon.duration) * 100));
+        const boost = run.modifiers?.includes('rusty_gen') ? BON_RUSTY_REWARD_POWER : BON_REWARD_POWER;
+        bonBtn.classList.toggle('urgent', leftSec < 5.0);
+        write(ui['bon-btn-label'], `BON #${activeBon.id} +${boost}%`);
+        if (ui['bon-btn-bar']) ui['bon-btn-bar'].style.width = `${pctBon.toFixed(1)}%`;
+      }
     }
     const syncSwitch = (btn, active, jammed) => {
       if (!btn) return;
@@ -273,11 +305,36 @@ export class Hud {
       }
       if (ui['cctv-hint']) {
         let hint = '';
-        if (run.activeCam === '1C' && run.animatronics.hauke.stage === 2) hint = '⚠ VORHANG OFFEN';
+        if (activeBon) hint = '⚠ BON IM BÜRO DRUCKT!';
+        else if (heat >= 75) hint = '⚠ FRITTEUSE ÜBERHITZT!';
+        else if (run.activeCam === '1C' && run.animatronics.hauke.stage === 2) hint = '⚠ VORHANG OFFEN';
         else if (run.activeCam === '1C' && run.animatronics.hauke.stage >= 3) hint = '⚠ HAUKE IST WEG!';
         else if (run.activeCam === '4B' && run.animatronics.torge.room === '4B') hint = '⚠ CHEF TORGE IM BLICK';
         else if (run.activeCam === '2B' && run.goldenPoster) hint = '⚠ ES BIN ICH';
         write(ui['cctv-hint'], hint);
+      }
+
+      const irBtn = ui['btn-ir-flash'];
+      if (irBtn) {
+        const irCd = Math.ceil((run.camFlashCooldownUntil || 0) - run.time);
+        irBtn.hidden = run.activeCam === '6';
+        irBtn.disabled = irCd > 0 || run.power <= IR_FLASH_COST;
+        write(ui['ir-flash-label'], irCd > 0 ? `IR-BLITZ (${irCd}s)` : `IR-BLITZ −${IR_FLASH_COST}%`);
+      }
+
+      const steamBtn = ui['btn-steam-burst'];
+      if (steamBtn) {
+        const canBurstHere = run.activeCam === '2B' || run.activeCam === '4B';
+        steamBtn.hidden = !canBurstHere;
+        if (canBurstHere) {
+          const bCd = Math.ceil((run.thermal?.burstCooldownUntil || 0) - run.time);
+          const enoughSteam = heat >= STEAM_BURST_MIN_HEAT;
+          steamBtn.disabled = bCd > 0 || !enoughSteam;
+          write(
+            ui['steam-burst-label'],
+            bCd > 0 ? `DAMPF (${bCd}s)` : enoughSteam ? 'DAMPFSTOSS (0%)' : `DAMPF ${heat}/${STEAM_BURST_MIN_HEAT}%`,
+          );
+        }
       }
 
       // Hilarious Lost Anton Incoming Video Call Overlay
@@ -365,6 +422,15 @@ export class Hud {
       title = 'HAUKE · SICHERUNG RAUS';
       text = `Tür hält. Kameras kommen von selbst zurück oder für ${FUSE_RESET_COST} % sofort.`;
       timer = fuseSeconds;
+    } else if ((run.thermal?.heat ?? 0) >= 82 && !isVentingSteam(run)) {
+      title = 'FRITTEUSEN-HITZESTAU';
+      text = run.monitorOpen
+        ? 'Auf CAM 2B/4B Dampfstoß [G] zünden oder im Büro Ventil [V] öffnen!'
+        : 'Rotes Abluft-Ventil [V] drehen, bevor Torge ausrastet!';
+    } else if (run.orders?.active && run.monitorOpen && run.orders.active.deadline - run.time < 7.5) {
+      title = `NACHT-BON #${run.orders.active.id} LÄUFT AB`;
+      text = 'Monitor senken und Bon [T] abstempeln für +Notstrom!';
+      timer = Math.ceil(run.orders.active.deadline - run.time);
     } else if (run.notice?.until > run.time) {
       title = 'SCHICHTFUNK';
       text = run.notice.text;
@@ -413,7 +479,7 @@ export class Hud {
     write(this.el['win-sub'], bonus);
     write(
       this.el['win-stats'],
-      `Reststrom: ${Math.ceil(run.power)}% · Türen verteidigt: ${run.stats.haukeBlocked + run.stats.antonBlocked + run.stats.tomBlocked}× · Anrufe abgelehnt: ${run.stats.videoDodges}× · Tom umgeleitet: ${run.stats.tomLured}× · Sicherungen: ${run.stats.fusesReset}×`,
+      `Reststrom: ${Math.ceil(run.power)}% · Türen: ${run.stats.haukeBlocked + run.stats.antonBlocked + run.stats.tomBlocked}× · Bons: ${run.stats.bonsStamped}× · Dampf-Treffer: ${run.stats.steamHits}× · IR-Blitze: ${run.stats.camFlashHits}×`,
     );
     setTimeout(() => {
       write(this.el['win-clock'], '6:00 AM');

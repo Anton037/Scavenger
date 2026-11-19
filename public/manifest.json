@@ -1,6 +1,7 @@
 {
-  "name": "Five Nights at Torge's",
+  "name": "Five Nights at Torge's — Dampf & Überstunden",
   "short_name": "FNA Torge's",
+  "description": "Survival-Horror in Chef Torges Mitternachts-Imbiss mit Fritteusen-Dampf, Nacht-Bons, IR-Blitz & 10 CCTV-Kameras.",
   "start_url": "./",
   "display": "fullscreen",
   "orientation": "landscape",

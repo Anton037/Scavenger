@@ -1,44 +1,40 @@
-# FIVE NIGHTS AT TORGE'S (2026 · v0.3 Mitternachts-Edition)
+# FIVE NIGHTS AT TORGE'S (v1.0 · Dampf & Überstunden Edition)
 
-Survival-Horror in **Chef Torges Mitternachts-Imbiss**. Halte als Nachtwächter bis 06:00 Uhr durch. Kontrolliere die Kameras, horch auf Schritte und halte genug Strom für Türen, Licht und den Küchenfunk zurück.
+Survival-Horror in **Chef Torges Mitternachts-Imbiss** — klassisches **FNaF-1-Kern-Gameplay** verschmolzen mit aktiven **Tealerland- / Fangame-Systemen** (Fritteusen-Thermik & Flur-Dampfstöße, 3D-Nacht-Bon-Drucker für Notstrom-Trinkgeld, CCTV-IR-Stroboskop & Risiko-Modifikatoren).
 
 ## Wer hat Nachtschicht?
 
-- **Chef Torge** wartet mit goldener Krone und Bratpfanne auf der Döner-Bühne und zieht später durch den Ost-Flur. Sein Lachen kündigt an, dass er näher kommt. Auf **CAM 4B** beobachten bremst ihn.
-- **Lost Anton** schleicht links mit Smartphone in der Hand. Wenn er zu lange im selben Bild beobachtet wird, startet er einen **Videoanruf** direkt im CCTV-Feed. Wechsle den Feed oder senke den Monitor, bevor er selbst abnimmt.
-- **Schnorrer Tom** hat es auf die rechte Tür und dein Spezi abgesehen. Der Bestellgong auf **CAM 6** lockt ihn aus dem Ost-Flur zurück in die Küche (kostet **4 % Strom**).
-- **Boss Hauke** lässt sich durch einen Blick in die Buffet-Bucht (**CAM 1C**) bremsen. Achte auf den **Seismographen**! Wenn er rennt, bebt der Boden. Die linke Tür fängt ihn ab, kann dabei aber die Kamerasicherung kosten. Die Kameras kommen nach neun Sekunden zurück oder sofort für **3 % Strom**.
-- **Goldene Ente** taucht selten über CAM 2B auf. Wenn sie im Büro erscheint, klapp den Monitor sofort wieder hoch.
+- **Chef Torge** wartet mit goldener Krone und Bratpfanne auf der Döner-Bühne und zieht später durch den Ost-Flur. Auf **CAM 4B** beobachten bremst ihn — aber Vorsicht: Steigt die **Fritteusen-Hitze über 70 %**, bekommt er Küchen-Fieber und wird deutlich schneller!
+- **Lost Anton** schleicht links mit Smartphone in der Hand. Starrst du ihn zu lange im selben Feed an, startet er einen **Videoanruf**. Wechsle die Kamera, senke den Monitor oder blende seine Frontkamera per **IR-Blitz (`X`)**!
+- **Schnorrer Tom** hat es auf die rechte Tür und dein Spezi abgesehen. Der Bestellgong auf **CAM 6 (`B`, −4 % Strom)** lockt ihn zurück in die Küche — oder neble ihn auf **CAM 4B** kostenlos per **Dampfstoß (`G`)** ein!
+- **Boss Hauke** lässt sich durch Blicke auf **CAM 1C** bremsen oder per **IR-Blitz (`X`)** sogar um 1 Vorhang-Stufe zurückdrängen. Bebt das Büro (**Seismograph**): **SOFORT linke Tür (`Q`) schließen!**
+- **Goldene Ente** taucht selten über CAM 2B auf. Sitzt sie vor dem Schreibtisch, klappe sofort den Monitor hoch.
 
-## Features
+## Neue Fangame-Mechaniken & Engine-Highlights (`v1.0`)
 
-- **5 Nächte + 6. Nacht (Überstunden) + Custom Night (KI 0–20)** inkl. `4/20 ALPTRAUM`, Zufalls-Generator, Shift+Klick (`±5`), Gefahrenstufen-Balken & freischaltbaren Titel-Sternen (`★ ★ ★`).
-- **HD-Imbiss-Horror-3D-Engine (umschaltbar auf Retro Pixel CRT):** Echtzeit-Schatten, schwebende Staubpartikel im Lampenkegel, Neon-Leuchtschilder, rotierender Döner-Spieß, Imbiss-Hausordnung, klickbare Büro-Requisiten (**Feierabend-Poster**, **Spezi-Dose**, **Mini-Ente**) & sanfte Kamera-Trägheit.
-- **10 CCTV-Kameras mit Live-Telemetrie & Bewegungs-Blips:** REC-Anzeige, Live-Uhrzeit, Signalstärke-Balken, gelbe Bewegungs-Impulse auf dem Grundriss und **Seismograph** für Boss Hauke.
-- **Personalakte & Taktik-Handbuch:** Alle Charaktere mit Route, Konter und Imbiss-Lore direkt im Menü & Pause-Screen.
-- **Stempelkarte (11 Achievements) & Schichtzeugnis (`S+` / `A` / `B` / `C`):** Dauerhafte Rekorde, Gehaltsabrechnung bei 6:00 AM und Toast-Stempel im Spiel.
-- **Einstellungen:** Grafik-Stil (`HD Horror` / `Retro CRT`), CRT-Scanlines (`Aus` / `Dezent` / `Stark`), Master-Lautstärke, Maus-Schwenktempo & Reduzierte Bewegung.
-- **Räumliche Prozedurale Web-Audio-Horror-Soundscape:** Blickrichtungs-abhängiges Stereo-Panning, Hallway-Reverb, Ventilator, Tür-Hydraulik, Handy-Videoanruf-Klingelton, Spezi-Zischen, Kassen-Klingeln, Hauke-Erdbeben, Torge-Spieluhr & 6:00-AM-Glocke.
+- **Fritteusen-Thermik & Dampf-Abwehr (*Tealerland*-inspiriert):** Geschlossene Stahltüren stauen Hitze im Büro auf. Dreh links am **3D-Abluftventil (`V`)**, um das Büro zischend zu kühlen — oder nutze ab **45 % Druck** den angestauten Dampf auf **CAM 2B / CAM 4B (`G`)** als kostenlose Abwehrwaffe (`0 %` Strom!), um Anton, Tom oder Torge zurückzutreiben!
+- **3D-Nacht-Bon-Drucker (`T`):** Rechts auf dem Schreibtisch rattern Nacht-Bestellungen herein. Im Büro rechtzeitig abstempeln bringt **`+4 %` Notstrom** (`+6 %` mit *Rostiger Generator*) + Trinkgeld. Verpasste Bons schlagen Alarm und locken Angreifer an!
+- **CCTV IR-Stroboskop-Blitz (`X`):** Entstört ausgefallene Kamerafeeds sofort (`−1 %` Strom, `14 s` Cooldown), bricht Antons Videoanruf ab + blendet ihn kurz und beruhigt Hauke auf `CAM 1C`.
+- **4 kombinierbare Risiko-Modifikatoren (Mutatoren):** *Fritteusen-Überlast*, *Liefer-Rushhour*, *Rostiger Generator* & *Nebel-Schicht* für Bonus-Prozente, **16 Stempel** und den neuen **`S++ KÜCHENGOTT`**-Rang (`★★★★`).
+- **Gebatchte 60-FPS-WebGL2-Engine:** Statisches Geometry-Batching (~75 % weniger Draw Calls), `PCFShadowMap` mit selektiven Hero-Schatten, Live-Telemetrie-CRTs direkt auf dem 3D-Schreibtisch, volumetrische Flurlicht-Kegel, Heat-Haze-/Dampf-Shader und 3 Grafik-Profile (`HD Horror` / `60 FPS` / `Retro CRT`).
 
 ## Steuerung
 
 ### PC
-- `Maus` (Bildschirmränder) / `A` & `D` / `Pfeiltasten` — Im Büro nach links & rechts schauen
-- `Q` / `W` — Linke **Stahltür** / Linkes **Flurlicht**
-- `E` / `R` — Rechte **Stahltür** / Rechtes **Flurlicht**
-- `Leertaste` / `S` — **CCTV-Kameras** öffnen / schließen · `1`–`0` — Kamera wechseln
-- `B` — Bestellgong auf CAM 6 · `F` — ausgelöste Kamerasicherung umlegen
-- `M` — Anruf stumm schalten · `H` oder Klick im Büro — **Poster-Hupe / Spezi / Mini-Ente** · `Esc` / `P` — Pause
+- `Maus` (Bildschirmränder) / `A` & `D` / `Pfeiltasten` — Im Büro umschauen
+- `Q` / `W` — Linke **Stahltür** / Linkes **Flurlicht** · `E` / `R` — Rechte **Stahltür** / Rechtes **Flurlicht**
+- `V` (oder Klick aufs 3D-Ventil) — **Abluft-Ventil** öffnen · `T` (oder Klick auf 3D-Drucker) — **Nacht-Bon** abstempeln
+- `Leertaste` / `S` — **CCTV-Kameras** · `1`–`0` — Kamera wechseln
+- `X` — **IR-Kamerablitz** · `G` — **Flur-Dampfstoß** (`CAM 2B` / `4B`) · `B` — Bestellgong (`CAM 6`) · `F` — Kamerasicherung
+- `M` — Anruf stumm · `H` oder Klick im Büro — **Poster-Hupe / Spezi / Mini-Ente** · `Esc` / `P` — Pause
 
-### Handy / Touch (Nur Querformat / Landscape)
-- Im Hochformat erscheint automatisch ein **„Handy bitte drehen“**-Hinweis (pausiert eine laufende Nacht sicher, bis das Gerät zurückgedreht wird).
-- **Wischen** (oder `◀` / `▶`-Pfeile) zum Umschauen im Büro (Anti-Zoom & Anti-Markierung aktiv)
-- **Links / Rechts**: Große Stahltür- & Flurlicht-Schalter · **Unten**: breite **`KAMERAS`**-Leiste · **Grundriss** klappt den Lageplan auf
+### Handy / Touch (Querformat / Landscape)
+- **Wischen** (oder `◀` / `▶`) zum Umschauen · **Links/Rechts**: Tür & Licht · **Unten**: Schreibtisch-Pills (`VENTIL`, `BON`), `KAMERAS` & CCTV-Gegenmaßnahmen (`IR-BLITZ`, `DAMPFSTOSS`)
 
 ## Lokal starten & testen
 
 ```bash
 npm install
 npm run dev     # Entwicklungsserver
-npm run check   # Tests (node --test) + Produktions-Build (vite build)
+npm run check   # Alle Unit-Tests (node --test) + Produktions-Build (vite build)
 ```

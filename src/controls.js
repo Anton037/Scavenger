@@ -129,6 +129,18 @@ export class Controls {
       } else if (event.code === 'KeyB') {
         event.preventDefault();
         this.actions.bell?.();
+      } else if (event.code === 'KeyV') {
+        event.preventDefault();
+        this.actions.vent?.();
+      } else if (event.code === 'KeyT') {
+        event.preventDefault();
+        this.actions.stampBon?.();
+      } else if (event.code === 'KeyX') {
+        event.preventDefault();
+        this.actions.camFlash?.();
+      } else if (event.code === 'KeyG') {
+        event.preventDefault();
+        this.actions.steamBurst?.();
       } else if (event.code === 'KeyH') {
         event.preventDefault();
         this.actions.honk?.();

@@ -49,7 +49,7 @@
       <div class="title-scanlines" aria-hidden="true"></div>
       <div class="title-col">
         <div class="title-header">
-          <p class="title-kicker">CHEF TORGES MITTERNACHTS-IMBISS · '26</p>
+          <p class="title-kicker">CHEF TORGES MITTERNACHTS-IMBISS · DAMPF &amp; ÜBERSTUNDEN</p>
           <h1 id="game-title">FIVE<br>NIGHTS<br>AT<br>TORGE'S</h1>
           <div id="title-stars" class="title-stars" aria-label="Freigeschaltete Sterne"></div>
         </div>
@@ -70,17 +70,17 @@
         </nav>
 
         <div class="title-footer">
-          <p class="title-objective">Halte bis 6 Uhr durch. Türen, Licht und Kameras kosten Strom.</p>
+          <p class="title-objective">Halte bis 6 Uhr durch. Kontrolliere Türen, Fritteusen-Dampf, Nacht-Bons &amp; Kameras.</p>
           <div class="title-tools">
             <button id="btn-dossier" class="btn-crt small" type="button">Personalakte</button>
-            <button id="btn-achievements" class="btn-crt small" type="button">Stempelkarte <span id="title-ach-count" class="pill-count">0/11</span></button>
+            <button id="btn-achievements" class="btn-crt small" type="button">Stempelkarte <span id="title-ach-count" class="pill-count">0/16</span></button>
             <button id="btn-settings" class="btn-crt small" type="button">Einstellungen</button>
             <button id="title-audio" class="btn-crt small" type="button" aria-pressed="true">Ton: AN</button>
           </div>
           <div class="title-meta-row">
             <span id="build-version" class="title-version">%SCAVENGER_BUILD_VERSION%</span>
-            <span class="title-hint">PC: Maus/A-D Schauen · Q/W &amp; E/R Türen/Licht · Space Kameras</span>
-            <span class="title-hint-touch">Handy: Wischen zum Umschauen · Buttons links/rechts · Unten Kameras</span>
+            <span class="title-hint">PC: Q/W &amp; E/R Türen/Licht · V Ventil · T Bon · Space Kameras · X IR-Blitz · G Dampf</span>
+            <span class="title-hint-touch">Touch: Wischen zum Schauen · Schalter links/rechts · Schreibtisch- &amp; Kamera-Tools unten</span>
           </div>
         </div>
         <p id="launch-error" class="launch-error" role="status" hidden></p>
@@ -99,7 +99,7 @@
         </div>
         <div id="dossier-grid" class="dossier-grid"></div>
         <div class="dossier-tips">
-          <strong>Schicht-Geheimtipps:</strong> Im Büro kannst du auf <em>Chef Torges Poster</em>, die <em>Spezi-Dose</em> und die <em>Mini-Ente</em> klicken. Gelbe Blips auf dem CCTV-Grundriss melden frische Bewegungen.
+          <strong>Schicht-Systeme &amp; Geheimtipps:</strong> Geschlossene Türen stauen <em>Fritteusen-Dampf</em>! Lass ihn im Büro am <strong>roten Ventil (V)</strong> ab — oder nutze ab <strong>45 % Druck</strong> auf <strong>CAM 2B / 4B</strong> den kostenlosen <strong>Dampfstoß (G)</strong>! Stemple rechts am <strong>Bon-Drucker (T)</strong> Nacht-Bestellungen für <strong>+4 % Notstrom</strong> ab, und nutze im Monitor den <strong>IR-Blitz (X)</strong> gegen Störungen, Antons Videoanruf &amp; Haukes Vorhang.
         </div>
       </div>
     </section>
@@ -133,11 +133,12 @@
         <div class="settings-list">
           <div class="setting-row">
             <div class="setting-info">
-              <b>Grafik-Stil</b>
-              <small>HD mit Echtzeit-Schatten oder klassischer Retro-Pixel-Look</small>
+              <b>Grafik- &amp; Engine-Profil</b>
+              <small id="engine-perf-label">HD Schatten, 60-FPS-Mix oder klassisches Retro-Pixel-CRT</small>
             </div>
             <div class="seg-group" role="group" aria-label="Grafik-Stil">
               <button class="btn-crt small seg-btn" type="button" data-setting="graphics" data-value="hd">HD Horror</button>
+              <button class="btn-crt small seg-btn" type="button" data-setting="graphics" data-value="balanced">60 FPS</button>
               <button class="btn-crt small seg-btn" type="button" data-setting="graphics" data-value="retro">Retro CRT</button>
             </div>
           </div>
@@ -241,9 +242,17 @@
           <small class="shift-tip">Tipp: Shift+Klick für ±5</small>
         </div>
 
+        <div class="custom-mods-section">
+          <div class="mods-head">
+            <b>RISIKO-MODIFIKATOREN (MUTATOREN)</b>
+            <small id="custom-bonus-label">Bonus: +0 %</small>
+          </div>
+          <div id="custom-modifiers" class="modifier-grid" role="group" aria-label="Schicht-Modifikatoren"></div>
+        </div>
+
         <div id="custom-presets" class="preset-row"></div>
         <div class="custom-actions">
-          <button id="custom-random" class="btn-crt" type="button">🎲 Zufall</button>
+          <button id="custom-random" class="btn-crt" type="button">Zufalls-Mix</button>
           <button id="custom-start" class="btn-crt primary" type="button">SCHICHT STARTEN ▶</button>
         </div>
       </div>
@@ -314,6 +323,21 @@
           <button id="look-right" class="look-arrow" type="button" aria-label="Nach rechts schauen">▶</button>
         </div>
 
+        <!-- Tactile Desk Hardware Strip (Steam Exhaust Valve + Nacht-Bon Printer) -->
+        <div id="desk-actions" class="desk-actions" aria-label="Schreibtisch-Geräte">
+          <button id="btn-vent-steam" class="desk-pill vent-pill" type="button" title="Abluft-Ventil öffnen (V)">
+            <span class="pill-led" aria-hidden="true"></span>
+            <span id="vent-btn-label">VENTIL · 41°C</span>
+            <kbd>V</kbd>
+          </button>
+          <button id="btn-stamp-bon" class="desk-pill bon-pill" type="button" title="Nacht-Bon abstempeln (T)" hidden>
+            <span class="pill-led active" aria-hidden="true"></span>
+            <span id="bon-btn-label">BON STEMPELN +4%</span>
+            <kbd>T</kbd>
+            <i id="bon-btn-bar" class="bon-timer-bar" aria-hidden="true"></i>
+          </button>
+        </div>
+
         <!-- Right Door & Light Steel Panel -->
         <div class="door-panel right">
           <button id="btn-right-door" class="steel-btn door-btn" type="button" aria-pressed="false" aria-label="Rechte Stahltür" title="Rechte Stahltür (E)">
@@ -352,7 +376,17 @@
         </div>
         <div id="cctv-disrupt" class="cctv-center-msg" hidden>
           <b>SIGNAL UNTERBROCHEN</b>
-          <span>BEWEGUNG IM SEKTOR ERKANNT</span>
+          <span>BEWEGUNG IM SEKTOR · IR-BLITZ [X] KLÄRT SOFORT</span>
+        </div>
+
+        <!-- Tactical CCTV Countermeasure Bar (IR Strobe + Hallway Steam Burst) -->
+        <div id="cctv-tools" class="cctv-tools" aria-label="Kamera-Gegenmaßnahmen">
+          <button id="btn-ir-flash" class="btn-crt small cctv-tool-btn" type="button" title="IR-Stroboskop-Blitz (X)">
+            <span id="ir-flash-label">IR-BLITZ −1%</span> <kbd>X</kbd>
+          </button>
+          <button id="btn-steam-burst" class="btn-crt small cctv-tool-btn steam-btn" type="button" title="Flur-Dampfstoß auf CAM 2B / 4B (G)" hidden>
+            <span id="steam-burst-label">DAMPFSTOSS</span> <kbd>G</kbd>
+          </button>
         </div>
 
         <div class="cctv-map-wrap">
@@ -396,6 +430,11 @@
             <div id="seismic-bars" class="seismic-bars" aria-hidden="true">
               <i></i><i></i><i></i><i></i><i></i>
             </div>
+          </div>
+          <div id="thermal-row" class="thermal-row" aria-label="Fritteusen-Dampf und Temperatur">
+            <span>Dampf:</span>
+            <strong id="thermal-label" class="thermal-val">41°C</strong>
+            <div class="thermal-track" aria-hidden="true"><i id="thermal-fill"></i></div>
           </div>
         </div>
 

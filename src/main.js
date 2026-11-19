@@ -9,6 +9,7 @@ import {
   saveProgress,
   saveSettings,
   saveShiftRecord,
+  SHIFT_MODIFIERS,
   unlockAchievement,
 } from './fnafData.js';
 import {
@@ -21,12 +22,16 @@ import {
   selectCam,
   sipSpezi,
   squeakDuck,
+  stampOrderBon,
   STEP,
   toggleLeftDoor,
   toggleLeftLight,
   toggleMonitor,
   toggleRightDoor,
   toggleRightLight,
+  triggerCamFlash,
+  triggerSteamBurst,
+  ventOfficeSteam,
 } from './game.js';
 import { get, Hud, write } from './hud.js';
 
@@ -57,6 +62,7 @@ let lag = 0;
 let lastHapticAt = 0;
 
 const customAi = { torge: 5, anton: 5, tom: 5, hauke: 5 };
+const selectedModifiers = new Set();
 
 function pulseHaptic(event) {
   if (!controls.touch || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
@@ -121,6 +127,10 @@ const gameActions = {
   cam: playAction(selectCam),
   fuse: playAction(resetCameraFuse),
   bell: playAction(ringKitchenBell),
+  vent: playAction(ventOfficeSteam),
+  stampBon: playAction(stampOrderBon),
+  camFlash: playAction(triggerCamFlash),
+  steamBurst: playAction(triggerSteamBurst),
   mute: playAction((currentRun) => {
     if (muteCall(currentRun)) sound.stopSpeech();
   }),
@@ -138,6 +148,18 @@ const controls = new Controls(canvas, {
   canvasTap: (rx, ry) => {
     if (stage !== 'play' || !run || run.monitorOpen || run.powerOutage) return;
     const hit = view?.pickOfficeProp?.(rx, ry);
+    if (hit === 'valve') {
+      sound.open();
+      if (ventOfficeSteam(run)) flushEvents(run);
+      hud.paint(run);
+      return;
+    }
+    if (hit === 'printer') {
+      sound.open();
+      if (stampOrderBon(run)) flushEvents(run);
+      hud.paint(run);
+      return;
+    }
     if (hit === 'poster') {
       sound.open();
       if (honkPoster(run)) flushEvents(run);
@@ -196,6 +218,11 @@ function syncSettingsUi() {
     const key = btn.dataset.setting;
     const val = btn.dataset.value;
     btn.setAttribute('aria-pressed', String(settings[key] === val));
+  }
+  const perfEl = get('engine-perf-label');
+  if (perfEl && view?.getPerfSnapshot) {
+    const snap = view.getPerfSnapshot();
+    write(perfEl, `Aktuell: ~${snap.fps} FPS · ${snap.drawCalls} Draw Calls (Gebatcht)`);
   }
   const volInput = get('set-volume');
   if (volInput) volInput.value = String(Math.round(settings.volume * 100));
@@ -316,6 +343,18 @@ function syncCustomValues() {
   write(get('custom-danger-label'), `Gefahrenstufe: ${total} / 80 (${tier})`);
   const fill = get('custom-danger-fill');
   if (fill) fill.style.width = `${Math.round((total / 80) * 100)}%`;
+
+  let bonusPct = 0;
+  for (const btn of document.querySelectorAll('.mod-chip')) {
+    const id = btn.dataset.mod;
+    const active = selectedModifiers.has(id);
+    btn.setAttribute('aria-pressed', String(active));
+    if (active) {
+      const m = SHIFT_MODIFIERS.find((item) => item.id === id);
+      bonusPct += m?.bonusPct ?? 0;
+    }
+  }
+  write(get('custom-bonus-label'), `Bonus: +${bonusPct} % Wertung`);
 }
 
 async function ensureView() {
@@ -353,6 +392,7 @@ async function startNight(night, customOverride = null) {
   run = newNight({
     night,
     customAi: night === 7 ? { ...(customOverride || customAi) } : null,
+    modifiers: night === 7 ? [...selectedModifiers] : [],
   });
 
   // Immediate 1-9-8-7 Golden Duck Easter Egg skips intro straight into Jumpscare!
@@ -438,7 +478,7 @@ function showWin() {
   stage = 'win';
   controls.enable(false);
   sound.syncLoops(null);
-  saveProgress(run.night, run.customAi);
+  saveProgress(run.night, run.customAi, run.modifiers);
   const { isNewRecord } = saveShiftRecord(run);
   hud.syncTitleProgress();
   hideAllScreens();
@@ -462,7 +502,28 @@ function showGameOver() {
   get('gameover-retry')?.focus();
 }
 
-// Build Custom Night preset buttons
+// Build Custom Night modifier chips & preset buttons
+const modWrap = get('custom-modifiers');
+if (modWrap) {
+  for (const mod of SHIFT_MODIFIERS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mod-chip';
+    btn.dataset.mod = mod.id;
+    btn.setAttribute('aria-pressed', 'false');
+    btn.title = mod.desc;
+    btn.innerHTML = `<b>${mod.name}</b><small>${mod.short} · +${mod.bonusPct}%</small>`;
+    btn.addEventListener('click', () => {
+      if (selectedModifiers.has(mod.id)) selectedModifiers.delete(mod.id);
+      else selectedModifiers.add(mod.id);
+      syncCustomValues();
+      sound.open();
+      sound.play({ kind: 'cam_blip' });
+    });
+    modWrap.appendChild(btn);
+  }
+}
+
 const presetWrap = get('custom-presets');
 if (presetWrap) {
   for (const preset of CUSTOM_PRESETS) {
@@ -472,6 +533,8 @@ if (presetWrap) {
     btn.textContent = preset.name;
     btn.addEventListener('click', () => {
       Object.assign(customAi, preset.ai);
+      selectedModifiers.clear();
+      for (const m of (preset.modifiers || [])) selectedModifiers.add(m);
       syncCustomValues();
       sound.open();
       sound.play({ kind: 'cam_blip' });
@@ -590,11 +653,16 @@ for (const [id, action] of [
   ['btn-left-light', gameActions.leftLight],
   ['btn-right-door', gameActions.rightDoor],
   ['btn-right-light', gameActions.rightLight],
+  ['btn-vent-steam', gameActions.vent],
+  ['btn-stamp-bon', gameActions.stampBon],
+  ['btn-ir-flash', gameActions.camFlash],
+  ['btn-steam-burst', gameActions.steamBurst],
   ['btn-monitor', gameActions.monitor],
   ['btn-fuse', gameActions.fuse],
   ['btn-kitchen-bell', gameActions.bell],
 ]) {
   const btn = get(id);
+  if (!btn) continue;
   btn.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'touch') controls.noteTouch();
   });

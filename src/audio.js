@@ -159,6 +159,20 @@ export class Soundscape {
     this.fanGain.gain.value = 0;
     this.fanGain.connect(this.master);
 
+    // Steam exhaust hiss loop when office valve is open
+    this.steamGain = ctx.createGain();
+    this.steamGain.gain.value = 0;
+    this.steamGain.connect(this.master);
+    const steamNoise = ctx.createBufferSource();
+    steamNoise.buffer = this.noise;
+    steamNoise.loop = true;
+    const steamBp = ctx.createBiquadFilter();
+    steamBp.type = 'bandpass';
+    steamBp.frequency.value = 2350;
+    steamBp.Q.value = 0.85;
+    steamNoise.connect(steamBp).connect(this.steamGain);
+    steamNoise.start(0, 0.4);
+
     const fanAir = ctx.createBufferSource();
     fanAir.buffer = this.noise;
     fanAir.loop = true;
@@ -491,7 +505,11 @@ export class Soundscape {
 
     const camera = active && run.monitorOpen ? CAMERA_AUDIO[run.activeCam] : null;
     const disrupted = camera && feedIsInterrupted(run);
+    const venting = active && (run.thermal?.ventingUntil ?? 0) > run.time;
     this.fanGain.gain.setTargetAtTime(active ? (camera ? 0.065 : 0.21) : 0, t, 0.08);
+    if (this.steamGain) {
+      this.steamGain.gain.setTargetAtTime(venting ? (camera ? 0.07 : 0.22) : 0, t, 0.06);
+    }
     this.cctvGain.gain.setTargetAtTime(camera ? (disrupted ? 0.042 : 0.009) : 0, t, 0.05);
     this.roomGain.gain.setTargetAtTime(camera && !disrupted ? camera.gain : 0, t, 0.12);
     if (camera && camera !== this.cameraProfile) {
@@ -625,6 +643,39 @@ export class Soundscape {
       case 'kitchen_bell':
         this.metal(725, 0.30, 0.42, 0, 0.42);
         this.tone(683, 678, 0.37, 0.10, 0.42, 0.01, 'triangle', { wet: 0.35 });
+        break;
+      case 'steam_vent_start':
+        this.metal(480, 0.22, -0.45, 0, 0.22);
+        this.burst(2400, 0.8, 0.55, 0.28, -0.45, 0.04, { attack: 0.04, wet: 0.35 });
+        break;
+      case 'steam_burst':
+        this.metal(390, 0.32, sidePan, 0, 0.35);
+        this.burst(1950, 0.72, 0.85, 0.42, sidePan, 0.02, { attack: 0.02, wet: 0.52 });
+        this.burst(720, 1.1, 0.65, 0.28, sidePan, 0.08, { attack: 0.05, wet: 0.45 });
+        break;
+      case 'overheat_alarm':
+        for (const off of [0, 0.18, 0.36]) {
+          this.tone(880, 820, 0.12, 0.22, -0.35, off, 'sawtooth', { wet: 0.3 });
+        }
+        this.burst(2100, 0.85, 0.7, 0.30, 0, 0.05, { attack: 0.04, wet: 0.4 });
+        break;
+      case 'bon_printed':
+        for (const off of [0, 0.07, 0.14, 0.22]) {
+          this.burst(2850, 2.2, 0.045, 0.16, 0.38, off);
+        }
+        this.tone(1046.5, 1318.5, 0.14, 0.16, 0.38, 0.28, 'triangle', { wet: 0.25 });
+        break;
+      case 'bon_stamped':
+        this.metal(960, 0.25, 0.36, 0, 0.28);
+        this.tone(659.25, 987.77, 0.20, 0.20, 0.36, 0.05, 'triangle', { wet: 0.35 });
+        break;
+      case 'bon_missed':
+        this.tone(310, 220, 0.24, 0.24, 0.36, 0, 'sawtooth', { wet: 0.35 });
+        this.tone(240, 175, 0.30, 0.24, 0.36, 0.22, 'sawtooth', { wet: 0.35 });
+        break;
+      case 'ir_flash':
+        this.burst(3200, 1.4, 0.08, 0.26, 0, 0);
+        this.tone(1480, 2960, 0.28, 0.16, 0, 0.02, 'sine', { wet: 0.32 });
         break;
       case 'window_sting':
         this.burst(860, 0.75, 0.52, 0.37, sidePan, 0, { attack: 0.076, wet: 0.58 });
