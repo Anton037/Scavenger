@@ -248,7 +248,7 @@ export function diver() {
   piece(wrench, round, jacketTrim, 0, 0.17, 0.44, 0.18, 0.08, 0.18);
   piece(wrench, octa, glow, 0, 0.2, 0.44, 0.08, 0.06, 0.08);
 
-  return { root, body, bulb, legs, wrench, helmet };
+  return { root, body, bulb, legs, wrench, helmet, jacketMat: chefJacket };
 }
 
 export function dredged() {
@@ -510,7 +510,7 @@ export function doenerModel() {
 }
 
 export function skewerModel() {
-  // 4. Relikt (ab Etage 3): Goldener Grillspieß mit neon-grüner Aura
+  // Goldener Grillspieß mit neon-grüner Spitze
   const g = new THREE.Group();
   const brass = brassMaterial(PALETTE.brass);
   const meat = material(0x733224, 0.5, 0.08);
@@ -561,7 +561,7 @@ export function barrelMesh() {
 }
 
 export function rubberDuck(parent) {
-  // Goldene Pfand-Dose zum Ablenken von Anton & Hauke
+  // Gold-rote Billard-Pfand-Dose als Ricochet-Projektil
   const can = new THREE.Group();
   const brass = brassMaterial(PALETTE.brass);
   const red = emissive(PALETTE.vermilion);
@@ -569,6 +569,28 @@ export function rubberDuck(parent) {
   piece(can, round, red, 0, 0.12, 0, 0.115, 0.11, 0.115);
   parent.add(can);
   return can;
+}
+
+export function magnetPickupModel(parent) {
+  // Leuchtender Cyan-Pfand-Magnet mit Hufeisen-Polen & Boden-Halo (klar unterscheidbar von Spezi-Dosen)
+  const g = new THREE.Group();
+  const body = material(0x16324f, 0.32, 0.45);
+  const cyanGlow = emissive(PALETTE.glacier);
+  const redPole = emissive(PALETTE.vermilion);
+  const silver = material(0xe4f2ff, 0.25, 0.6);
+
+  // Hufeisen-Magnet (U-Form)
+  piece(g, solid, redPole, 0, 0.18, 0, 0.34, 0.1, 0.12);
+  piece(g, solid, redPole, -0.14, 0.32, 0, 0.09, 0.24, 0.12);
+  piece(g, solid, redPole, 0.14, 0.32, 0, 0.09, 0.24, 0.12);
+  piece(g, solid, silver, -0.14, 0.46, 0, 0.095, 0.09, 0.125);
+  piece(g, solid, silver, 0.14, 0.46, 0, 0.095, 0.09, 0.125);
+  piece(g, octa, cyanGlow, 0, 0.46, 0, 0.075, 0.075, 0.075);
+  piece(g, round, body, 0, 0.06, 0, 0.22, 0.06, 0.22);
+  band(g, cyanGlow, 0, 0.04, 0, 0.38);
+
+  if (parent) parent.add(g);
+  return g;
 }
 
 export function megaDuckModel(parent) {

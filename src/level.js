@@ -13,8 +13,12 @@ export const BIOMES = [
     floorGlazes: [0x384e63, 0x435978, 0x32524f, 0x484469, 0x574848],
     wallHex: 0x45547d,
     torchHex: 0xffca6a,
-    waterHex: 0x268999,
+    waterHex: 0xc98a24,
+    foamHex: 0xffe066,
     fogHex: 0x101322,
+    ambientSky: 0xffe8cc,
+    ambientGround: 0x383a5c,
+    nightTint: [0.89, 0.88, 1.05],
   },
   {
     id: 'freezer',
@@ -23,8 +27,12 @@ export const BIOMES = [
     floorGlazes: [0x2d5873, 0x376a8c, 0x2a616b, 0x3b5885, 0x416480],
     wallHex: 0x3a6187,
     torchHex: 0x82e0ff,
-    waterHex: 0x38a5cc,
+    waterHex: 0x3298c4,
+    foamHex: 0xb6f4ff,
     fogHex: 0x0d1729,
+    ambientSky: 0xd0f0ff,
+    ambientGround: 0x243e5c,
+    nightTint: [0.78, 0.94, 1.15],
   },
   {
     id: 'furnace',
@@ -33,8 +41,12 @@ export const BIOMES = [
     floorGlazes: [0x593645, 0x663f38, 0x483152, 0x61443a, 0x523040],
     wallHex: 0x5e384b,
     torchHex: 0xff8e57,
-    waterHex: 0x317a85,
+    waterHex: 0xd46224,
+    foamHex: 0xffb84d,
     fogHex: 0x1c0d14,
+    ambientSky: 0xffd7ba,
+    ambientGround: 0x4d2a34,
+    nightTint: [1.03, 0.84, 0.92],
   },
 ];
 
@@ -109,6 +121,7 @@ export const LOADOUTS = {
     id: 'classic',
     name: 'Pfannen-Chef',
     tag: 'Gold-Pfanne · Krone · Allround',
+    jacketHex: 0xd9383a,
     startWeapon: 'pan',
     maxHp: 100,
     speedMult: 1.02,
@@ -121,7 +134,8 @@ export const LOADOUTS = {
   runner: {
     id: 'runner',
     name: 'Spieß-Kurier',
-    tag: 'Grillspieße · +16% Tempo · 5 Dosen',
+    tag: 'Grillspieße · +16% Tempo · 5 Spezis',
+    jacketHex: 0x1b8ca8,
     startWeapon: 'skewer',
     maxHp: 90,
     speedMult: 1.16,
@@ -135,6 +149,7 @@ export const LOADOUTS = {
     id: 'brawler',
     name: 'Döner-Meister',
     tag: 'Döner-Orbit · 125 HP · +20% Radius',
+    jacketHex: 0xc97b18,
     startWeapon: 'doner',
     maxHp: 125,
     speedMult: 0.98,
@@ -148,6 +163,7 @@ export const LOADOUTS = {
     id: 'knobi_chef',
     name: 'Knobi-Priester',
     tag: 'Knobi-Aura · +15% Radius · 4 Spezis',
+    jacketHex: 0x1f8f5b,
     startWeapon: 'knobi',
     maxHp: 105,
     speedMult: 1.04,
@@ -234,8 +250,8 @@ export const UPGRADE_POOL = [
     maxLevel: 5,
     descForLevel: (lv) => (
       lv === 1
-        ? 'Schleudert abprallende Dosen zwischen Wänden & Gegnern (+2 Dosen)'
-        : `Lv ${lv}: Mehr Abpraller, mehr Dosen & Bonus-Geschwindigkeit`
+        ? 'Schleudert abprallende Pfand-Dosen zwischen Wänden & Gegnern (+2 Spezis)'
+        : `Lv ${lv}: Mehr Abpraller, mehr Dosen & Bonus-Geschwindigkeit (+2 Spezis)`
     ),
   },
   {
@@ -264,7 +280,7 @@ export const UPGRADE_POOL = [
     id: 'magnet',
     kind: 'passive',
     name: 'Pfand-Magnet',
-    icon: 'can',
+    icon: 'magnet',
     tint: 'jade',
     maxLevel: 5,
     descForLevel: (lv) => `+38% Sammel-Radius & +18% mehr XP / Aura (Stufe ${lv})`,
@@ -344,9 +360,25 @@ export const EVOLUTIONS = [
     tint: 'cyan',
     desc: 'EVOLUTION (Billard + Schlappen): Riesen-Superdosen mit 8 Abprallern & Blitztempo!',
   },
+  {
+    id: 'evo_knobi',
+    weapon: 'knobi',
+    synergy: 'crown',
+    name: 'TZATZIKI-SUPERGAU',
+    icon: 'knobi',
+    tint: 'jade',
+    desc: 'EVOLUTION (Knobi + Krone): Mega-Tzatziki-Druckwelle panikt Antons & heilt Torge bei Multi-Hits!',
+  },
+  {
+    id: 'evo_beam',
+    weapon: 'beam',
+    synergy: 'espresso',
+    name: 'STROBO-FLUTLICHT 9000',
+    icon: 'lamp',
+    tint: 'cyan',
+    desc: 'EVOLUTION (Lampe + Espresso): 360°-Imbiss-Strobo brutzelt & betäubt bis zu 14 Gegner blitzschnell!',
+  },
 ];
-
-export const MOD_POOL = UPGRADE_POOL;
 
 export function getDailySeed(date = new Date()) {
   const y = date.getUTCFullYear() % 100;
@@ -401,7 +433,8 @@ export function buildArena(seed = 2026, biomeStep = 1) {
     { x: 25.7, z: 2.3, color: biome.torchHex, strength: 3.1 },
     { x: 2.3, z: 25.7, color: biome.torchHex, strength: 3.1 },
     { x: 25.7, z: 25.7, color: biome.torchHex, strength: 3.1 },
-    { x: 14, z: 2.3, color: 0xffc857, strength: 3.5 },
+    { x: 12.6, z: 2.35, color: 0xffc857, strength: 3.2 },
+    { x: 15.4, z: 2.35, color: 0xffc857, strength: 3.2 },
     { x: 14, z: 25.7, color: biome.accent, strength: 3.0 },
     { x: 2.3, z: 14, color: biome.accent, strength: 3.0 },
     { x: 25.7, z: 14, color: biome.accent, strength: 3.0 },
@@ -422,7 +455,7 @@ export function buildArena(seed = 2026, biomeStep = 1) {
   const clearOfStatic = (x, z, pad = 1.2) => {
     if (x < 2.2 || z < 2.2 || x > width - 2.2 || z > depth - 2.2) return false;
     if (Math.hypot(x - cx, z - cz) < 2.8) return false;
-    if (Math.hypot(x - vending.x, z - vending.z) < 1.6) return false;
+    if (Math.hypot(x - vending.x, z - vending.z) < 1.8) return false;
     for (const b of blocks) {
       if (Math.abs(x - b.x) < b.w * 0.5 + pad && Math.abs(z - b.z) < b.d * 0.5 + pad) return false;
     }
@@ -465,7 +498,7 @@ export function buildArena(seed = 2026, biomeStep = 1) {
     for (const b of blocks) {
       if (Math.abs(x - b.x) < b.w * 0.5 + radius && Math.abs(z - b.z) < b.d * 0.5 + radius) return false;
     }
-    if (Math.abs(x - vending.x) < 0.55 + radius && Math.abs(z - vending.z) < 0.55 + radius) return false;
+    if (Math.abs(x - vending.x) < 0.78 + radius && Math.abs(z - vending.z) < 0.52 + radius) return false;
     if (tempObstacles) {
       for (const c of tempObstacles.crates ?? []) {
         if (!c.broken && Math.abs(x - c.x) < 0.32 + radius && Math.abs(z - c.z) < 0.32 + radius) return false;

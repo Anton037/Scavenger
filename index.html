@@ -8,6 +8,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Imbiss-Survival — Chef Torge Edition: Arena-Horde-Survival im Dead-Cells Pixel-Art Look mit Lost Anton, Schnorrer Tom & Boss Hauke!">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Imbiss-Survival — Chef Torge Edition">
+  <meta property="og:description" content="Überlebe endlose Wellen aus Antons, Toms & Boss Hauke! Sammle Pfand-XP, entwickle Super-Waffen & knacke den Kassenbon deiner Kumpels.">
+  <meta property="og:image" content="https://anton037.github.io/Scavenger/gate.png">
+  <meta name="twitter:card" content="summary">
   <title>Imbiss-Survival — Chef Torge Edition</title>
   <link rel="icon" type="image/png" href="/gate.png">
   <link rel="apple-touch-icon" href="/gate.png">
@@ -151,12 +156,15 @@
       </div>
 
       <div class="hud-bottom">
-        <div class="meters">
+        <div class="meters" title="Lichtmodus (Q) & aktueller Gegner-Andrang in der Arena">
           <div class="meter-line">
-            <span id="noise-label">Blend +30%</span>
-            <span id="lamp-state" class="lamp-pill on"><span class="ico-slot" data-ico="lamp"></span><span id="lamp-label">AN</span></span>
+            <span id="noise-label">+30% DMG</span>
+            <span id="lamp-state" class="lamp-pill on"><span class="ico-slot" data-ico="lamp"></span><span id="lamp-label">LICHT</span></span>
           </div>
-          <div id="noise-meter" class="noise-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="meter-crowd">
+            <span id="crowd-label" class="meter-sub">ANDRANG</span>
+            <div id="noise-meter" class="noise-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
         </div>
 
         <div class="skill-rack">

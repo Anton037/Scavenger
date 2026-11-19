@@ -6,6 +6,7 @@ import {
   CHAOS_EVENTS,
   DEATH_ROASTS,
   finishRunCashOut,
+  getStats,
   interaction,
   newRun,
   rerollUpgrades,
@@ -14,7 +15,7 @@ import {
   WAVE_DURATION,
 } from '../src/game.js';
 import { computeBadges, formatShareReceipt } from '../src/hud.js';
-import { buildArena, EVOLUTIONS, getDailySeed, LOADOUTS } from '../src/level.js';
+import { BIOMES, buildArena, EVOLUTIONS, getDailySeed, LOADOUTS, UPGRADE_POOL } from '../src/level.js';
 
 function simulate(run, seconds, inputFn = () => ({})) {
   const steps = Math.round(seconds / STEP);
@@ -429,4 +430,120 @@ test('Rival challenge marks beaten and formatShareReceipt builds WhatsApp-ready 
   assert.ok(text.includes('SCHELLEN-INFERNO'));
   assert.ok(text.includes('GEKNACKT!'));
   assert.ok(text.includes('https://example.com/?seed=2026&beat=750'));
+});
+
+test('All 7 weapons and 5 passives participate in Evolutions with live synergy hints, evo_knobi heal/panic, and evo_beam 360 strobe', () => {
+  const weapons = UPGRADE_POOL.filter((u) => u.kind === 'weapon').map((u) => u.id);
+  const passives = UPGRADE_POOL.filter((u) => u.kind === 'passive').map((u) => u.id);
+  assert.equal(EVOLUTIONS.length, weapons.length);
+  for (const w of weapons) {
+    assert.ok(EVOLUTIONS.some((e) => e.weapon === w), `missing evolution for weapon ${w}`);
+  }
+  for (const p of passives) {
+    assert.ok(EVOLUTIONS.some((e) => e.synergy === p), `missing evolution synergy for passive ${p}`);
+  }
+
+  // Synergy hints populate on non-evo level-up cards
+  const hintRun = newRun({ seed: 2026, loadout: 'classic' });
+  hintRun.player.passives.chili = 1;
+  hintRun.pendingLevelUps = 1;
+  advance(hintRun, {});
+  assert.equal(hintRun.state, 'levelup');
+  for (const offer of hintRun.upgradeOffers) {
+    assert.ok(offer.synergyHint && offer.synergyHint.includes('★'));
+  }
+
+  // evo_knobi panics Antons and heals Torge when hitting 3+ enemies
+  const knobiRun = newRun({ seed: 2026, loadout: 'knobi_chef' });
+  knobiRun.player.hp = 60;
+  knobiRun.player.weapons.knobi = 3;
+  knobiRun.player.passives.crown = 1;
+  knobiRun.player.evolutions.add('evo_knobi');
+  knobiRun.player.timers.knobi = 0.005;
+  knobiRun.enemies = [0, 1, 2].map((i) => ({
+    id: 1200 + i, type: 'anton', elite: false,
+    x: knobiRun.player.x + 1.2 + i * 0.25, z: knobiRun.player.z,
+    angle: Math.PI, hp: 80, maxHp: 80, speed: 0, radius: 0.32, damage: 5,
+    dead: false, moving: false, stunned: 0, slowed: 0, exposed: 0, hitFlash: 0,
+    burning: 0, donerCd: 0, knockX: 0, knockZ: 0, knockTime: 0, lootBank: 0,
+    hasCrown: false, panicked: 0, stuffed: 0, coma: 0, burpCd: 0,
+    slideVx: 0, slideVz: 0, chargeState: 'none', chargeTimer: 0, chargeDir: { x: 0, z: 0 }, enraged: false, koTimer: 0,
+  }));
+  advance(knobiRun, {});
+  assert.ok(knobiRun.player.hp > 60);
+  assert.ok(knobiRun.enemies.every((e) => e.panicked > 0 && e.hp < 80));
+
+  // evo_beam hits enemies behind Torge in 360° with stun + burn
+  const beamRun = newRun({ seed: 2026 });
+  beamRun.player.angle = 0; // facing +X
+  beamRun.player.weapons.beam = 3;
+  beamRun.player.passives.espresso = 1;
+  beamRun.player.evolutions.add('evo_beam');
+  beamRun.player.timers.beam = 0.005;
+  beamRun.enemies = [{
+    id: 1300, type: 'anton', elite: false,
+    x: beamRun.player.x - 3.5, z: beamRun.player.z, // directly behind Torge
+    angle: 0, hp: 90, maxHp: 90, speed: 0, radius: 0.32, damage: 5,
+    dead: false, moving: false, stunned: 0, slowed: 0, exposed: 0, hitFlash: 0,
+    burning: 0, donerCd: 0, knockX: 0, knockZ: 0, knockTime: 0, lootBank: 0,
+    hasCrown: false, panicked: 0, stuffed: 0, coma: 0, burpCd: 0,
+    slideVx: 0, slideVz: 0, chargeState: 'none', chargeTimer: 0, chargeDir: { x: 0, z: 0 }, enraged: false, koTimer: 0,
+  }];
+  advance(beamRun, {});
+  assert.ok(beamRun.enemies[0].hp < 90);
+  assert.ok(beamRun.enemies[0].stunned > 0);
+  assert.ok(beamRun.enemies[0].burning > 0);
+});
+
+test('Stats and hitbox radii stay consistent with upgrade copy and loadout areaMult', () => {
+  const run = newRun({ seed: 2026, loadout: 'brawler' });
+  const baseStats = getStats(run);
+  assert.ok(Math.abs(run.player.donerRadius - 2.19 * LOADOUTS.brawler.areaMult) < 0.001);
+
+  run.player.passives.espresso = 1;
+  run.player.passives.dash_mod = 1;
+  const upgraded = getStats(run);
+  assert.ok(Math.abs(upgraded.cdMult / baseStats.cdMult - 0.88) < 0.001);
+  assert.ok(Math.abs(upgraded.dashCdMult / baseStats.dashCdMult - 0.82) < 0.001);
+});
+
+test('Dropped crown prompt triggers before auto-pickup and input.use recovers the crown', () => {
+  const run = newRun({ seed: 2026 });
+  run.player.helmet = false;
+  run.droppedHelmet = { x: run.player.x + 1.5, z: run.player.z, age: 1 };
+
+  const act = interaction(run);
+  assert.ok(act?.helmet);
+  advance(run, { use: true });
+  assert.equal(run.player.helmet, true);
+  assert.equal(run.droppedHelmet, null);
+  assert.ok(run.events.some((ev) => ev.kind === 'crown_pickup'));
+});
+
+test('Unnamed challenge copy, biome oil/ice palettes, loadout jacketHex, and non-clipping Späti lanterns', () => {
+  const run = newRun({ seed: 2026, beatScore: 400 });
+  assert.equal(run.challenge.from, '');
+  run.player.pfand = 520;
+  advance(run, {});
+  assert.equal(run.challenge.beaten, true);
+  assert.ok(run.notices.some((n) => /kumpel-rekord/i.test(n.message)));
+  const receipt = formatShareReceipt(run, 'https://example.com/?seed=2026&beat=520');
+  assert.ok(receipt.includes('Kumpel-Rekord'));
+  assert.ok(!receipt.includes('Kumpels'));
+
+  for (const biome of BIOMES) {
+    assert.ok(typeof biome.waterHex === 'number' && typeof biome.foamHex === 'number');
+    assert.ok(Array.isArray(biome.nightTint) && biome.nightTint.length === 3);
+  }
+  const jacketColors = new Set(Object.values(LOADOUTS).map((l) => l.jacketHex));
+  assert.equal(jacketColors.size, Object.keys(LOADOUTS).length);
+
+  // Ensure no lantern fixture clips into the Späti-Bude footprint
+  const arena = buildArena(2026, 1);
+  for (const fx of arena.fixtures) {
+    assert.ok(
+      Math.hypot(fx.x - arena.vending.x, fx.z - arena.vending.z) >= 1.0,
+      `fixture at (${fx.x}, ${fx.z}) overlaps vending kiosk`,
+    );
+  }
 });

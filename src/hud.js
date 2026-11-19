@@ -130,9 +130,16 @@ export function formatShareReceipt(run, shareUrl) {
   if (evoNames.length > 0) lines.push(`★ Evolutionen: ${evoNames.join(', ')}`);
   if (badges) lines.push(`Orden: ${badges}`);
   if (run?.challenge) {
-    lines.push(run.challenge.beaten
-      ? `Rekord von ${run.challenge.from} (${formatAura(run.challenge.score)} ⚡) GEKNACKT!`
-      : `Ziel von ${run.challenge.from}: ${formatAura(run.challenge.score)} ⚡`);
+    const scoreStr = formatAura(run.challenge.score);
+    if (run.challenge.from) {
+      lines.push(run.challenge.beaten
+        ? `Rekord von ${run.challenge.from} (${scoreStr} ⚡) GEKNACKT!`
+        : `Ziel von ${run.challenge.from}: ${scoreStr} ⚡`);
+    } else {
+      lines.push(run.challenge.beaten
+        ? `Kumpel-Rekord (${scoreStr} ⚡) GEKNACKT!`
+        : `Ziel-Rekord: ${scoreStr} ⚡`);
+    }
   }
   lines.push('Kannst du meine Schicht toppen?');
   if (shareUrl) lines.push(shareUrl);
@@ -147,7 +154,7 @@ export class Hud {
     this.elements = Object.fromEntries([
       'hud', 'floor-badge', 'location', 'mutator-pill', 'challenge-pill', 'crown-badge', 'crown-label',
       'hp-fill', 'hp-text', 'xp-fill', 'xp-text',
-      'active-mods', 'record-counter', 'pfand-counter', 'noise-label', 'noise-meter', 'lamp-state', 'lamp-label',
+      'active-mods', 'record-counter', 'pfand-counter', 'noise-label', 'crowd-label', 'noise-meter', 'lamp-state', 'lamp-label',
       'interact', 'interact-key', 'interact-label', 'notice', 'clapper-count', 'dash-state', 'bonk-state',
       'bonk-fill', 'dash-fill', 'world-barks', 'boss-bar', 'boss-name', 'boss-status', 'boss-bar-fill',
       'touch-use', 'touch-use-label', 'touch-dash', 'touch-dash-label', 'touch-dash-fill',
@@ -307,9 +314,12 @@ export class Hud {
         : offer.isNew
           ? '<span class="mod-tag-new">NEU!</span>'
           : ` <small style="color:var(--gold)">LV ${offer.nextLevel}</small>`;
+      const synHtml = offer.synergyHint
+        ? `<span class="mod-synergy${offer.synergyOwned ? ' ready' : ''}">${offer.synergyHint}</span>`
+        : '';
       btn.innerHTML = `
         <span class="mod-ico">${upgradeIcon(offer.id)}</span>
-        <span class="mod-text"><b>${offer.name}${lvLabel}</b><small>${offer.desc}</small></span>
+        <span class="mod-text"><b>${offer.name}${lvLabel}</b><small>${offer.desc}</small>${synHtml}</span>
         <kbd class="mod-kbd">${idx + 1}</kbd>
         <span class="btn-arrow" aria-hidden="true">▶</span>
       `;
@@ -387,8 +397,12 @@ export class Hud {
     const challengeHtml = run.challenge
       ? `<div class="receipt-challenge${run.challenge.beaten ? ' beaten' : ''}">${
         run.challenge.beaten
-          ? `✓ DU HAST ${esc(run.challenge.from.toUpperCase())} (${formatAura(run.challenge.score)} ⚡) GEKNACKT!`
-          : `Ziel von ${esc(run.challenge.from)}: ${formatAura(run.challenge.score)} ⚡ — noch ${formatAura(Math.max(1, run.challenge.score + 1 - score))} ⚡!`
+          ? (run.challenge.from
+              ? `✓ DU HAST ${esc(run.challenge.from.toUpperCase())} (${formatAura(run.challenge.score)} ⚡) GEKNACKT!`
+              : `✓ DU HAST DEN KUMPEL-REKORD (${formatAura(run.challenge.score)} ⚡) GEKNACKT!`)
+          : (run.challenge.from
+              ? `Ziel von ${esc(run.challenge.from)}: ${formatAura(run.challenge.score)} ⚡ — noch ${formatAura(Math.max(1, run.challenge.score + 1 - score))} ⚡!`
+              : `Kumpel-Rekord: ${formatAura(run.challenge.score)} ⚡ — noch ${formatAura(Math.max(1, run.challenge.score + 1 - score))} ⚡!`)
       }</div>`
       : '';
 
@@ -596,15 +610,17 @@ export class Hud {
       }
     }
 
-    const activeCount = Math.min(6, Math.ceil((run.enemies?.filter((e) => !e.dead).length || 0) / 4));
+    const aliveEnemies = run.enemies?.filter((e) => !e.dead).length || 0;
+    const activeCount = Math.min(6, Math.ceil(aliveEnemies / 4));
     for (const [index, line] of [...ui['noise-meter'].children].entries()) line.classList.toggle('active', index < activeCount);
     ui['noise-meter'].classList.toggle('high', activeCount >= 5);
-    write(ui['noise-label'], player.lamp ? 'Blend +30%' : 'Tempo +14%');
+    write(ui['noise-label'], player.lamp ? '+30% DMG' : '+14% Tempo');
+    write(ui['crowd-label'], `ANDRANG ${aliveEnemies}`);
 
     if (ui['lamp-state']) {
       ui['lamp-state'].classList.toggle('on', Boolean(player.lamp));
       const boostText = player.beanBoost > 0 ? ` +${Math.ceil(player.beanBoost)}s` : '';
-      write(ui['lamp-label'], `${player.lamp ? 'LICHT' : 'TEMPO'}${boostText}`);
+      write(ui['lamp-label'], `${player.lamp ? 'LICHT' : 'DUNKEL'}${boostText}`);
     }
 
     const finisherReady = (player.comboStep || 0) === 2 && player.bonkCooldown <= 0;
@@ -671,7 +687,14 @@ export class Hud {
     const action = interaction(run);
     if (ui['touch-use']) {
       ui['touch-use'].disabled = !action?.enabled;
-      write(ui['touch-use-label'], action?.vending ? (action.enabled ? 'Spezi!' : 'Lädt') : 'Späti');
+      write(
+        ui['touch-use-label'],
+        action?.helmet
+          ? 'Krone!'
+          : action?.vending
+            ? (action.enabled ? 'Spezi!' : 'Lädt')
+            : 'Späti',
+      );
     }
     ui.interact.hidden = !action;
     ui.interact.classList.toggle('locked', Boolean(action && !action.enabled));

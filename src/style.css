@@ -597,7 +597,7 @@ kbd {
   padding-bottom: max(14px, env(safe-area-inset-bottom));
 }
 .meters {
-  width: 178px;
+  width: 192px;
   padding: .38rem .56rem;
   border-radius: 6px;
   background: var(--glass);
@@ -634,7 +634,22 @@ kbd {
 }
 .lamp-pill .ico { width: 11px; height: 11px; }
 .lamp-pill.on { border-color: rgba(255, 184, 77, 0.55); color: var(--gold); background: rgba(255, 184, 77, 0.12); }
-.noise-meter { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin-top: .3rem; }
+.meter-crowd {
+  display: flex;
+  align-items: center;
+  gap: .42rem;
+  margin-top: .32rem;
+}
+.meter-sub {
+  font-size: .56rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  color: var(--muted);
+  opacity: .84;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.noise-meter { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
 .noise-meter i { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); }
 .noise-meter i.active { background: var(--gold); }
 .noise-meter.high i.active { background: var(--crimson); }
@@ -764,7 +779,7 @@ kbd {
 .chart-enemy { margin-left: .28rem; background: var(--crimson); }
 .chart-barrel { margin-left: .28rem; border-radius: 1px; background: #ff5744; }
 
-/* Overlays & Lastenaufzug Mod-Terminal */
+/* Overlays & Chef-Upgrade Auswahl */
 .overlay {
   position: fixed;
   z-index: 10;
@@ -852,11 +867,18 @@ kbd {
 .mod-switch.tone-vermilion .mod-ico { color: var(--crimson); }
 .mod-switch.is-evo .mod-ico { background: rgba(255, 210, 90, 0.18); color: #ffe89e; }
 .mod-ico .ico { width: 17px; height: 17px; }
-.mod-text { flex: 1; display: grid; gap: .12rem; }
+.mod-text { flex: 1; display: grid; gap: .14rem; }
 .mod-text b { font-size: .88rem; color: var(--ivory); }
 .mod-switch.is-evo .mod-text b { color: #ffe89e; }
 .mod-text small { font-size: .74rem; color: var(--muted); }
 .mod-switch.is-evo .mod-text small { color: #f2dfb6; }
+.mod-synergy {
+  font-size: .64rem;
+  font-weight: 600;
+  color: var(--gold);
+  opacity: .9;
+}
+.mod-synergy.ready { color: var(--jade); }
 .mod-kbd { font-size: .68rem; padding: .12em .46em; opacity: .82; flex-shrink: 0; }
 .lift-footer {
   display: flex;

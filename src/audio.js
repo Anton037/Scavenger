@@ -180,21 +180,11 @@ export class Soundscape {
       case 'throw':
         this.tone(420, 880, 0.09, 0.08, 0, 0, 'sine');
         break;
-      case 'clapper':
-        // Rubber duck double-squeak!
-        this.tone(980, 1420, 0.11, 0.14, pan, 0, 'triangle');
-        this.tone(1320, 860, 0.14, 0.12, pan, 0.12, 'triangle');
-        break;
       case 'bonk':
-        // Hollow metallic wrench BONK!
+        // Goldene Bratpfannen-SCHELLE!
         this.tone(240, 520, 0.08, 0.22, pan, 0, 'triangle');
         this.tone(680, 310, 0.26, 0.18, pan, 0.04, 'sine');
         this.rustle(1400, 2.2, 0.12, 0.14, pan);
-        break;
-      case 'slip':
-        // Cartoon slide whistle + splash
-        this.tone(920, 220, 0.34, 0.15, pan, 0, 'sine');
-        this.rustle(1200, 0.8, 0.28, 0.14, pan);
         break;
       case 'stomp':
         // Boss Hauke heavy sub-bass footstep
@@ -202,35 +192,13 @@ export class Soundscape {
         this.rustle(140, 1.4, 0.18, 0.1, pan);
         break;
       case 'steal':
-        // Sneaky goblin giggle zip
+        // Sneaky Schnorrer Tom giggle zip
         this.tone(540, 1180, 0.09, 0.12, pan, 0, 'sawtooth');
         this.tone(720, 1440, 0.11, 0.12, pan, 0.1, 'sawtooth');
-        break;
-      case 'toot':
-        // Canned ravioli brass toot
-        this.tone(115, 62, 0.28, 0.16, pan, 0, 'sawtooth');
-        this.rustle(240, 1.8, 0.22, 0.09, pan);
         break;
       case 'can':
         this.tone(890, 620, 0.14, 0.09, pan, 0, 'triangle');
         this.tone(1240, 980, 0.18, 0.07, pan, 0.05, 'sine');
-        break;
-      case 'valve':
-        this.rustle(1850, 0.65, 0.65, 0.22, pan);
-        this.tone(180, 90, 0.45, 0.12, pan, 0, 'sawtooth');
-        break;
-      case 'record':
-        this.tone(418, 414, 0.47, 0.079, pan, 0, 'triangle');
-        this.tone(566, 562, 0.65, 0.05, pan, 0.08);
-        break;
-      case 'lift':
-        this.tone(42, 59, 4.65, 0.23, pan, 0, 'triangle');
-        this.tone(83, 103, 4.9, 0.089, pan, 0.12, 'sawtooth');
-        this.rustle(187, 2.0, 0.8, 0.17, pan);
-        break;
-      case 'detected':
-        this.tone(95, 43, 0.78, 0.24, pan, 0, 'triangle');
-        this.rustle(530, 2.3, 0.53, 0.12, pan);
         break;
       case 'crown_drop':
         // Chef-Krone fliegt klirrend weg!
@@ -275,7 +243,6 @@ export class Soundscape {
         this.tone(783.99, 783.99, 0.18, 0.16, pan, 0.12, 'triangle');
         this.tone(1046.5, 1046.5, 0.34, 0.18, pan, 0.18, 'sine');
         break;
-      case 'descend':
       case 'wave':
         // Nächste Welle / Arena-Horn
         this.tone(140, 210, 0.36, 0.16, 0, 0, 'triangle');

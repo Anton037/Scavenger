@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { LIFT_WAIT } from './game.js';
+import { LOADOUTS } from './level.js';
 import {
   PALETTE, TAU, band, batchScenery, barrelMesh, brassMaterial, color, crateMesh, crownMesh,
-  diver, doenerModel, dredged, emissive, greedyTom, haukeBoss, haukeSnack, hoop, material, megaDuckModel,
-  octa, orb, piece, randomFrom, round, rubberDuck, skewerModel, solid, speziModel, surfaceTexture, tapered,
+  diver, doenerModel, dredged, emissive, greedyTom, haukeBoss, haukeSnack, hoop, magnetPickupModel, material,
+  megaDuckModel, octa, orb, piece, randomFrom, round, rubberDuck, skewerModel, solid, speziModel, surfaceTexture,
+  tapered,
 } from './art.js';
 
 const brass = brassMaterial(PALETTE.brass);
@@ -66,7 +67,9 @@ function installFloor(world, map, texture) {
     transform.rotation.y = Math.floor(random() * 4) * Math.PI / 2;
     transform.updateMatrix();
     tiles.setMatrixAt(index, transform.matrix);
-    const baseHex = map.rooms[style - 2]?.glaze ?? map.biome.floorGlazes[0];
+    const baseHex = map.rooms[style - 2]?.glaze
+      ?? map.biome.floorGlazes[(style - 2) % map.biome.floorGlazes.length]
+      ?? map.biome.floorGlazes[0];
     tiles.setColorAt(index, color(baseHex).multiplyScalar(1.06 + random() * 0.18));
   }
   tiles.receiveShadow = true;
@@ -128,7 +131,11 @@ function installWater(world, map) {
   const water = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    uniforms: { uTime: clock, uColor: { value: color(map.biome.waterHex) } },
+    uniforms: {
+      uTime: clock,
+      uColor: { value: color(map.biome.waterHex) },
+      uFoam: { value: color(map.biome.foamHex ?? 0xffe066) },
+    },
     vertexShader: `varying vec2 waterUv;
 void main() {
   waterUv = uv * 2.0 - 1.0;
@@ -136,6 +143,7 @@ void main() {
 }`,
     fragmentShader: `uniform float uTime;
 uniform vec3 uColor;
+uniform vec3 uFoam;
 varying vec2 waterUv;
 void main() {
   vec2 pixUv = floor(waterUv * 16.0) / 16.0;
@@ -144,8 +152,8 @@ void main() {
   float surface = step(border, 0.95);
   float ring = step(0.65, sin(border * 18.0 - uTime * 2.2));
   float rim = step(0.86, border) * step(border, 0.95);
-  vec3 tint = uColor * 0.55 + vec3(0.22, 0.95, 0.78) * (ring * 0.18 + rim * 0.45);
-  gl_FragColor = vec4(tint, surface * 0.72);
+  vec3 tint = uColor * 0.62 + uFoam * (ring * 0.22 + rim * 0.45);
+  gl_FragColor = vec4(tint, surface * 0.74);
 }`,
   });
   for (const { x, z, w, d } of map.pools) {
@@ -230,27 +238,6 @@ function installMachinery(world, map) {
   batchScenery(world, group);
 }
 
-function installValves(world, map) {
-  return map.valves.map((valve) => {
-    const root = new THREE.Group();
-    root.position.set(valve.x, 0, valve.z);
-    piece(root, round, brass, 0, 0.04, 0, 0.52, 0.08, 0.52);
-    piece(root, round, enamel, 0, 0.08, 0, 0.42, 0.06, 0.42);
-    const wheel = new THREE.Group();
-    wheel.position.set(0, 0.14, 0);
-    band(wheel, copper, 0, 0, 0, 0.34);
-    for (let i = 0; i < 4; i++) {
-      const a = (i * TAU) / 4;
-      piece(wheel, octa, emissive(PALETTE.vermilion), Math.cos(a) * 0.24, 0.04, Math.sin(a) * 0.24, 0.07, 0.1, 0.07);
-    }
-    root.add(wheel);
-    const steam = placeRing(world, PALETTE.vermilion, valve.x, valve.z, 1.8);
-    steam.visible = false;
-    world.add(root);
-    return { wheel, steam };
-  });
-}
-
 function fixtureLights(world, map) {
   const torches = [];
   for (const [i, { x, z, color: tint, strength }] of map.fixtures.entries()) {
@@ -263,71 +250,6 @@ function fixtureLights(world, map) {
     torches.push({ x, z, color: tint, flame: orbFlame, base: strength * 0.42, seed: i * 1.93 });
   }
   return torches;
-}
-
-function installRecords(world, map) {
-  const plinths = new THREE.Group();
-  const items = [];
-  for (const record of map.records) {
-    const { x, z, color: tint, id } = record;
-    piece(plinths, round, clay, x, 0.25, z, 0.38, 0.46, 0.38);
-    piece(plinths, tapered, enamel, x, 0.5, z, 0.45, 0.11, 0.45);
-    band(plinths, brass, x, 0.56, z, 0.4);
-    const root = new THREE.Group();
-    root.position.set(x, 0.66, z);
-    world.add(root);
-
-    if (id === 'log') {
-      const crown = crownMesh(1.42);
-      crown.position.y = 0.14;
-      root.add(crown);
-    } else if (id === 'cylinder') {
-      root.add(speziModel());
-    } else if (id === 'spool') {
-      root.add(doenerModel());
-    } else {
-      root.add(skewerModel());
-    }
-    const orbit = band(root, emissive(tint), 0, 0.22, 0, 0.38);
-    orbit.rotation.x = 0.55;
-
-    const ring = placeRing(world, tint, x, z, 0.92);
-    const glow = new THREE.PointLight(tint, 5.2, 3.8, 2);
-    glow.position.set(x, 0.85, z);
-    world.add(glow);
-    items.push({ record, root, ring, glow });
-  }
-  batchScenery(world, plinths);
-  return items;
-}
-
-function installLift(world, map) {
-  const { x, z } = map.lift;
-  const root = new THREE.Group();
-  root.position.set(x, 0, z);
-  piece(root, round, brass, 0, 0.035, 0, 1.54, 0.07, 1.54);
-  piece(root, round, enamel, 0, 0.068, 0, 1.42, 0.042, 1.42);
-  const segments = [];
-  for (let i = 0; i < 12; i++) {
-    const a = (i * TAU) / 12;
-    const lx = Math.cos(a);
-    const lz = Math.sin(a);
-    piece(root, solid, brass, lx * 1.32, 0.095, lz * 1.32, 0.15, 0.026, 0.058).rotation.y = -a;
-    const mark = piece(root, solid, emissive(PALETTE.brass), lx * 1.17, 0.095, lz * 1.17, 0.082, 0.01, 0.036);
-    mark.rotation.y = -a;
-    segments.push(mark);
-  }
-  band(root, brass, 0, 0.085, 0, 0.99);
-  band(root, brass, 0, 0.082, 0, 0.36);
-  piece(root, octa, emissive(PALETTE.jade), 0, 0.09, 0, 0.22, 0.03, 0.22);
-  for (const side of [-1, 1]) {
-    piece(root, tapered, enamel, side * 1.34, 0.68, 0.33, 0.16, 1.32, 0.18);
-    piece(root, round, brass, side * 1.34, 1.36, 0.33, 0.21, 0.07, 0.21);
-  }
-  world.add(root);
-  const ring = placeRing(world, PALETTE.brass, x, z, 1.58);
-  ring.position.y = 0.113;
-  return { ring, segments };
 }
 
 function diffuseAir(world, map) {
@@ -416,49 +338,6 @@ function createChargeLaneMesh(scene) {
   mesh.position.y = floorY + 0.028;
   mesh.visible = false;
   mesh.renderOrder = 2;
-  scene.add(mesh);
-  return mesh;
-}
-
-function createAntonConeMesh(scene) {
-  const geo = new THREE.PlaneGeometry(5.2, 4.4);
-  geo.translate(2.6, 0, 0);
-  geo.rotateX(-Math.PI / 2);
-  const mat = new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    uniforms: { uTime: { value: 0 }, uHunt: { value: 0 } },
-    vertexShader: `
-      varying vec2 vLocal;
-      void main() {
-        vLocal = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform float uTime;
-      uniform float uHunt;
-      varying vec2 vLocal;
-      void main() {
-        float x = vLocal.x;
-        float y = (vLocal.y - 0.5) * 2.0;
-        float r = length(vec2(x, y * 0.9));
-        float angleRatio = abs(y) / max(0.06, x * 0.88);
-        float sector = 1.0 - smoothstep(0.55, 0.92, angleRatio);
-        float rim = smoothstep(0.52, 0.72, angleRatio) * (1.0 - smoothstep(0.78, 0.95, angleRatio));
-        float radial = (1.0 - smoothstep(0.25, 0.96, r)) * smoothstep(0.02, 0.08, x);
-        float pulse = 0.85 + 0.15 * sin(uTime * (3.0 + uHunt * 5.0));
-        float alpha = (sector * (0.11 + uHunt * 0.1) + rim * 0.14) * radial * pulse;
-        vec3 col = mix(vec3(0.95, 0.25, 0.34), vec3(1.0, 0.18, 0.26), uHunt);
-        gl_FragColor = vec4(col, alpha);
-      }
-    `,
-  });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.y = floorY + 0.019;
-  mesh.visible = false;
-  mesh.renderOrder = 1;
   scene.add(mesh);
   return mesh;
 }
@@ -614,6 +493,7 @@ function createPixelPostPass() {
     uLampOn: { value: 1.0 },
     uWideBeam: { value: 0.0 },
     uTitleMode: { value: 0.0 },
+    uNightTint: { value: new THREE.Vector3(0.89, 0.88, 1.05) },
     uChaosTint: { value: new THREE.Vector3(0.0, 0.0, 0.0) },
     uChaosPulse: { value: 0.0 },
   };
@@ -642,6 +522,7 @@ function createPixelPostPass() {
       uniform float uLampOn;
       uniform float uWideBeam;
       uniform float uTitleMode;
+      uniform vec3 uNightTint;
       uniform vec3 uChaosTint;
       uniform float uChaosPulse;
       varying vec2 vUv;
@@ -696,9 +577,8 @@ function createPixelPostPass() {
         else if (lit > 0.16) celBand = 1.0;
         else celBand = 0.86;
 
-        vec3 nightMarketTint = vec3(0.84, 0.90, 1.08);
         vec3 warmBeamTint = vec3(1.14, 1.03, 0.88);
-        vec3 lightTint = mix(nightMarketTint, warmBeamTint, clamp(rawLight * 1.25, 0.0, 1.0));
+        vec3 lightTint = mix(uNightTint, warmBeamTint, clamp(rawLight * 1.25, 0.0, 1.0));
 
         vec3 quantAlbedo = floor(col * 14.0 + 0.5) / 14.0;
         vec3 shaded = quantAlbedo * celBand * lightTint;
@@ -750,11 +630,11 @@ export class SceneView {
     this.projTempA = new THREE.Vector3();
     this.projTempB = new THREE.Vector3();
 
-    this.ambient = new THREE.HemisphereLight(0xe8f0ff, 0x384366, 1.58);
+    this.ambient = new THREE.HemisphereLight(0xffe8cc, 0x383a5c, 1.58);
     this.scene.add(this.ambient);
-    const key = new THREE.DirectionalLight(0xfff2dc, 1.22);
-    key.position.set(14, 22, 14);
-    this.scene.add(key);
+    this.keyLight = new THREE.DirectionalLight(0xfff2dc, 1.22);
+    this.keyLight.position.set(14, 22, 14);
+    this.scene.add(this.keyLight);
 
     this.texture = surfaceTexture();
     this.worldGroup = new THREE.Group();
@@ -766,8 +646,6 @@ export class SceneView {
       this.scene.add(light);
       return light;
     });
-    this.records = [];
-    this.valves = [];
     this.crates = Array.from({ length: 10 }, () => {
       const m = crateMesh(false);
       m.visible = false;
@@ -780,14 +658,12 @@ export class SceneView {
       this.scene.add(m);
       return m;
     });
-    this.barrels = Array.from({ length: 12 }, () => {
+    this.barrels = Array.from({ length: 14 }, () => {
       const m = barrelMesh();
       m.root.visible = false;
       this.scene.add(m.root);
       return m;
     });
-    this.cans = [];
-    this.lift = null;
     this.air = null;
     this.water = null;
     this.viewRect = { left: 0, top: 0, width: 1, height: 1 };
@@ -812,8 +688,9 @@ export class SceneView {
     this.droppedCrownRing.visible = false;
     this.crownBeacon = createCrownBeaconMesh(this.scene);
 
-    this.antonCones = [];
-    this.antonCone = null;
+    this.vendingRing = placeRing(this.scene, PALETTE.jade, 14, 2.6, 1.48);
+    this.vendingRing.visible = false;
+
     this.haukeSnacks = Array.from({ length: 4 }, (_, i) => {
       const s = haukeSnack(i);
       s.visible = false;
@@ -839,7 +716,7 @@ export class SceneView {
       this.scene.add(d);
       return d;
     });
-    this.skewerShots = Array.from({ length: 24 }, () => {
+    this.skewerShots = Array.from({ length: 36 }, () => {
       const s = skewerModel();
       s.rotation.x = Math.PI / 2;
       s.scale.setScalar(0.85);
@@ -847,26 +724,26 @@ export class SceneView {
       this.scene.add(s);
       return s;
     });
-    this.speziBombs = Array.from({ length: 10 }, () => {
+    this.speziBombs = Array.from({ length: 14 }, () => {
       const s = speziModel();
       s.visible = false;
       this.scene.add(s);
       return s;
     });
-    this.explosionRings = Array.from({ length: 8 }, () => {
+    this.explosionRings = Array.from({ length: 14 }, () => {
       const r = placeRing(this.scene, 0xff8c24, 0, 0, 1);
       r.visible = false;
       return r;
     });
 
-    // Instanced XP Gems Pool (120) + Spezial-Pickups (Heal Döner, Dosen, Mega-Enten, Gold Chests)
+    // Instanced XP Gems Pool (140) + Spezial-Pickups (Heal-Döner, Paulaner Spezis, Cyan-Magnet, Mega-Enten, Gold-Truhen)
     this.xpDummy = new THREE.Object3D();
-    this.xpGemsMesh = new THREE.InstancedMesh(octa, new THREE.MeshBasicMaterial(), 120);
+    this.xpGemsMesh = new THREE.InstancedMesh(octa, new THREE.MeshBasicMaterial(), 140);
     this.xpGemsMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.xpGemsMesh.frustumCulled = false;
     this.xpGemsMesh.renderOrder = 3;
     const whiteCol = color(0xffffff);
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 140; i++) {
       this.xpDummy.scale.setScalar(0);
       this.xpDummy.updateMatrix();
       this.xpGemsMesh.setMatrixAt(i, this.xpDummy.matrix);
@@ -882,18 +759,25 @@ export class SceneView {
       return m;
     });
     this.dosePickups = Array.from({ length: 10 }, () => {
-      const m = rubberDuck(this.scene);
-      m.scale.setScalar(1.2);
+      const m = speziModel();
+      m.scale.setScalar(1.1);
+      m.visible = false;
+      this.scene.add(m);
+      return m;
+    });
+    this.magnetPickups = Array.from({ length: 8 }, () => {
+      const m = magnetPickupModel(this.scene);
+      m.scale.setScalar(1.05);
       m.visible = false;
       return m;
     });
-    this.duckPickups = Array.from({ length: 5 }, () => {
+    this.duckPickups = Array.from({ length: 6 }, () => {
       const m = megaDuckModel(this.scene);
       m.scale.setScalar(1.35);
       m.visible = false;
       return m;
     });
-    this.chestPickups = Array.from({ length: 4 }, () => {
+    this.chestPickups = Array.from({ length: 6 }, () => {
       const m = crateMesh(true);
       m.scale.setScalar(0.85);
       m.visible = false;
@@ -913,7 +797,7 @@ export class SceneView {
     this.scene.add(this.island);
 
     this.ripples = Array.from({ length: 14 }, () => placeRing(this.scene, PALETTE.brass, 0, 0, 1));
-    this.clappers = Array.from({ length: 12 }, () => {
+    this.clappers = Array.from({ length: 16 }, () => {
       const m = rubberDuck(this.scene);
       m.visible = false;
       return m;
@@ -963,6 +847,11 @@ export class SceneView {
     this.loadedMap = map;
     this.disposeWorld();
     this.scene.background = color(map.biome.fogHex);
+    this.ambient.color.setHex(map.biome.ambientSky ?? 0xffe8cc);
+    this.ambient.groundColor.setHex(map.biome.ambientGround ?? 0x383a5c);
+    this.keyLight.color.setHex(map.biome.ambientSky ?? 0xfff2dc);
+    const [nr, ng, nb] = map.biome.nightTint ?? [0.89, 0.88, 1.05];
+    this.post.uniforms.uNightTint.value.set(nr, ng, nb);
 
     installFloor(this.worldGroup, map, this.texture);
     this.water = installWater(this.worldGroup, map);
@@ -1044,7 +933,10 @@ export class SceneView {
 
   updateHero(run, time) {
     const { player } = run;
-    const { root, body, legs, bulb, wrench, helmet } = this.actor;
+    const { root, body, legs, bulb, wrench, helmet, jacketMat } = this.actor;
+    const loadout = LOADOUTS[run.loadoutId] ?? LOADOUTS.classic;
+    if (jacketMat) jacketMat.color.setHex(loadout.jacketHex ?? 0xd9383a);
+
     root.position.set(player.x, 0.012, player.z);
     root.rotation.y = Math.PI / 2 - player.angle;
     const gait = player.moving ? Math.sin(player.stride * 7.2) * 0.62 : 0;
@@ -1063,6 +955,7 @@ export class SceneView {
 
     const isFinisher = (player.finisherSwing || 0) > 0;
     const hasEvoPan = player.evolutions?.has('evo_pan');
+    const hasEvoKnobi = player.evolutions?.has('evo_knobi');
     const fever = (player.combo || 1) >= 6;
     if (this.novaRing) {
       this.novaRing.visible = player.swing > 0;
@@ -1082,11 +975,12 @@ export class SceneView {
       const knobiLv = player.weapons?.knobi || 0;
       this.knobiRing.visible = kp > 0 || knobiLv > 0;
       if (this.knobiRing.visible) {
-        const kr = player.knobiRadius || (2.15 + knobiLv * 0.28);
+        const kr = player.knobiRadius || ((2.15 + knobiLv * 0.28) * (loadout.areaMult ?? 1) * (hasEvoKnobi ? 1.42 : 1));
         const pulseScale = kp > 0 ? kr * (1.0 - kp * 0.55) : kr * (0.86 + Math.sin(time * 4.5) * 0.04);
         this.knobiRing.position.set(player.x, floorY + 0.022, player.z);
         this.knobiRing.scale.set(pulseScale, 1, pulseScale);
-        this.knobiRing.material.opacity = kp > 0 ? Math.min(0.85, kp * 2.4) : 0.22;
+        this.knobiRing.material.color.setHex(hasEvoKnobi ? 0x6dffcc : PALETTE.jade);
+        this.knobiRing.material.opacity = kp > 0 ? Math.min(0.92, kp * 2.4) : hasEvoKnobi ? 0.36 : 0.22;
       }
     }
 
@@ -1104,11 +998,12 @@ export class SceneView {
       }
     }
 
-    // Döner-Orbit Klingen um Chef Torge
+    // Döner-Orbit Klingen um Chef Torge (exakt synchron zum Hitbox-Radius inkl. Klassen-Radius!)
     const donerLv = player.weapons?.doner || 0;
     const hasEvoDoner = player.evolutions?.has('evo_doner');
     const donerCount = donerLv > 0 ? (hasEvoDoner ? 6 : 1 + donerLv) : 0;
-    const donerRadius = (2.05 + donerLv * 0.14) * (1 + (player.passives?.chili || 0) * 0.12) * (hasEvoDoner ? 1.28 : 1);
+    const donerRadius = player.donerRadius
+      || ((2.05 + donerLv * 0.14) * (loadout.areaMult ?? 1) * (1 + (player.passives?.chili || 0) * 0.12) * (hasEvoDoner ? 1.28 : 1));
     for (let i = 0; i < this.donerOrbiters.length; i++) {
       const orb = this.donerOrbiters[i];
       orb.visible = i < donerCount;
@@ -1121,6 +1016,7 @@ export class SceneView {
 
     if (player.dash > 0 || player.sliding > 0 || (fever && Math.random() < 0.22)) {
       if (player.dash > 0 || player.sliding > 0 ? Math.random() < 0.7 : true) {
+        const slipColor = run.map?.biome?.foamHex ?? PALETTE.glacier;
         this.particles.emit(
           player.x + (Math.random() - 0.5) * 0.3,
           0.24,
@@ -1128,7 +1024,7 @@ export class SceneView {
           (Math.random() - 0.5) * 0.8,
           0.8,
           (Math.random() - 0.5) * 0.8,
-          player.sliding > 0 ? PALETTE.glacier : fever && player.dash <= 0 ? PALETTE.brass : PALETTE.ivory,
+          player.sliding > 0 ? slipColor : fever && player.dash <= 0 ? PALETTE.brass : PALETTE.ivory,
           0.11,
           0.26,
           2.0,
@@ -1136,19 +1032,23 @@ export class SceneView {
       }
     }
 
-    bulb.material.color.setHex(player.lamp ? 0xffe082 : 0x242838);
+    const evoBeam = player.evolutions?.has('evo_beam');
+    bulb.material.color.setHex(player.lamp ? (evoBeam ? 0x63e6ff : 0xffe082) : 0x242838);
     const aimX = Math.cos(player.angle);
     const aimZ = Math.sin(player.angle);
     this.lamp.position.set(player.x + aimX * 0.25, 2.4, player.z + aimZ * 0.25);
     this.lamp.target.position.set(player.x + aimX * 5.2, 0.0, player.z + aimZ * 5.2);
+    this.lamp.angle = evoBeam ? 0.84 : 0.68;
     this.lamp.visible = player.lamp;
 
     this.beamCone.visible = player.lamp;
     this.beamCone.position.set(player.x, floorY + 0.018, player.z);
     this.beamCone.rotation.y = -player.angle;
+    const beamScale = evoBeam ? 1.24 : 1;
+    this.beamCone.scale.set(beamScale, 1, evoBeam ? 1.34 : 1);
 
     this.island.position.set(player.x, 1.35, player.z);
-    this.island.intensity = player.lamp ? 3.8 : 2.5;
+    this.island.intensity = player.lamp ? (evoBeam ? 4.8 : 3.8) : 2.5;
   }
 
   updateActor(model, agent, player, time, alwaysShow) {
@@ -1298,6 +1198,7 @@ export class SceneView {
 
   consumeVfx(run) {
     if (!run.vfx || run.vfx.length === 0) return;
+    const slipColor = run.map?.biome?.foamHex ?? PALETTE.glacier;
     for (const fx of run.vfx) {
       if (fx.kind === 'bonk_swing') {
         this.particles.burst(fx.x, 0.65, fx.z, 10, PALETTE.brass, 4.4, 0.09, 0.28, 3.0);
@@ -1309,7 +1210,7 @@ export class SceneView {
       } else if (fx.kind === 'dash') {
         this.particles.burst(fx.x, 0.22, fx.z, 9, PALETTE.glacier, 3.0, 0.11, 0.34, 4.0);
       } else if (fx.kind === 'water_slip') {
-        this.particles.burst(fx.x, 0.2, fx.z, 14, PALETTE.glacier, 4.6, 0.11, 0.45, 10.5);
+        this.particles.burst(fx.x, 0.2, fx.z, 14, slipColor, 4.6, 0.11, 0.45, 10.5);
       } else if (fx.kind === 'coin_burst') {
         this.particles.burst(fx.x, 0.65, fx.z, 18, 0xffe082, 5.2, 0.12, 0.56, 9.5);
       } else if (fx.kind === 'wall_slam' || fx.kind === 'ko_explosion') {
@@ -1322,7 +1223,7 @@ export class SceneView {
     run.vfx.length = 0;
   }
 
-  updateProps(run, dt) {
+  updateProps(run, dt, isTitle = false) {
     const px = run.player.x;
     const pz = run.player.z;
     for (const torch of this.torches) {
@@ -1341,6 +1242,20 @@ export class SceneView {
         light.intensity = torch.intensity;
       } else {
         light.intensity = 0;
+      }
+    }
+
+    // Späti-Bude Bereitschafts-Ring (pulsierend Jade wenn bereit, gedimmtes Bernstein im Cooldown)
+    const vend = run.map?.vending;
+    if (this.vendingRing) {
+      this.vendingRing.visible = Boolean(vend);
+      if (vend) {
+        const ready = (vend.cooldown || 0) <= 0;
+        const pulse = ready ? 1.48 + Math.sin(run.time * 4.4) * 0.1 : 1.32;
+        this.vendingRing.position.set(vend.x, floorY + 0.024, vend.z + 0.25);
+        this.vendingRing.scale.set(pulse, 1, pulse);
+        this.vendingRing.material.color.setHex(ready ? PALETTE.jade : PALETTE.copper);
+        this.vendingRing.material.opacity = ready ? 0.72 + Math.sin(run.time * 4.4) * 0.16 : 0.28;
       }
     }
 
@@ -1397,10 +1312,11 @@ export class SceneView {
       }
     }
 
-    // Pickups: Instanced XP Gems + Spezial-Items
+    // Pickups: Instanced XP Gems + Spezial-Items (Heal-Döner, Paulaner Spezis, Cyan-Magnet, Mega-Enten, Gold-Truhen)
     const xpList = [];
     const healList = [];
     const doseList = [];
+    const magnetList = [];
     const duckList = [];
     const chestList = [];
     for (const pk of run.pickups ?? []) {
@@ -1409,10 +1325,11 @@ export class SceneView {
       else if (pk.kind === 'heal') healList.push(pk);
       else if (pk.kind === 'duck') duckList.push(pk);
       else if (pk.kind === 'chest') chestList.push(pk);
+      else if (pk.kind === 'magnet_can') magnetList.push(pk);
       else doseList.push(pk);
     }
 
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 140; i++) {
       const g = xpList[i];
       if (!g) {
         this.xpDummy.scale.setScalar(0);
@@ -1448,6 +1365,15 @@ export class SceneView {
         m.rotation.y = run.time * 2.5;
       }
     }
+    for (let i = 0; i < this.magnetPickups.length; i++) {
+      const m = this.magnetPickups[i];
+      const pk = magnetList[i];
+      m.visible = Boolean(pk);
+      if (pk) {
+        m.position.set(pk.x, 0.12 + Math.sin(run.time * 4.4 + i) * 0.06, pk.z);
+        m.rotation.y = run.time * 3.1;
+      }
+    }
     for (let i = 0; i < this.duckPickups.length; i++) {
       const m = this.duckPickups[i];
       const pk = duckList[i];
@@ -1467,9 +1393,17 @@ export class SceneView {
       }
     }
 
-    // Grillspieß-Projektile
+    // Grillspieß-Projektile (oder Spieß-Kurier Klassen-Vorschau im Titelbildschirm)
+    const showRunnerShowcase = isTitle && run.loadoutId === 'runner';
     for (let i = 0; i < this.skewerShots.length; i++) {
       const m = this.skewerShots[i];
+      if (showRunnerShowcase && i < 3) {
+        const a = run.time * 2.1 + (i * TAU) / 3;
+        m.visible = true;
+        m.position.set(run.player.x + Math.cos(a) * 1.35, 0.68 + Math.sin(run.time * 4 + i) * 0.06, run.player.z + Math.sin(a) * 1.35);
+        m.rotation.set(Math.PI / 2, 0, -a + Math.PI / 2);
+        continue;
+      }
       const p = run.projectiles?.[i];
       m.visible = Boolean(p);
       if (p) {
@@ -1523,6 +1457,7 @@ export class SceneView {
       this.air.position.z = Math.sin(run.time * 0.15) * 0.6;
     }
     if (this.water) this.water.value = run.time;
+    const slipColor = run.map?.biome?.foamHex ?? PALETTE.glacier;
     const pulses = (run.pulses ?? []).filter((entry) => entry.kind !== 'step' && entry.age < 0.63);
     for (const [index, ring] of this.ripples.entries()) {
       const pulse = pulses[index];
@@ -1532,7 +1467,7 @@ export class SceneView {
       ring.position.z = pulse.z;
       const size = 0.2 + pulse.age * (pulse.kind === 'splash' ? 2.2 : 3.4);
       ring.scale.set(size, 1, size);
-      ring.material.color.setHex(pulse.kind === 'splash' ? PALETTE.glacier : PALETTE.brass);
+      ring.material.color.setHex(pulse.kind === 'splash' ? slipColor : PALETTE.brass);
       ring.material.opacity = (1 - pulse.age / 0.63) * 0.68;
     }
 
@@ -1545,7 +1480,7 @@ export class SceneView {
     const u = this.post.uniforms;
     u.uTime.value = time;
     u.uLampOn.value = player.lamp ? 1.0 : 0.0;
-    u.uWideBeam.value = (player.weapons?.beam || 0) > 0 ? 1.0 : 0.0;
+    u.uWideBeam.value = player.evolutions?.has('evo_beam') ? 1.55 : (player.weapons?.beam || 0) > 0 ? 1.0 : 0.0;
     u.uTitleMode.value = isTitle ? 1.0 : 0.0;
     u.uHitFlash.value = isTitle ? 0.0 : Math.min(1, (hitFlash || 0) * 2.4);
 
@@ -1642,7 +1577,7 @@ export class SceneView {
 
     this.updateHero(run, time);
     this.updateThreat(run, true);
-    this.updateProps(run, 0.016);
+    this.updateProps(run, 0.016, true);
     this.renderPixelPipeline(run, true);
   }
 
@@ -1651,7 +1586,7 @@ export class SceneView {
     this.setCamera(run, dt, snap);
     this.updateHero(run, run.time);
     this.updateThreat(run, false);
-    this.updateProps(run, dt);
+    this.updateProps(run, dt, false);
     this.renderPixelPipeline(run, false);
   }
 }

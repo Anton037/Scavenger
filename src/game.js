@@ -4,7 +4,6 @@ export const STEP = 1 / 60;
 export const WAVE_DURATION = 30;
 export const BONK_COOLDOWN = 0.72;
 export const DASH_COOLDOWN = 0.95;
-export const LIFT_WAIT = 4;
 
 const MAX_ENEMIES = 32;
 const MAX_PICKUPS = 140;
@@ -175,7 +174,7 @@ export const RECEIPT_FOOTERS = [
 
 export const CHAOS_EVENTS = [
   { id: 'ordnungsamt', title: 'ORDNUNGSAMT KOMMT!!', sub: 'Antons rennen in Panik weg!' },
-  { id: 'happy_hour', title: 'SPEZI HAPPY HOUR!!', sub: '-45% Cooldowns & Gratis-Dosen!' },
+  { id: 'happy_hour', title: 'SPEZI HAPPY HOUR!!', sub: '-45% Cooldowns & Gratis-Spezis!' },
   { id: 'fettbahn', title: 'FRITTEUSEN-ÖL AUSGELAUFEN!!', sub: 'Gegner schlittern unkontrolliert!' },
   { id: 'kartenzahlung', title: 'NUR BARZAHLUNG!!', sub: 'Antons schockiert · 2× Pfand-XP!' },
   { id: 'doenerpreis', title: 'DÖNER KOSTET 9,50 €!!', sub: 'Wut-Inflation · Gold-XP-Regen!' },
@@ -216,8 +215,8 @@ export function getStats(run) {
     speed: 4.35 * loadout.speedMult * (1 + espresso * 0.1) * (shadowMode ? 1.14 : 1) * poolBoost * rushBoost,
     dmgMult: (1 + chili * 0.22 + (p.beanBoost > 0 ? 0.18 : 0)),
     areaMult: loadout.areaMult * (1 + chili * 0.12),
-    cdMult: (mut.cdMult || 1) * Math.max(0.42, 1 - espresso * 0.1) * (shadowMode ? 0.88 : 1) * (happyHour ? 0.55 : 1),
-    dashCdMult: loadout.dashCdMult * Math.max(0.35, 1 - dashMod * 0.16),
+    cdMult: (mut.cdMult || 1) * Math.max(0.38, 1 - espresso * 0.12) * (shadowMode ? 0.88 : 1) * (happyHour ? 0.55 : 1),
+    dashCdMult: loadout.dashCdMult * Math.max(0.28, 1 - dashMod * 0.18),
     bonkCdMult: loadout.bonkCdMult,
     magnetRadius: 2.65 * loadout.magnetMult * (1 + magnet * 0.38),
     xpMult: (mut.scoreMult || 1) * (1 + magnet * 0.18) * (cashOnly ? 2.0 : inflation ? 1.5 : 1),
@@ -290,6 +289,38 @@ function shiftBodyWithSlam(run, body, dx, dz, radius = 0.28) {
   return wallHit;
 }
 
+const UPGRADE_NAMES = Object.fromEntries(UPGRADE_POOL.map((u) => [u.id, u.name]));
+
+function synergyInfoFor(item, weapons, passives, evolutions) {
+  if (item.kind === 'weapon') {
+    const evo = EVOLUTIONS.find((e) => e.weapon === item.id && !evolutions?.has(e.id));
+    if (!evo) return { synergyHint: '', synergyOwned: false };
+    const partnerOwned = ((passives[evo.synergy] || 0) + (weapons[evo.synergy] || 0)) >= 1;
+    const partnerName = UPGRADE_NAMES[evo.synergy] ?? evo.synergy;
+    return {
+      synergyHint: partnerOwned
+        ? `★ Evo-Partner ${partnerName} ✓ (ab Lv 3 → ${evo.name})`
+        : `★ Evo mit ${partnerName} → ${evo.name}`,
+      synergyOwned: partnerOwned,
+    };
+  }
+  const evos = EVOLUTIONS.filter((e) => e.synergy === item.id && !evolutions?.has(e.id));
+  if (!evos.length) return { synergyHint: '', synergyOwned: false };
+  const ownedWeapons = evos.filter((e) => (weapons[e.weapon] || 0) >= 1);
+  if (ownedWeapons.length > 0) {
+    const names = ownedWeapons.map((e) => UPGRADE_NAMES[e.weapon] ?? e.weapon).join(' / ');
+    return {
+      synergyHint: `★ Evo-Synergie mit ${names} ✓`,
+      synergyOwned: true,
+    };
+  }
+  const names = evos.map((e) => UPGRADE_NAMES[e.weapon] ?? e.weapon).join(' / ');
+  return {
+    synergyHint: `★ Evo-Partner für ${names}`,
+    synergyOwned: false,
+  };
+}
+
 function buildUpgradeOffers(run, excludeIds = null) {
   const { weapons, passives, evolutions } = run.player;
   const readyEvos = [];
@@ -320,6 +351,7 @@ function buildUpgradeOffers(run, excludeIds = null) {
   for (const item of UPGRADE_POOL) {
     const cur = item.kind === 'weapon' ? (weapons[item.id] || 0) : (passives[item.id] || 0);
     if (cur < item.maxLevel) {
+      const { synergyHint, synergyOwned } = synergyInfoFor(item, weapons, passives, evolutions);
       candidates.push({
         id: item.id,
         kind: item.kind,
@@ -330,6 +362,8 @@ function buildUpgradeOffers(run, excludeIds = null) {
         nextLevel: cur + 1,
         isNew: cur === 0,
         desc: item.descForLevel(cur + 1),
+        synergyHint,
+        synergyOwned,
       });
     }
   }
@@ -414,6 +448,7 @@ export function newRun(options = {}) {
     weapons,
     passives,
     novaRadius: 2.45 * loadout.areaMult,
+    donerRadius: 2.19 * loadout.areaMult,
     donerAngle: 0,
     timers: {
       pan: 0.35,
@@ -432,7 +467,7 @@ export function newRun(options = {}) {
   const challenge = Number.isFinite(beatScore) && beatScore > 0
     ? {
         score: Math.round(beatScore),
-        from: String(options.beatFrom || 'Kumpel').trim().slice(0, 18) || 'Kumpel',
+        from: String(options.beatFrom || '').trim().slice(0, 18),
         beaten: false,
       }
     : null;
@@ -801,7 +836,8 @@ function registerKill(run, enemy) {
       spawnPickup(run, 'xp', enemy.x + 0.25, enemy.z - 0.2, 4, 'gold');
     }
     if (enemy.elite) {
-      spawnPickup(run, run.rng() < 0.65 ? 'heal' : 'magnet_can', enemy.x + 0.35, enemy.z - 0.2, 25, 'vermilion');
+      const dropHeal = run.rng() < 0.65;
+      spawnPickup(run, dropHeal ? 'heal' : 'magnet_can', enemy.x + 0.35, enemy.z - 0.2, dropHeal ? 25 : 1, dropHeal ? 'vermilion' : 'cyan');
       emitVfx(run, { kind: 'coin_burst', x: enemy.x, z: enemy.z });
     } else if (run.rng() < 0.08) {
       spawnPickup(run, 'dose', enemy.x + 0.15, enemy.z, 2, 'gold');
@@ -1163,22 +1199,33 @@ function fireLampBeam(run) {
   const lv = player.weapons.beam;
   if (lv <= 0) return;
   const stats = getStats(run);
-  const dmg = 13 + lv * 4.5;
-  const maxTargets = 3 + lv * 2;
+  const hasEvo = player.evolutions.has('evo_beam');
+  const dmg = (13 + lv * 4.5) * (hasEvo ? 1.45 : 1);
+  const maxTargets = hasEvo ? 14 : 3 + lv * 2;
+  const evoRadius = 7.2 * stats.areaMult;
   let zapped = 0;
+
+  if (hasEvo) {
+    run.explosions.push({ x: player.x, z: player.z, radius: evoRadius, age: 0, maxAge: 0.34, color: 0x73d7ff });
+  }
 
   for (const enemy of run.enemies) {
     if (enemy.dead || zapped >= maxTargets) continue;
     const dist = Math.hypot(enemy.x - player.x, enemy.z - player.z);
-    const hit = player.lamp ? isEnemyInPlayerCone(player, enemy) : dist <= 4.6 * stats.areaMult;
+    const hit = hasEvo
+      ? dist <= evoRadius + enemy.radius
+      : player.lamp
+        ? isEnemyInPlayerCone(player, enemy)
+        : dist <= 4.6 * stats.areaMult;
     if (!hit) continue;
     zapped++;
-    enemy.exposed = 2.0;
+    enemy.exposed = hasEvo ? 3.2 : 2.0;
     damageEnemy(run, enemy, dmg, {
-      stun: 0.65 + lv * 0.12,
-      slow: 1.5,
-      knock: 3.5,
-      label: zapped === 1 ? (player.lamp ? 'BLEND-BLITZ!' : 'SCHATTEN-SCHOCK!') : null,
+      stun: (hasEvo ? 1.05 : 0.65) + lv * 0.12,
+      slow: hasEvo ? 2.2 : 1.5,
+      knock: hasEvo ? 5.2 : 3.5,
+      burn: hasEvo,
+      label: zapped === 1 ? (hasEvo ? 'STROBO-FLUTLICHT!' : player.lamp ? 'BLEND-BLITZ!' : 'SCHATTEN-SCHOCK!') : null,
       tone: 'cyan',
     });
     emitVfx(run, { kind: 'can_pickup', x: enemy.x, z: enemy.z, color: 0x73d7ff });
@@ -1191,12 +1238,17 @@ function fireKnobiAura(run) {
   const lv = player.weapons.knobi;
   if (lv <= 0) return;
   const stats = getStats(run);
-  const r = (2.15 + lv * 0.28) * stats.areaMult;
-  const dmg = 6 + lv * 2.5;
-  player.knobiPulse = 0.34;
+  const hasEvo = player.evolutions.has('evo_knobi');
+  const r = (2.15 + lv * 0.28) * stats.areaMult * (hasEvo ? 1.42 : 1);
+  const dmg = (6 + lv * 2.5) * (hasEvo ? 1.65 : 1);
+  player.knobiPulse = hasEvo ? 0.44 : 0.34;
   player.knobiRadius = r;
   let hits = 0;
   let firstHit = null;
+
+  if (hasEvo) {
+    run.explosions.push({ x: player.x, z: player.z, radius: r, age: 0, maxAge: 0.36, color: 0x38f2af });
+  }
 
   for (const enemy of run.enemies) {
     if (enemy.dead) continue;
@@ -1204,16 +1256,24 @@ function fireKnobiAura(run) {
     if (d <= r + enemy.radius) {
       hits++;
       if (!firstHit) firstHit = enemy;
+      if (hasEvo && enemy.type !== 'hauke') {
+        enemy.panicked = Math.max(enemy.panicked || 0, 2.2);
+      }
       damageEnemy(run, enemy, dmg, {
-        knock: 4.8 + lv * 0.85,
-        slow: 0.9,
+        knock: (4.8 + lv * 0.85) * (hasEvo ? 1.45 : 1),
+        slow: hasEvo ? 1.6 : 0.9,
+        label: hasEvo && hits === 1 ? 'TZATZIKI-SUPERGAU!' : null,
+        tone: 'jade',
       });
     }
   }
   if (hits > 0) {
+    if (hasEvo && hits >= 2 && player.hp < player.maxHp) {
+      player.hp = Math.min(player.maxHp, player.hp + 4);
+    }
     emitEvent(run, 'knobi', player.x, player.z);
     emitVfx(run, { kind: 'can_pickup', x: player.x, z: player.z, color: 0x38f2af });
-    if (firstHit && run.rng() < 0.35) {
+    if (firstHit && !hasEvo && run.rng() < 0.35) {
       quip(run, firstHit.x, 1.45, firstHit.z, KNOBI_QUIPS, 'jade', 0.95, 2.2);
     }
   }
@@ -1312,6 +1372,7 @@ function updateAutoWeapons(run, dt) {
     player.donerAngle = (player.donerAngle + dt * (2.9 + lv * 0.42) * (hasEvo ? 1.45 : 1)) % (Math.PI * 2);
     const count = hasEvo ? 6 : 1 + lv;
     const orbitR = (2.05 + lv * 0.14) * stats.areaMult * (hasEvo ? 1.28 : 1);
+    player.donerRadius = orbitR;
     for (let i = 0; i < count; i++) {
       const a = player.donerAngle + (i * Math.PI * 2) / count;
       const bx = player.x + Math.cos(a) * orbitR;
@@ -1346,7 +1407,8 @@ function updateAutoWeapons(run, dt) {
   if (player.weapons.beam > 0) {
     player.timers.beam -= dt;
     if (player.timers.beam <= 0) {
-      player.timers.beam = Math.max(0.85, (2.1 - player.weapons.beam * 0.16) * stats.cdMult);
+      const evoMult = player.evolutions.has('evo_beam') ? 0.68 : 1;
+      player.timers.beam = Math.max(0.55, (2.1 - player.weapons.beam * 0.16) * stats.cdMult * evoMult);
       fireLampBeam(run);
     }
   }
@@ -1363,7 +1425,8 @@ function updateAutoWeapons(run, dt) {
   if (player.weapons.knobi > 0) {
     player.timers.knobi -= dt;
     if (player.timers.knobi <= 0) {
-      player.timers.knobi = Math.max(0.45, (0.95 - player.weapons.knobi * 0.08) * stats.cdMult);
+      const evoMult = player.evolutions.has('evo_knobi') ? 0.78 : 1;
+      player.timers.knobi = Math.max(0.36, (0.95 - player.weapons.knobi * 0.08) * stats.cdMult * evoMult);
       fireKnobiAura(run);
     }
   }
@@ -1520,8 +1583,16 @@ export function triggerChaosEvent(run, eventId = null) {
     for (let i = 0; i < 2; i++) {
       const bx = 3 + run.rng() * (run.map.width - 6);
       const bz = 3 + run.rng() * (run.map.depth - 6);
-      if (run.map.walkable(bx, bz, 0.5) && run.barrels.length < 14) {
-        run.barrels.push({ x: bx, z: bz, exploded: false, fuse: 0 });
+      if (run.map.walkable(bx, bz, 0.5)) {
+        const slot = run.barrels.find((b) => b.exploded);
+        if (slot) {
+          slot.x = bx;
+          slot.z = bz;
+          slot.exploded = false;
+          slot.fuse = 0;
+        } else if (run.barrels.length < 14) {
+          run.barrels.push({ x: bx, z: bz, exploded: false, fuse: 0 });
+        }
       }
     }
   } else if (pick.id === 'fettbahn') {
@@ -1956,7 +2027,7 @@ function advancePickups(run, dt) {
       } else if (pk.kind === 'dose') {
         player.clappers = Math.min(12, player.clappers + pk.value);
         emitEvent(run, 'can', player.x, player.z);
-        bark(run, player.x, 1.5, player.z, `+${pk.value} DOSEN`, 'gold', 0.9);
+        bark(run, player.x, 1.5, player.z, `+${pk.value} SPEZIS`, 'gold', 0.9);
       } else if (pk.kind === 'duck') {
         triggerDuckQuack(run, pk.x, pk.z);
       } else if (pk.kind === 'magnet_can') {
@@ -1985,11 +2056,11 @@ function advancePickups(run, dt) {
 export function interaction(run) {
   if (!run || run.state !== 'playing') return null;
   const { player, map, droppedHelmet } = run;
-  if (droppedHelmet && Math.hypot(player.x - droppedHelmet.x, player.z - droppedHelmet.z) < 1.35) {
+  if (droppedHelmet && Math.hypot(player.x - droppedHelmet.x, player.z - droppedHelmet.z) < 1.75) {
     return { kind: 'helmet', helmet: true, enabled: true, text: 'Chef-Krone aufheben' };
   }
   const vend = map.vending;
-  if (vend && Math.hypot(player.x - vend.x, player.z - vend.z) < 1.65) {
+  if (vend && Math.hypot(player.x - vend.x, player.z - vend.z) < 1.85) {
     if (vend.cooldown <= 0) {
       return { kind: 'vending', vending: true, enabled: true, text: 'Späti-Automat: Spezi & Heal' };
     }
@@ -2005,7 +2076,11 @@ function checkChallengeBeat(run) {
     emitEvent(run, 'ka_ching', run.player.x, run.player.z);
     emitVfx(run, { kind: 'coin_burst', x: run.player.x, z: run.player.z });
     bark(run, run.player.x, 1.98, run.player.z, 'REKORD GEKNACKT!!', 'gold', 1.5);
-    notice(run, `DU HAST ${run.challenge.from.toUpperCase()} (${run.challenge.score} ⚡) ÜBERHOLT!!`, 3.6);
+    const scoreStr = run.challenge.score.toLocaleString('de-DE');
+    const msg = run.challenge.from
+      ? `DU HAST ${run.challenge.from.toUpperCase()} (${scoreStr} ⚡) ÜBERHOLT!!`
+      : `DU HAST DEN KUMPEL-REKORD (${scoreStr} ⚡) GEKNACKT!!`;
+    notice(run, msg, 3.6);
   }
 }
 
@@ -2054,7 +2129,7 @@ export function advance(run, input = {}, dt = STEP) {
       bark(run, player.x, 1.65, player.z, 'KRONE BEREIT!', 'gold', 0.9);
     }
   }
-  if (run.droppedHelmet && Math.hypot(player.x - run.droppedHelmet.x, player.z - run.droppedHelmet.z) < 1.15) {
+  if (run.droppedHelmet && Math.hypot(player.x - run.droppedHelmet.x, player.z - run.droppedHelmet.z) < 1.25) {
     run.droppedHelmet = null;
     player.helmet = true;
     player.crownRegen = 0;
@@ -2075,7 +2150,13 @@ export function advance(run, input = {}, dt = STEP) {
 
   if (input.use) {
     const act = interaction(run);
-    if (act?.enabled && act.vending) {
+    if (act?.enabled && act.helmet && run.droppedHelmet) {
+      run.droppedHelmet = null;
+      player.helmet = true;
+      player.crownRegen = 0;
+      emitEvent(run, 'crown_pickup', player.x, player.z);
+      bark(run, player.x, 1.65, player.z, 'KRONE ZURÜCK!', 'gold', 0.9);
+    } else if (act?.enabled && act.vending) {
       map.vending.cooldown = 24;
       player.hp = Math.min(player.maxHp, player.hp + 30);
       player.clappers = Math.min(12, player.clappers + 2);

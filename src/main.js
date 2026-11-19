@@ -26,7 +26,7 @@ const rawBeat = Math.floor(Number(urlParams.get('beat')));
 const activeChallenge = Number.isFinite(rawBeat) && rawBeat > 0
   ? {
       score: Math.min(99999999, rawBeat),
-      from: String(urlParams.get('from') || 'Kumpel').trim().slice(0, 18) || 'Kumpel',
+      from: String(urlParams.get('from') || '').trim().slice(0, 18),
       seed: urlSeed,
     }
   : null;
@@ -50,7 +50,11 @@ function syncChallengeBanner() {
   if (!el) return;
   if (activeChallenge) {
     const seedPart = activeChallenge.seed ? ` · Seed #${String(activeChallenge.seed).padStart(4, '0')}` : '';
-    write(el, `HERAUSFORDERUNG: Knacke ${activeChallenge.from} (${activeChallenge.score.toLocaleString('de-DE')} ⚡${seedPart})!`);
+    const scorePart = `${activeChallenge.score.toLocaleString('de-DE')} ⚡${seedPart}`;
+    const targetText = activeChallenge.from
+      ? `Knacke ${activeChallenge.from} (${scorePart})!`
+      : `Knacke diesen Kumpel-Rekord (${scorePart})!`;
+    write(el, `HERAUSFORDERUNG: ${targetText}`);
     el.hidden = false;
   } else {
     el.hidden = true;
@@ -290,10 +294,12 @@ function restart(explicitSeed = null) {
     beatFrom: useChallenge ? activeChallenge.from : '',
   });
   if (run.challenge) {
-    run.notices.push({
-      message: `CHALLENGE: Knacke ${run.challenge.from} (${run.challenge.score.toLocaleString('de-DE')} ⚡) auf #${String(seed).padStart(4, '0')}!`,
-      until: 3.6,
-    });
+    const scoreStr = run.challenge.score.toLocaleString('de-DE');
+    const seedStr = String(seed).padStart(4, '0');
+    const msg = run.challenge.from
+      ? `CHALLENGE: Knacke ${run.challenge.from} (${scoreStr} ⚡) auf #${seedStr}!`
+      : `CHALLENGE: Knacke den Kumpel-Rekord (${scoreStr} ⚡) auf #${seedStr}!`;
+    run.notices.push({ message: msg, until: 3.6 });
   } else if (run.map?.mutator && run.map.mutator.id !== 'classic') {
     run.notices.push({
       message: `${run.map.mutator.name}: ${run.map.mutator.hint}`,

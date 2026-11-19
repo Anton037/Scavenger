@@ -18,21 +18,5 @@ export const ICONS = {
   share: `<svg class="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.5 2a2.5 2.5 0 00-2.4 3.2L5.9 6.8a2.5 2.5 0 100 2.4l3.2 1.6a2.5 2.5 0 10.7-1.4L6.6 7.8a2.5 2.5 0 000-.6l3.2-1.6A2.5 2.5 0 1011.5 2z"/></svg>`,
   calendar: `<svg class="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 1.5h1.5V3h4V1.5h1.5V3H13a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1h1.5V1.5zM3.5 6.5v6h9v-6h-9zm2 1.5h2v2h-2V8z"/></svg>`,
   link: `<svg class="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6.8 11.4a3.3 3.3 0 010-4.7l1.8-1.8a3.3 3.3 0 014.7 4.7l-.9.9-1.1-1.1.9-.9a1.8 1.8 0 00-2.5-2.5L7.9 7.8a1.8 1.8 0 000 2.5l-1.1 1.1zm2.4-6.8a3.3 3.3 0 010 4.7l-1.8 1.8a3.3 3.3 0 01-4.7-4.7l.9-.9 1.1 1.1-.9.9a1.8 1.8 0 002.5 2.5l1.8-1.8a1.8 1.8 0 000-2.5l1.1-1.1z"/></svg>`,
+  magnet: `<svg class="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 2h3v3H3V2zm7 0h3v3h-3V2zM3 6h3v2.5a2 2 0 104 0V6h3v2.5a5 5 0 01-10 0V6z"/></svg>`,
 };
-
-export function relicIcon(id) {
-  if (id === 'log') return ICONS.crown;
-  if (id === 'cylinder') return ICONS.spezi;
-  if (id === 'spool') return ICONS.doner;
-  return ICONS.skewer;
-}
-
-export function modIcon(id) {
-  if (id === 'fire_pan') return ICONS.fire;
-  if (id === 'twin_dash') return ICONS.dash;
-  if (id === 'shock_pan') return ICONS.pan;
-  if (id === 'searchlight') return ICONS.lamp;
-  if (id === 'pfand_magnet') return ICONS.can;
-  if (id === 'espresso') return ICONS.bolt;
-  return ICONS.crown;
-}
