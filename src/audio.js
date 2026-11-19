@@ -61,6 +61,8 @@ function makeReverbImpulse(ctx, seconds = 1.45, decay = 2.6) {
 export class Soundscape {
   constructor() {
     this.enabled = savedPreference();
+    this.volume = 0.85;
+    this.lookPanBias = 0;
     this.activity = 'title';
     this.context = null;
     this.master = null;
@@ -292,12 +294,18 @@ export class Soundscape {
   mix() {
     if (!this.context) return;
     const now = this.context.currentTime;
-    const level = !this.enabled ? 0 : this.activity === 'play' ? 0.88 : this.activity === 'title' ? 0.42 : 0.36;
+    const base = !this.enabled ? 0 : this.activity === 'play' ? 0.92 : this.activity === 'title' ? 0.44 : 0.36;
+    const level = base * this.volume;
     this.master.gain.setTargetAtTime(level, now, 0.08);
     if (this.titleDroneGain) {
       const titleOn = this.enabled && this.activity === 'title';
       this.titleDroneGain.gain.setTargetAtTime(titleOn ? 0.16 : 0, now, 0.22);
     }
+  }
+
+  setVolume(val) {
+    this.volume = Math.max(0, Math.min(1, Number.isFinite(Number(val)) ? Number(val) : 0.85));
+    this.mix();
   }
 
   setActivity(activity) {
@@ -479,6 +487,7 @@ export class Soundscape {
     if (!this.context || !this.fanGain) return;
     const t = this.context.currentTime;
     const active = Boolean(this.enabled && run && run.state === 'playing' && !run.powerOutage);
+    this.lookPanBias = active && !run.monitorOpen ? -(run.lookSmooth ?? run.lookX ?? 0) * 0.28 : 0;
 
     const camera = active && run.monitorOpen ? CAMERA_AUDIO[run.activeCam] : null;
     const disrupted = camera && feedIsInterrupted(run);
@@ -550,7 +559,8 @@ export class Soundscape {
 
   play(event) {
     if (!this.enabled || !this.context || this.context.state !== 'running') return;
-    const sidePan = event.side === 'left' ? -0.78 : event.side === 'right' ? 0.78 : 0;
+    const rawPan = event.side === 'left' ? -0.76 : event.side === 'right' ? 0.76 : 0;
+    const sidePan = Math.max(-0.88, Math.min(0.88, rawPan + (rawPan !== 0 ? this.lookPanBias : 0)));
 
     switch (event.kind) {
       case 'door':
@@ -586,8 +596,12 @@ export class Soundscape {
         this.burst(790, 1.2, 0.19, 0.12, 0, 0.26);
         break;
       case 'anton_video_warning':
-        for (const offset of [0, 0.16, 0.43]) this.metal(585, 0.24, 0, offset, 0.13);
-        this.burst(1010, 1.1, 0.28, 0.17, 0, 0.45, { attack: 0.03 });
+        // Hilarious incoming video-call smartphone chime + buzz!
+        this.tone(740, 740, 0.11, 0.22, 0, 0, 'sine', { wet: 0.22 });
+        this.tone(988, 988, 0.13, 0.22, 0, 0.12, 'sine', { wet: 0.22 });
+        this.tone(1175, 1175, 0.16, 0.2, 0, 0.26, 'sine', { wet: 0.22 });
+        this.tone(135, 130, 0.26, 0.16, 0, 0.04, 'triangle');
+        this.burst(1010, 1.1, 0.22, 0.14, 0, 0.42, { attack: 0.03 });
         break;
       case 'anton_video_dodged':
         this.burst(680, 1.35, 0.16, 0.17);
@@ -710,6 +724,22 @@ export class Soundscape {
         break;
       case 'honk':
         this.tone(272, 209, 0.20, 0.32, 0, 0, 'sawtooth', { formants: [[710, 2.2], [1130, 4.2]] });
+        break;
+      case 'spezi_sip':
+        // Crisp Spezi pull-tab click + fizzy carbonation hiss!
+        this.metal(1420, 0.18, 0.22, 0, 0.14);
+        this.burst(3400, 0.85, 0.36, 0.19, 0.22, 0.05, { attack: 0.03, wet: 0.18 });
+        break;
+      case 'duck_squeak':
+        // Playful rubber duck squeak!
+        this.tone(680, 1080, 0.08, 0.22, 0.28, 0, 'triangle');
+        this.tone(1080, 620, 0.11, 0.18, 0.28, 0.08, 'triangle');
+        break;
+      case 'achievement':
+        // Imbiss cash-register ka-ching!
+        this.metal(1180, 0.26, 0, 0, 0.38);
+        this.tone(880, 880, 0.22, 0.18, 0, 0.04, 'triangle', { wet: 0.45 });
+        this.tone(1318.5, 1318.5, 0.42, 0.22, 0, 0.14, 'triangle', { wet: 0.55 });
         break;
       case 'phone_ring':
         for (const offset of [0, 0.058, 0.116, 0.4, 0.458, 0.516]) this.metal(570, 0.19, 0.27, offset, 0.12);

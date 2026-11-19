@@ -1,11 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CAMERAS, HOUR_SECONDS, NIGHT_CONFIGS } from '../src/fnafData.js';
+import {
+  ACHIEVEMENTS,
+  CAMERAS,
+  computeShiftRank,
+  CUSTOM_PRESETS,
+  DEFAULT_SETTINGS,
+  HOUR_SECONDS,
+  NIGHT_CONFIGS,
+} from '../src/fnafData.js';
 import {
   advance,
   feedIsInterrupted,
+  getFormattedShiftTime,
   getHourLabel,
   getUsageBars,
+  hasMotionBlip,
   honkPoster,
   isEasterEgg1987,
   muteCall,
@@ -13,6 +23,8 @@ import {
   resetCameraFuse,
   ringKitchenBell,
   selectCam,
+  sipSpezi,
+  squeakDuck,
   STEP,
   toggleLeftDoor,
   toggleLeftLight,
@@ -338,4 +350,65 @@ test('The camera fuse recovers on its own when there is too little power to rese
   simulate(run, 1.1);
   assert.equal(toggleMonitor(run), true);
   assert.equal(run.stats.fusesReset, 0);
+});
+
+test('Office meme props (Spezi can, mini duck, 10x poster honk) trigger sounds, notices, and achievements', () => {
+  const run = newNight({ night: 2, seed: 910 });
+  assert.equal(sipSpezi(run), true);
+  assert.equal(run.speziSips, 1);
+  assert.ok(run.events.some((e) => e.kind === 'spezi_sip'));
+  assert.ok(run.notice.text.includes('SPEZI') || run.notice.text.includes('Spezi'));
+
+  run.events.length = 0;
+  assert.equal(squeakDuck(run), true);
+  assert.equal(run.duckSqueaks, 1);
+  assert.ok(run.events.some((e) => e.kind === 'duck_squeak'));
+
+  let sawHonkAch = false;
+  for (let i = 0; i < 10; i++) {
+    run.events.length = 0;
+    assert.equal(honkPoster(run), true);
+    if (run.events.some((e) => e.kind === 'achievement' && e.id === 'honk_rebel')) {
+      sawHonkAch = true;
+    }
+  }
+  assert.equal(sawHonkAch, true);
+  assert.equal(run.stats.posterHonks, 10);
+});
+
+test('Smooth camera inertia, CCTV motion blips, formatted shift time, and seismograph level update cleanly', () => {
+  const run = newNight({ night: 4, seed: 912 });
+  assert.equal(getFormattedShiftTime(run), '00:00');
+  simulate(run, 0.5, () => ({ lookDelta: 2.0 }));
+  assert.ok(run.lookX > 0.5);
+  assert.ok(run.lookSmooth > 0.4 && run.lookSmooth <= run.lookX);
+
+  // Trigger Hauke stage 2 -> seismograph rises and 1C gets a motion blip
+  run.ai.hauke = 20;
+  run.animatronics.hauke.stage = 1;
+  run.animatronics.hauke.timer = STEP;
+  simulate(run, 0.5);
+  assert.equal(run.animatronics.hauke.stage, 2);
+  assert.equal(hasMotionBlip(run, '1C'), true);
+  assert.ok(run.seismicLevel > 0.15);
+  assert.ok(run.animatronics.hauke.curtainAnim > 0.2);
+
+  run.time = HOUR_SECONDS * 2.5;
+  assert.equal(getFormattedShiftTime(run), '02:30');
+});
+
+test('Shift ranking, achievements catalog, custom presets, and default settings are valid', () => {
+  assert.ok(ACHIEVEMENTS.length >= 11);
+  assert.ok(CUSTOM_PRESETS.length >= 7);
+  assert.equal(DEFAULT_SETTINGS.graphics, 'hd');
+
+  const highRun = newNight({ night: 5, seed: 915 });
+  highRun.power = 52;
+  highRun.stats.haukeBlocked = 2;
+  highRun.stats.videoDodges = 2;
+  assert.equal(computeShiftRank(highRun).grade, 'S+');
+
+  const lowRun = newNight({ night: 2, seed: 916 });
+  lowRun.power = 4;
+  assert.equal(computeShiftRank(lowRun).grade, 'C');
 });

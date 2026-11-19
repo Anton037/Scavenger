@@ -1,7 +1,16 @@
 import './style.css';
 import { Soundscape } from './audio.js';
 import { Controls } from './controls.js';
-import { CUSTOM_PRESETS, loadProgress, NIGHT_CONFIGS, saveProgress } from './fnafData.js';
+import {
+  CUSTOM_PRESETS,
+  loadProgress,
+  loadSettings,
+  NIGHT_CONFIGS,
+  saveProgress,
+  saveSettings,
+  saveShiftRecord,
+  unlockAchievement,
+} from './fnafData.js';
 import {
   advance,
   honkPoster,
@@ -10,6 +19,8 @@ import {
   resetCameraFuse,
   ringKitchenBell,
   selectCam,
+  sipSpezi,
+  squeakDuck,
   STEP,
   toggleLeftDoor,
   toggleLeftLight,
@@ -22,6 +33,9 @@ import { get, Hud, write } from './hud.js';
 const canvas = get('stage');
 const titleScreen = get('title-screen');
 const customScreen = get('custom-screen');
+const dossierScreen = get('dossier-screen');
+const achievementsScreen = get('achievements-screen');
+const settingsScreen = get('settings-screen');
 const introScreen = get('intro-screen');
 const hudScreen = get('hud');
 const pauseScreen = get('pause-screen');
@@ -29,9 +43,13 @@ const winScreen = get('win-screen');
 const gameoverScreen = get('gameover-screen');
 
 const sound = new Soundscape();
+let settings = loadSettings();
+sound.setVolume(settings.volume);
+
 let view = null;
 let run = null;
-let stage = 'title'; // 'title' | 'custom' | 'intro' | 'play' | 'pause' | 'win' | 'gameover'
+let stage = 'title'; // 'title' | 'custom' | 'dossier' | 'achievements' | 'settings' | 'intro' | 'play' | 'pause' | 'win' | 'gameover'
+let modalReturnStage = 'title';
 let introTimer = null;
 let pausedFocus = null;
 let lastTs = 0;
@@ -70,6 +88,14 @@ function pulseHaptic(event) {
 function flushEvents(currentRun) {
   if (!currentRun?.events?.length) return;
   for (const ev of currentRun.events) {
+    if (ev.kind === 'achievement') {
+      if (unlockAchievement(ev.id)) {
+        sound.play(ev);
+        hud.showAchievementToast(ev.id);
+        hud.syncTitleProgress();
+      }
+      continue;
+    }
     sound.play(ev);
     pulseHaptic(ev);
   }
@@ -103,7 +129,7 @@ const gameActions = {
 const hud = new Hud(gameActions.cam);
 const controls = new Controls(canvas, {
   ...gameActions,
-  pause: () => togglePause(),
+  pause: () => handleEscapeOrPause(),
   honk: () => {
     if (stage !== 'play' || !run) return;
     sound.open();
@@ -111,19 +137,43 @@ const controls = new Controls(canvas, {
   },
   canvasTap: (rx, ry) => {
     if (stage !== 'play' || !run || run.monitorOpen || run.powerOutage) return;
-    // Chef Torge poster sits cleanly centered above the desk!
+    const hit = view?.pickOfficeProp?.(rx, ry);
+    if (hit === 'poster') {
+      sound.open();
+      if (honkPoster(run)) flushEvents(run);
+      hud.paint(run);
+      return;
+    }
+    if (hit === 'spezi') {
+      sound.open();
+      if (sipSpezi(run)) flushEvents(run);
+      hud.paint(run);
+      return;
+    }
+    if (hit === 'duck') {
+      sound.open();
+      if (squeakDuck(run)) flushEvents(run);
+      hud.paint(run);
+      return;
+    }
+    // Fallback poster bounding region if raycaster unavailable
     const expectedX = 0.53 - run.lookX * 0.24;
     if (Math.abs(rx - expectedX) < 0.14 && ry > 0.16 && ry < 0.58) {
       sound.open();
       if (honkPoster(run)) flushEvents(run);
+      hud.paint(run);
     }
   },
 });
+controls.setMouseSensitivity(settings.mouseSens);
 
 function hideAllScreens() {
   hudScreen.inert = false;
   pausedFocus = null;
-  for (const s of [titleScreen, customScreen, introScreen, hudScreen, pauseScreen, winScreen, gameoverScreen]) {
+  for (const s of [
+    titleScreen, customScreen, dossierScreen, achievementsScreen, settingsScreen,
+    introScreen, hudScreen, pauseScreen, winScreen, gameoverScreen,
+  ]) {
     if (s) s.hidden = true;
   }
   const hal = get('hallucination');
@@ -141,6 +191,35 @@ function paintAudioButtons() {
   }
 }
 
+function syncSettingsUi() {
+  for (const btn of document.querySelectorAll('.seg-btn')) {
+    const key = btn.dataset.setting;
+    const val = btn.dataset.value;
+    btn.setAttribute('aria-pressed', String(settings[key] === val));
+  }
+  const volInput = get('set-volume');
+  if (volInput) volInput.value = String(Math.round(settings.volume * 100));
+  write(get('set-volume-label'), `${Math.round(settings.volume * 100)} %`);
+
+  const sensInput = get('set-sens');
+  if (sensInput) sensInput.value = String(Math.round(settings.mouseSens * 100));
+  write(get('set-sens-label'), `${Math.round(settings.mouseSens * 100)} %`);
+
+  const rmBtn = get('set-reduced-motion');
+  if (rmBtn) {
+    rmBtn.setAttribute('aria-pressed', String(settings.reducedMotion));
+    write(rmBtn, settings.reducedMotion ? 'AN' : 'AUS');
+  }
+}
+
+function applyAllSettings(patch = {}) {
+  settings = saveSettings(patch);
+  sound.setVolume(settings.volume);
+  controls.setMouseSensitivity(settings.mouseSens);
+  view?.applySettings(settings);
+  syncSettingsUi();
+}
+
 function toggleAudio() {
   sound.toggle();
   paintAudioButtons();
@@ -152,6 +231,7 @@ function showTitle() {
     introTimer = null;
   }
   stage = 'title';
+  modalReturnStage = 'title';
   controls.enable(false);
   sound.setActivity('title');
   hideAllScreens();
@@ -160,9 +240,25 @@ function showTitle() {
   titleScreen.querySelector('.title-menu button:not([hidden])')?.focus();
 }
 
+function returnFromSubModal() {
+  if (modalReturnStage === 'pause' && run) {
+    stage = 'pause';
+    dossierScreen.hidden = true;
+    settingsScreen.hidden = true;
+    achievementsScreen.hidden = true;
+    hudScreen.hidden = false;
+    hudScreen.inert = true;
+    pauseScreen.hidden = false;
+    get('pause-resume')?.focus();
+    return;
+  }
+  showTitle();
+}
+
 function showCustomNight() {
   sound.open();
   stage = 'custom';
+  modalReturnStage = 'title';
   controls.enable(false);
   hideAllScreens();
   syncCustomValues();
@@ -170,16 +266,62 @@ function showCustomNight() {
   get('custom-back').focus();
 }
 
+function showDossier(fromStage = 'title') {
+  sound.open();
+  modalReturnStage = fromStage;
+  stage = 'dossier';
+  controls.enable(false);
+  if (fromStage === 'pause') {
+    pauseScreen.hidden = true;
+  } else {
+    hideAllScreens();
+  }
+  dossierScreen.hidden = false;
+  get('dossier-back')?.focus();
+}
+
+function showAchievements() {
+  sound.open();
+  modalReturnStage = 'title';
+  stage = 'achievements';
+  controls.enable(false);
+  hideAllScreens();
+  hud.renderAchievements();
+  achievementsScreen.hidden = false;
+  get('ach-back')?.focus();
+}
+
+function showSettings(fromStage = 'title') {
+  sound.open();
+  modalReturnStage = fromStage;
+  stage = 'settings';
+  controls.enable(false);
+  syncSettingsUi();
+  if (fromStage === 'pause') {
+    pauseScreen.hidden = true;
+  } else {
+    hideAllScreens();
+  }
+  settingsScreen.hidden = false;
+  get('settings-back')?.focus();
+}
+
 function syncCustomValues() {
+  let total = 0;
   for (const k of ['torge', 'anton', 'tom', 'hauke']) {
+    total += customAi[k];
     write(get(`ai-${k}`), String(customAi[k]));
   }
+  const tier = total >= 70 ? 'ALPTRAUM' : total >= 45 ? 'EXTREM' : total >= 25 ? 'SCHWER' : total > 0 ? 'MODERAT' : 'RUHIG';
+  write(get('custom-danger-label'), `Gefahrenstufe: ${total} / 80 (${tier})`);
+  const fill = get('custom-danger-fill');
+  if (fill) fill.style.width = `${Math.round((total / 80) * 100)}%`;
 }
 
 async function ensureView() {
   if (view) return view;
   const { SceneView } = await import('./scene.js');
-  view = new SceneView(canvas);
+  view = new SceneView(canvas, settings);
   view.resize();
   return view;
 }
@@ -252,6 +394,18 @@ async function startNight(night, customOverride = null) {
   }, 1900);
 }
 
+function handleEscapeOrPause() {
+  if (stage === 'dossier' || stage === 'settings' || stage === 'achievements') {
+    returnFromSubModal();
+    return true;
+  }
+  if (stage === 'custom') {
+    showTitle();
+    return true;
+  }
+  return togglePause();
+}
+
 function togglePause() {
   if (stage === 'play' && run && run.state === 'playing') {
     pausedFocus = hudScreen.contains(document.activeElement) ? document.activeElement : get('btn-pause');
@@ -285,15 +439,17 @@ function showWin() {
   controls.enable(false);
   sound.syncLoops(null);
   saveProgress(run.night, run.customAi);
+  const { isNewRecord } = saveShiftRecord(run);
   hud.syncTitleProgress();
   hideAllScreens();
-  hud.showWin(run);
+  hud.showWin(run, { isNewRecord });
   const nextBtn = get('win-next');
   if (nextBtn) {
     nextBtn.hidden = run.night >= 6;
     write(nextBtn, `Nacht ${run.night + 1} starten ▶`);
   }
   winScreen.hidden = false;
+  (nextBtn && !nextBtn.hidden ? nextBtn : get('win-menu'))?.focus();
 }
 
 function showGameOver() {
@@ -303,6 +459,7 @@ function showGameOver() {
   hideAllScreens();
   hud.showGameOver(run);
   gameoverScreen.hidden = false;
+  get('gameover-retry')?.focus();
 }
 
 // Build Custom Night preset buttons
@@ -326,8 +483,9 @@ if (presetWrap) {
 for (const card of document.querySelectorAll('.ai-card')) {
   const charKey = card.dataset.char;
   for (const btn of card.querySelectorAll('.step-btn')) {
-    btn.addEventListener('click', () => {
-      const delta = Number(btn.dataset.step) || 0;
+    btn.addEventListener('click', (event) => {
+      const mult = event.shiftKey ? 5 : 1;
+      const delta = (Number(btn.dataset.step) || 0) * mult;
       customAi[charKey] = Math.max(0, Math.min(20, (customAi[charKey] || 0) + delta));
       syncCustomValues();
       sound.open();
@@ -335,6 +493,40 @@ for (const card of document.querySelectorAll('.ai-card')) {
     });
   }
 }
+
+get('custom-random')?.addEventListener('click', () => {
+  for (const k of ['torge', 'anton', 'tom', 'hauke']) {
+    customAi[k] = Math.floor(Math.random() * 21);
+  }
+  syncCustomValues();
+  sound.open();
+  sound.play({ kind: 'cam_blip' });
+});
+
+// Settings controls bindings
+for (const btn of document.querySelectorAll('.seg-btn')) {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.setting;
+    const val = btn.dataset.value;
+    applyAllSettings({ [key]: val });
+    sound.open();
+    sound.play({ kind: 'cam_blip' });
+  });
+}
+
+get('set-volume')?.addEventListener('input', (event) => {
+  applyAllSettings({ volume: Number(event.target.value) / 100 });
+});
+
+get('set-sens')?.addEventListener('input', (event) => {
+  applyAllSettings({ mouseSens: Number(event.target.value) / 100 });
+});
+
+get('set-reduced-motion')?.addEventListener('click', () => {
+  applyAllSettings({ reducedMotion: !settings.reducedMotion });
+  sound.open();
+  sound.play({ kind: 'cam_blip' });
+});
 
 // Menu & Overlay bindings
 get('btn-new-game')?.addEventListener('click', () => startNight(1));
@@ -348,13 +540,23 @@ get('btn-continue')?.addEventListener('click', () => {
 });
 get('btn-night6')?.addEventListener('click', () => startNight(6));
 get('btn-custom')?.addEventListener('click', showCustomNight);
+get('btn-dossier')?.addEventListener('click', () => showDossier('title'));
+get('btn-achievements')?.addEventListener('click', showAchievements);
+get('btn-settings')?.addEventListener('click', () => showSettings('title'));
+
 get('custom-back')?.addEventListener('click', showTitle);
 get('custom-start')?.addEventListener('click', () => startNight(7, customAi));
+get('dossier-back')?.addEventListener('click', returnFromSubModal);
+get('ach-back')?.addEventListener('click', returnFromSubModal);
+get('settings-back')?.addEventListener('click', returnFromSubModal);
+
 get('title-audio')?.addEventListener('click', toggleAudio);
 get('pause-audio')?.addEventListener('click', toggleAudio);
 
 get('btn-pause')?.addEventListener('click', togglePause);
 get('pause-resume')?.addEventListener('click', togglePause);
+get('pause-dossier')?.addEventListener('click', () => showDossier('pause'));
+get('pause-settings')?.addEventListener('click', () => showSettings('pause'));
 get('pause-menu')?.addEventListener('click', showTitle);
 
 get('btn-mute-call')?.addEventListener('click', (event) => {
@@ -365,7 +567,9 @@ get('btn-mute-call')?.addEventListener('click', (event) => {
 // Start eerie Title Screen horror drone on first user gesture
 for (const ev of ['pointerdown', 'keydown']) {
   window.addEventListener(ev, () => {
-    if (stage === 'title' || stage === 'custom') sound.open();
+    if (stage === 'title' || stage === 'custom' || stage === 'dossier' || stage === 'achievements' || stage === 'settings') {
+      sound.open();
+    }
   }, { once: true });
 }
 
@@ -441,8 +645,11 @@ function handleResize() {
   }
   if (!view) return;
   view.resize();
-  if (stage === 'title' || stage === 'custom') view.drawTitle(performance.now() / 1000);
-  else if (run && stage !== 'play') view.draw(run);
+  if (['title', 'custom', 'dossier', 'achievements', 'settings'].includes(stage)) {
+    view.drawTitle(performance.now() / 1000);
+  } else if (run && stage !== 'play') {
+    view.draw(run);
+  }
 }
 window.addEventListener('resize', handleResize);
 window.addEventListener('orientationchange', () => {
@@ -460,6 +667,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => sound.suspend());
 
 paintAudioButtons();
+syncSettingsUi();
 
 // Main 60 FPS fixed-step render loop
 function tick(now) {
@@ -469,7 +677,7 @@ function tick(now) {
     lag = 0;
     return;
   }
-  if (stage === 'title' || stage === 'custom') {
+  if (['title', 'custom', 'dossier', 'achievements', 'settings'].includes(stage)) {
     if (view) view.drawTitle(now / 1000);
     return;
   }
@@ -500,6 +708,10 @@ requestAnimationFrame(tick);
 
 if (import.meta.env.DEV) {
   Object.defineProperty(window, '__fnat', {
-    get: () => ({ run, view, stage, hud, controls, startNight }),
+    get: () => ({
+      run, view, stage, hud, controls, startNight,
+      showDossier, showAchievements, showSettings, showCustomNight,
+      gameActions, applyAllSettings,
+    }),
   });
 }

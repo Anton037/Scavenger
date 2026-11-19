@@ -3,6 +3,7 @@ import {
   CHARACTERS,
   HALLUCINATIONS,
   HOUR_SECONDS,
+  MEME_LINES,
   NIGHT_CONFIGS,
   PHONE_CALLS,
   TOTAL_NIGHT_SECONDS,
@@ -35,8 +36,33 @@ function notify(run, text, seconds = 4.5) {
   run.notice = { text, until: run.time + seconds };
 }
 
+function pickLine(list, index) {
+  if (!Array.isArray(list) || !list.length) return '';
+  return list[Math.abs(index) % list.length];
+}
+
+function grantAchievement(run, id) {
+  if (!run || !id || run.unlockedThisRun.has(id)) return;
+  run.unlockedThisRun.add(id);
+  emit(run, 'achievement', { id });
+}
+
 export function feedIsInterrupted(run, cam = run.activeCam) {
   return (run.feedFaultUntil[cam] ?? 0) > run.time;
+}
+
+export function hasMotionBlip(run, camId) {
+  return (run?.motionBlips?.[camId] ?? 0) > (run?.time ?? 0);
+}
+
+export function getFormattedShiftTime(run) {
+  const totalSec = clamp(run?.time ?? 0, 0, TOTAL_NIGHT_SECONDS);
+  const progressHours = totalSec / HOUR_SECONDS;
+  const h = Math.min(6, Math.floor(progressHours));
+  const m = h >= 6 ? 0 : Math.floor((progressHours - h) * 60);
+  const hh = String(h).padStart(2, '0');
+  const mm = String(m).padStart(2, '0');
+  return `${hh}:${mm}`;
 }
 
 const ANTON_GRAPH = {
@@ -105,6 +131,7 @@ export function newNight(options = {}) {
     time: 0,
     hour: 0,
     appliedBumps: new Set(),
+    unlockedThisRun: new Set(),
 
     // Power & office hardware
     power: 100,
@@ -114,20 +141,26 @@ export function newNight(options = {}) {
     rightDoor: false,
     leftDoorAnim: 0, // 0 open .. 1 closed
     rightDoorAnim: 0,
+    leftDoorBounce: 0,
+    rightDoorBounce: 0,
     leftLight: false,
     rightLight: false,
     leftJammed: false,
     rightJammed: false,
     lightFlicker: 1,
 
-    // View & CCTV monitor
+    // Smooth View & CCTV monitor
     lookX: 0, // -1 (left door) .. +1 (right door)
+    lookSmooth: 0,
+    lookVel: 0,
     monitorOpen: false,
     monitorAnim: 0, // 0 down .. 1 up
+    monitorFlash: 0,
     activeCam: '1A',
     camPan: 0,
     camSwitchStatic: 0,
     feedFaultUntil: {},
+    motionBlips: {},
     antonVideo: { cam: null, watched: 0, deadline: 0, cooldownUntil: 0 },
     cameraFuseUntil: 0,
     kitchenBellUntil: 0,
@@ -145,6 +178,7 @@ export function newNight(options = {}) {
       tom: { room: '1A', timer: 4.98, officeTimer: 0, sighted: false },
       hauke: {
         stage: 0, // 0 closed, 1 peeking, 2 stepping out, 3 GONE -> sprinting!
+        curtainAnim: 0,
         timer: 5.01,
         lockTimer: 0,
         hits: 0,
@@ -168,6 +202,7 @@ export function newNight(options = {}) {
     // Sensory feedback & FNAF atmosphere
     quake: 0,
     quakeTime: 0,
+    seismicLevel: 0,
     doorSlamFlash: 0,
     stingFlash: 0,
     hallucination: null, // { text, timer }
@@ -178,6 +213,10 @@ export function newNight(options = {}) {
     ambienceTimer: 9.0,
     posterHonks: 0,
     posterBounce: 0,
+    speziSips: 0,
+    speziBounce: 0,
+    duckSqueaks: 0,
+    duckBounce: 0,
 
     // Phone Guy
     callLines: PHONE_CALLS[night] ? PHONE_CALLS[night].map((l) => ({ ...l })) : [],
@@ -209,6 +248,7 @@ export function newNight(options = {}) {
   };
 
   if (customAi && isEasterEgg1987(customAi)) {
+    grantAchievement(run, 'code_1987');
     triggerJumpscare(run, 'duck', 'code');
   }
 
@@ -239,7 +279,11 @@ export function toggleLeftDoor(run) {
     return false;
   }
   run.leftDoor = !run.leftDoor;
-  if (run.leftDoor) run.stats.doorsClosed += 1;
+  if (run.leftDoor) {
+    run.stats.doorsClosed += 1;
+    run.leftDoorBounce = 1.0;
+    run.quake = Math.max(run.quake, 0.14);
+  }
   emit(run, 'door', { side: 'left', closed: run.leftDoor });
   return true;
 }
@@ -251,7 +295,11 @@ export function toggleRightDoor(run) {
     return false;
   }
   run.rightDoor = !run.rightDoor;
-  if (run.rightDoor) run.stats.doorsClosed += 1;
+  if (run.rightDoor) {
+    run.stats.doorsClosed += 1;
+    run.rightDoorBounce = 1.0;
+    run.quake = Math.max(run.quake, 0.14);
+  }
   emit(run, 'door', { side: 'right', closed: run.rightDoor });
   return true;
 }
@@ -301,6 +349,7 @@ export function toggleRightLight(run) {
 export function toggleMonitor(run) {
   if (!run || run.state !== 'playing' || run.powerOutage || run.cameraFuseUntil > run.time) return false;
   run.monitorOpen = !run.monitorOpen;
+  run.monitorFlash = 1.0;
   if (run.monitorOpen) {
     run.leftLight = false;
     run.rightLight = false;
@@ -313,6 +362,7 @@ export function toggleMonitor(run) {
       run.goldenPoster = false;
       run.goldenTimer = 0;
       run.stats.goldenBanished += 1;
+      grantAchievement(run, 'duck_banish');
       emit(run, 'cam_blip');
     }
 
@@ -374,7 +424,8 @@ function endAntonVideo(run, dodged = true) {
   const video = run.antonVideo;
   if (video.deadline && dodged) {
     run.stats.videoDodges += 1;
-    notify(run, 'ANTON · Anruf abgelehnt. „Dann halt schriftlich.“');
+    notify(run, pickLine(MEME_LINES.videoDodge, run.stats.videoDodges - 1));
+    if (run.stats.videoDodges >= 3) grantAchievement(run, 'ghosting');
     emit(run, 'anton_video_dodged');
   }
   if (video.deadline) video.cooldownUntil = run.time + 16;
@@ -432,7 +483,8 @@ export function ringKitchenBell(run) {
     tom.timer = 9;
     run.kitchenAudioTimer = 0.6;
     run.stats.tomLured += 1;
-    notify(run, 'BON #404 · „Tom, einmal alles!“ Er ist wieder in der Küche.');
+    if (run.stats.tomLured >= 2) grantAchievement(run, 'spezi_bait');
+    notify(run, pickLine(MEME_LINES.tomLure, run.stats.tomLured - 1));
   } else {
     notify(run, 'BON #404 · „Tom, Abholung!“ Keine Antwort aus dem Ost-Flur.');
   }
@@ -443,11 +495,36 @@ export function honkPoster(run) {
   if (!run || run.state !== 'playing' || run.monitorOpen || run.powerOutage) return false;
   run.posterHonks += 1;
   run.stats.posterHonks += 1;
-  run.posterBounce = 0.3;
+  run.posterBounce = 0.34;
   if (run.posterHonks === 3 && (run.notice?.until ?? 0) <= run.time) {
     notify(run, 'HAUSORDNUNG · Drei Hupen gelten als schriftliche Beschwerde.');
+  } else if (run.posterHonks === 7) {
+    notify(run, 'CHEF TORGE · „Drück noch einmal meine Nase und es gibt keinen Personal-Döner!“', 5.5);
+  } else if (run.posterHonks === 10) {
+    notify(run, 'ABMAHNUNG #01 · Zehn Hupen! Personalabteilung ist informiert.', 5.5);
+    grantAchievement(run, 'honk_rebel');
   }
   emit(run, 'honk');
+  return true;
+}
+
+export function sipSpezi(run) {
+  if (!run || run.state !== 'playing' || run.monitorOpen || run.powerOutage) return false;
+  run.speziSips += 1;
+  run.speziBounce = 0.38;
+  notify(run, pickLine(MEME_LINES.speziSip, run.speziSips - 1), 4.0);
+  emit(run, 'spezi_sip');
+  return true;
+}
+
+export function squeakDuck(run) {
+  if (!run || run.state !== 'playing' || run.monitorOpen || run.powerOutage) return false;
+  run.duckSqueaks += 1;
+  run.duckBounce = 0.38;
+  if (run.duckSqueaks === 1 || run.duckSqueaks % 4 === 0) {
+    notify(run, pickLine(MEME_LINES.duckSqueak, run.duckSqueaks - 1), 3.6);
+  }
+  emit(run, 'duck_squeak');
   return true;
 }
 
@@ -461,8 +538,16 @@ export function muteCall(run) {
 }
 
 function noteRoomTransition(run, fromRoom, toRoom, who, disruptDestination = true) {
-  if (CAMERA_MAP[fromRoom]) run.feedFaultUntil[fromRoom] = run.time + 1.4;
-  if (disruptDestination && CAMERA_MAP[toRoom]) run.feedFaultUntil[toRoom] = run.time + 1.4;
+  if (CAMERA_MAP[fromRoom]) {
+    run.feedFaultUntil[fromRoom] = run.time + 1.4;
+    run.motionBlips[fromRoom] = run.time + 1.6;
+  }
+  if (disruptDestination && CAMERA_MAP[toRoom]) {
+    run.feedFaultUntil[toRoom] = run.time + 1.4;
+    run.motionBlips[toRoom] = run.time + 2.4;
+  } else if (CAMERA_MAP[toRoom]) {
+    run.motionBlips[toRoom] = run.time + 2.4;
+  }
   if (run.monitorOpen && (run.activeCam === fromRoom || (disruptDestination && run.activeCam === toRoom))) {
     emit(run, 'cam_static_burst', { who });
   }
@@ -476,6 +561,7 @@ function startHaukeCharge(run) {
   sprint.duration = 2.35;
   sprint.nextStomp = 0.05;
   run.quake = Math.max(run.quake, 0.42);
+  run.motionBlips['2A'] = run.time + 3.0;
   emit(run, 'hauke_charge_start');
 }
 
@@ -530,7 +616,7 @@ function stepAnton(run, dt) {
       a.room = '1B';
       a.sighted = false;
       run.stats.antonBlocked += 1;
-      notify(run, run.stats.antonBlocked === 1 ? 'WEST FREI · „Dann halt durch den Haupteingang.“' : 'WEST FREI · Anton zieht ab.');
+      notify(run, pickLine(MEME_LINES.antonBlock, run.stats.antonBlocked - 1));
       noteRoomTransition(run, 'left_door', '1B', 'anton');
       emit(run, 'footstep', { side: 'left', who: 'anton' });
     } else {
@@ -575,7 +661,7 @@ function stepTom(run, dt) {
       t.room = run.rng() < 0.6 ? '1B' : '4A';
       t.sighted = false;
       run.stats.tomBlocked += 1;
-      notify(run, run.stats.tomBlocked === 1 ? 'OST FREI · „War eh nur wegen der Soße hier.“' : 'OST FREI · Tom zieht ab.');
+      notify(run, pickLine(MEME_LINES.tomBlock, run.stats.tomBlocked - 1));
       noteRoomTransition(run, 'right_door', t.room, 'tom');
       emit(run, 'footstep', { side: 'right', who: 'tom' });
     } else {
@@ -638,10 +724,13 @@ function stepHauke(run, dt) {
         run.power = Math.max(0, run.power - drain);
         run.quake = 1.45;
         run.doorSlamFlash = 0.5;
+        run.leftDoorBounce = 1.4;
         run.stats.haukeBlocked += 1;
+        if (run.stats.haukeBlocked >= 3) grantAchievement(run, 'quake_pro');
         h.stage = run.rng() < 0.5 ? 0 : 1;
         h.lockTimer = 3.2;
         noteRoomTransition(run, '2A', '1C', 'hauke');
+        notify(run, pickLine(MEME_LINES.haukeBlock, run.stats.haukeBlocked - 1), 4.5);
         emit(run, 'hauke_door_slam', { drain, hits: h.hits });
         run.monitorOpen = false;
         run.monitorAnim = 0;
@@ -668,6 +757,7 @@ function stepHauke(run, dt) {
   if (Math.ceil(run.rng() * 20) > run.ai.hauke) return;
 
   h.stage += 1;
+  run.motionBlips['1C'] = run.time + 2.2;
   if (h.stage >= 3) {
     h.stage = 3;
     sprint.active = true;
@@ -782,6 +872,23 @@ function stepPhoneCall(run) {
   run.callText = activeLine ? activeLine.text : '';
 }
 
+function checkWinAchievements(run) {
+  if (run.night === 1) grantAchievement(run, 'first_bon');
+  if (run.night === 5) grantAchievement(run, 'stammkraft');
+  if (run.night === 6) grantAchievement(run, 'overtime');
+  if (
+    run.night === 7
+    && run.customAi
+    && run.customAi.torge >= 20
+    && run.customAi.anton >= 20
+    && run.customAi.tom >= 20
+    && run.customAi.hauke >= 20
+  ) {
+    grantAchievement(run, 'legend_420');
+  }
+  if (Math.ceil(run.power) >= 35) grantAchievement(run, 'power_saver');
+}
+
 export function advance(run, input = {}, dt = STEP) {
   run.events.length = 0;
 
@@ -797,29 +904,59 @@ export function advance(run, input = {}, dt = STEP) {
   }
   if (run.state !== 'playing') return run;
 
-  // Smooth office pan
+  // Smooth office pan + velocity-damped visual smoothing
+  const prevLookX = run.lookX;
   if (!run.monitorOpen && typeof input.lookDelta === 'number' && input.lookDelta !== 0) {
     run.lookX = clamp(run.lookX + input.lookDelta * dt, -1, 1);
   }
   if (typeof input.lookTarget === 'number') {
     run.lookX = clamp(run.lookX + (clamp(input.lookTarget, -1, 1) - run.lookX) * Math.min(1, dt * 10), -1, 1);
   }
+  const smoothFactor = 1 - Math.exp(-dt * 15);
+  const nextSmooth = run.lookSmooth + (run.lookX - run.lookSmooth) * smoothFactor;
+  run.lookVel = clamp((nextSmooth - run.lookSmooth) / Math.max(0.001, dt), -4, 4);
+  run.lookSmooth = nextSmooth;
+  if (Math.abs(run.lookX - prevLookX) < 1e-5 && Math.abs(run.lookX - run.lookSmooth) < 1e-4) {
+    run.lookSmooth = run.lookX;
+    run.lookVel *= 0.8;
+  }
 
-  // Smooth animations
-  const doorSpeed = 6.2;
+  // Smooth mechanical animations
+  const doorSpeed = 6.8;
   run.leftDoorAnim += ((run.leftDoor ? 1 : 0) - run.leftDoorAnim) * Math.min(1, dt * doorSpeed * 2);
   run.rightDoorAnim += ((run.rightDoor ? 1 : 0) - run.rightDoorAnim) * Math.min(1, dt * doorSpeed * 2);
-  run.monitorAnim += ((run.monitorOpen ? 1 : 0) - run.monitorAnim) * Math.min(1, dt * 12);
+  run.leftDoorBounce = Math.max(0, run.leftDoorBounce - dt * 4.5);
+  run.rightDoorBounce = Math.max(0, run.rightDoorBounce - dt * 4.5);
+  run.monitorAnim += ((run.monitorOpen ? 1 : 0) - run.monitorAnim) * Math.min(1, dt * 14);
+  run.monitorFlash = Math.max(0, run.monitorFlash - dt * 5.2);
   run.camPan = Math.sin(run.time * 0.42);
+
+  // Smooth Hauke curtain opening
+  const targetCurtain = [0, 0.36, 0.76, 1.15][run.animatronics.hauke.stage] ?? 0;
+  run.animatronics.hauke.curtainAnim += (targetCurtain - run.animatronics.hauke.curtainAnim) * Math.min(1, dt * 6.5);
 
   // Decay visual timers
   run.camSwitchStatic = Math.max(0, run.camSwitchStatic - dt);
   run.doorSlamFlash = Math.max(0, run.doorSlamFlash - dt);
   run.stingFlash = Math.max(0, run.stingFlash - dt);
   run.posterBounce = Math.max(0, run.posterBounce - dt);
+  run.speziBounce = Math.max(0, run.speziBounce - dt);
+  run.duckBounce = Math.max(0, run.duckBounce - dt);
   run.kitchenNoisePulse = Math.max(0, run.kitchenNoisePulse - dt * 1.15);
   run.quake = Math.max(0, run.quake - dt * 1.45);
   run.quakeTime += dt;
+
+  // Live seismograph indicator (tracks Hauke tension & tremors)
+  const h = run.animatronics.hauke;
+  const targetSeismic = h.sprint.triggered
+    ? 1.0
+    : h.sprint.active
+      ? 0.72
+      : h.stage === 2
+        ? 0.48
+        : Math.min(1, run.quake * 0.9);
+  run.seismicLevel += (targetSeismic - run.seismicLevel) * Math.min(1, dt * 7);
+
   if (run.hallucination) {
     run.hallucination.timer -= dt;
     if (run.hallucination.timer <= 0) run.hallucination = null;
@@ -837,6 +974,7 @@ export function advance(run, input = {}, dt = STEP) {
       run.state = 'won';
       run.monitorOpen = false;
       run.powerOutage = null;
+      checkWinAchievements(run);
       emit(run, 'win_6am');
       return run;
     }

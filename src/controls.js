@@ -24,6 +24,7 @@ export class Controls {
     this.dragDelta = 0;
     this.dragMoved = false;
     this.lookHold = 0; // -1 left / +1 right from optional hold arrows
+    this.mouseSens = 1.0;
 
     const isCoarse = Boolean(
       (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches)
@@ -54,6 +55,10 @@ export class Controls {
 
   setLookHold(dir) {
     this.lookHold = dir;
+  }
+
+  setMouseSensitivity(val) {
+    this.mouseSens = Math.max(0.5, Math.min(2.0, Number.isFinite(Number(val)) ? Number(val) : 1.0));
   }
 
   isEditable(target) {
@@ -202,7 +207,7 @@ export class Controls {
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) lookDelta -= 2.4;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) lookDelta += 2.4;
     if (this.lookHold !== 0) lookDelta += this.lookHold * 2.5;
-    if (this.edgePan !== 0) lookDelta += this.edgePan * 2.1;
+    if (this.edgePan !== 0) lookDelta += this.edgePan * 2.1 * this.mouseSens;
     if (this.dragDelta !== 0) {
       lookDelta += this.dragDelta * 60;
       this.dragDelta = 0;
