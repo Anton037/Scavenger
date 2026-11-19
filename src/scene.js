@@ -184,9 +184,8 @@ export class SceneView {
     const w = Math.max(320, Math.floor(window.innerWidth));
     const h = Math.max(240, Math.floor(window.innerHeight));
     this.renderer.setSize(w, h, false);
-    const aspect = w / h;
-    this.camera.aspect = aspect;
-    this.camera.fov = aspect < 0.85 ? 72 : aspect < 1.15 ? 62 : 56;
+    this.camera.aspect = w / h;
+    this.camera.fov = 56;
     this.camera.updateProjectionMatrix();
 
     const scale = w < 640 ? 2.4 : PIXEL_SCALE;

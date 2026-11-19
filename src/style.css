@@ -912,7 +912,68 @@ button:disabled { opacity: 0.56; cursor: default; }
 }
 .gameover-hint:empty { display: none; }
 
-/* ==================== RESPONSIVE (MOBILE PORTRAIT & LANDSCAPE) ==================== */
+/* ==================== LANDSCAPE-ONLY ROTATE PROMPT ==================== */
+.rotate-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at center, #0d101b 0%, #030408 82%);
+  text-align: center;
+}
+.rotate-card {
+  max-width: 340px;
+  padding: 1.5rem 1.35rem;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  background: rgba(8, 10, 16, 0.94);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85);
+}
+.rotate-card h2 {
+  font-family: var(--mono);
+  font-size: 1.3rem;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+  margin-bottom: 0.55rem;
+}
+.rotate-card p {
+  font-size: 0.86rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.rotate-card strong { color: var(--gold); }
+
+.rotate-phone {
+  width: 44px;
+  height: 74px;
+  margin: 0 auto 1.1rem;
+  border: 3px solid var(--gold);
+  border-radius: 7px;
+  padding: 6px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: rotatePhone 2.1s ease-in-out infinite;
+  box-shadow: 0 0 18px rgba(255, 207, 86, 0.28);
+}
+.rotate-screen {
+  width: 100%;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(255, 53, 80, 0.4), rgba(114, 220, 255, 0.2));
+}
+@keyframes rotatePhone {
+  0%, 20% { transform: rotate(0deg); }
+  55%, 80% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@media (orientation: portrait) {
+  .rotate-overlay { display: grid; }
+}
+
+/* ==================== MOBILE LANDSCAPE RESPONSIVE ==================== */
 @media (max-width: 720px), (min-width: 560px) and (max-height: 440px) {
   .cctv-overlay { display: grid; }
   .cctv-center-msg {
@@ -949,60 +1010,49 @@ button:disabled { opacity: 0.56; cursor: default; }
   }
 }
 
-@media (max-width: 720px) {
+@media (max-height: 520px), (max-width: 920px) and (orientation: landscape) {
   .title-screen {
-    background: linear-gradient(180deg, rgba(4, 5, 9, 0.74) 0%, rgba(4, 5, 9, 0.88) 100%);
-    padding: max(16px, env(safe-area-inset-top)) 18px max(16px, env(safe-area-inset-bottom)) 18px;
+    padding: max(12px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   }
-  .custom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .door-panel { padding: 0.38rem 0.32rem; gap: 0.42rem; }
-  .steel-btn { width: 56px; height: 56px; }
-  .steel-btn b { font-size: 0.66rem; }
-  .hud-bottom { gap: 0.65rem; align-items: center; }
-  .power-box { min-width: 0; flex-shrink: 0; }
-  .power-row { font-size: 0.82rem; white-space: nowrap; }
-  .usage-row { font-size: 0.66rem; gap: 0.3rem; }
-  .usage-row span { display: none; }
-  .usage-bars { gap: 3px; }
-  .usage-bars i { width: 12px; height: 11px; }
-  .monitor-bar {
-    flex: 1 1 auto;
-    min-width: 0;
-    margin: 0;
-    height: 42px;
-    padding: 0 0.55rem;
-    font-size: 0.74rem;
-    letter-spacing: 0.12em;
-    gap: 0.45rem;
-    white-space: nowrap;
-  }
-  .cctv-overlay {
-    grid-template-rows: minmax(0, 1fr) auto;
-    padding: max(76px, calc(env(safe-area-inset-top) + 70px)) 14px max(68px, calc(env(safe-area-inset-bottom) + 62px));
-  }
-  .cctv-map-wrap {
-    grid-area: 2 / 1;
-    justify-self: center;
-    width: min(390px, 100%);
-  }
-  .cctv-map[data-expanded] { width: min(265px, 100%, 36dvh); align-self: center; }
-  .cctv-room-label { text-align: left; font-size: 0.76rem; }
-  .cam-btn { min-height: 30px; }
-  .call-box { top: max(60px, calc(env(safe-area-inset-top) + 52px)); padding: 0.38rem 0.56rem; }
-  .call-box p { font-size: 0.74rem; }
-}
+  .title-col { gap: 0.45rem; max-width: 390px; }
+  .title-kicker { font-size: 0.64rem; margin-bottom: 0.2rem; }
+  #game-title { font-size: clamp(1.55rem, 6.2vh, 2.25rem); }
+  .title-stars { margin-top: 0.25rem; font-size: 1.1rem; min-height: 1.1rem; }
+  .title-menu { gap: 0.14rem; }
+  .fnaf-menu-btn { font-size: clamp(0.92rem, 3.2vh, 1.12rem); padding: 0.2rem 0.45rem 0.2rem 0.1rem; }
+  .title-footer { gap: 0.3rem; }
+  .title-hint, .title-hint-touch { font-size: 0.64rem; }
 
-@media (max-height: 440px) {
-  .title-col { gap: 0.4rem; }
-  #game-title { font-size: 1.75rem; }
-  .fnaf-menu-btn { font-size: 0.96rem; padding: 0.18rem 0.4rem; }
-  .title-stars { margin-top: 0.2rem; font-size: 1.1rem; }
-  .steel-btn { width: 52px; height: 48px; }
-  .door-panel { gap: 0.3rem; padding: 0.32rem; }
-  .monitor-bar { height: 36px; font-size: 0.72rem; }
-  .cam-btn { min-width: 30px; min-height: 26px; font-size: 0.52rem; padding: 0.12rem 0.16rem; }
-  .call-box { top: max(56px, calc(env(safe-area-inset-top) + 48px)); padding: 0.28rem 0.5rem; }
+  .crt-card { padding: 0.8rem 1rem; }
+  .crt-head { margin-bottom: 0.55rem; }
+  .crt-card h2 { font-size: 1.25rem; }
+  .custom-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.45rem; }
+  .ai-card { padding: 0.48rem 0.35rem; gap: 0.2rem; }
+  .ai-card small { min-height: 0; font-size: 0.6rem; }
+  .step-btn { width: 26px; height: 26px; font-size: 0.76rem; }
+  .ai-val { font-size: 0.98rem; }
+  .preset-row { margin-top: 0.55rem; gap: 0.35rem; }
+  .custom-actions { margin-top: 0.6rem; }
+
+  .door-panel { gap: 0.36rem; padding: 0.36rem 0.3rem; }
+  .steel-btn { width: 54px; height: 52px; }
+  .steel-btn b { font-size: 0.64rem; }
+  .steel-led { width: 10px; height: 10px; }
+
+  .hud-top { top: max(8px, env(safe-area-inset-top)); }
+  .clock-hour { font-size: 1.35rem; }
+  .clock-night { font-size: 0.68rem; }
+  .call-box { top: max(46px, calc(env(safe-area-inset-top) + 40px)); padding: 0.3rem 0.55rem; width: min(480px, calc(100vw - 170px)); }
   .call-box p { font-size: 0.7rem; }
+
+  .hud-bottom { bottom: max(8px, env(safe-area-inset-bottom)); gap: 0.6rem; }
+  .power-box { min-width: 126px; }
+  .power-row { font-size: 0.8rem; }
+  .usage-row { font-size: 0.68rem; }
+  .usage-bars i { width: 9px; height: 12px; }
+  .monitor-bar { height: 38px; flex: 0 1 320px; font-size: 0.74rem; letter-spacing: 0.14em; }
+  .look-arrows { bottom: max(54px, calc(env(safe-area-inset-bottom) + 48px)); }
+  .cam-btn { min-width: 30px; min-height: 26px; font-size: 0.52rem; padding: 0.12rem 0.16rem; }
 }
 
 @media (min-width: 560px) and (max-height: 440px) {
@@ -1025,5 +1075,6 @@ button:disabled { opacity: 0.56; cursor: default; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gameover-static { animation: none; }
+  .gameover-static,
+  .rotate-phone { animation: none; }
 }

@@ -12,10 +12,23 @@
   <meta name="twitter:card" content="summary">
   <title>FIVE NIGHTS AT TORGE'S</title>
   <link rel="icon" type="image/png" href="./gate.png">
+  <link rel="manifest" href="./manifest.json">
 </head>
 <body>
   <main id="app">
     <canvas id="stage" aria-label="Five Nights at Torge's 3D Ansicht"></canvas>
+
+    <!-- Landscape-Only Rotate Prompt -->
+    <div id="rotate-overlay" class="rotate-overlay" role="dialog" aria-modal="true" aria-labelledby="rotate-title">
+      <div class="rotate-card">
+        <div class="rotate-phone" aria-hidden="true">
+          <span class="rotate-screen"></span>
+        </div>
+        <p class="title-kicker">FIVE NIGHTS AT TORGE'S</p>
+        <h2 id="rotate-title">HANDY BITTE DREHEN</h2>
+        <p>Dieses Spiel läuft nur im <strong>Querformat (Landscape)</strong> — drehe dein Gerät um 90°, um deine Nachtschicht zu starten.</p>
+      </div>
+    </div>
 
     <!-- Hallucination subliminal flash overlay -->
     <div id="hallucination" class="hallucination" hidden aria-hidden="true">

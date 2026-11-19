@@ -1,0 +1,16 @@
+{
+  "name": "Five Nights at Torge's",
+  "short_name": "FNA Torge's",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#040509",
+  "theme_color": "#05060b",
+  "icons": [
+    {
+      "src": "./gate.png",
+      "sizes": "144x144",
+      "type": "image/png"
+    }
+  ]
+}

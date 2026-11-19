@@ -199,6 +199,7 @@ async function startNight(night, customOverride = null) {
     clearTimeout(introTimer);
     introTimer = null;
   }
+  tryLandscapeLock();
   sound.open();
   sound.reset();
   try {
@@ -416,8 +417,28 @@ function bindHoldLook(id, dir) {
 bindHoldLook('look-left', -1);
 bindHoldLook('look-right', 1);
 
+function isPortraitBlocked() {
+  return window.innerHeight > window.innerWidth;
+}
+
+function tryLandscapeLock() {
+  try {
+    screen.orientation?.lock?.('landscape')?.catch?.(() => {});
+  } catch {
+    // ignore unsupported orientation lock
+  }
+}
+
 // Resize & background tab pause
 function handleResize() {
+  if (isPortraitBlocked()) {
+    controls.enable(false);
+    sound.syncLoops(null);
+  } else if (stage === 'play' && run?.state === 'playing') {
+    controls.enable(true);
+    lastTs = 0;
+    lag = 0;
+  }
   if (!view) return;
   view.resize();
   if (stage === 'title' || stage === 'custom') view.drawTitle(performance.now() / 1000);
@@ -443,6 +464,11 @@ paintAudioButtons();
 // Main 60 FPS fixed-step render loop
 function tick(now) {
   requestAnimationFrame(tick);
+  if (isPortraitBlocked()) {
+    lastTs = 0;
+    lag = 0;
+    return;
+  }
   if (stage === 'title' || stage === 'custom') {
     if (view) view.drawTitle(now / 1000);
     return;

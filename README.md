@@ -28,7 +28,8 @@ Survival-Horror in **Chef Torges Mitternachts-Imbiss**. Halte als Nachtwächter 
 - `B` — Bestellgong auf CAM 6 · `F` — ausgelöste Kamerasicherung umlegen
 - `M` — Anruf stumm schalten · `H` oder Klick auf das Poster — **Hupe** · `Esc` / `P` — Pause
 
-### Handy / Touch (Portrait & Querformat)
+### Handy / Touch (Nur Querformat / Landscape)
+- Im Hochformat erscheint automatisch ein **„Handy bitte drehen“**-Hinweis (pausiert eine laufende Nacht sicher, bis das Gerät zurückgedreht wird).
 - **Wischen** (oder `◀` / `▶`-Pfeile) zum Umschauen im Büro (Anti-Zoom & Anti-Markierung aktiv)
 - **Links / Rechts**: Große Stahltür- & Flurlicht-Schalter · **Unten**: breite **`KAMERAS`**-Leiste · **Grundriss** klappt den Lageplan auf
 
