@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#05060b">
-  <meta name="description" content="Five Nights at Torge's — Überlebe 5 Nächte als Nachtwächter in Chef Torges Mitternachts-Imbiss gegen Chef Torge, Lost Anton, Schnorrer Tom & Erdbeben-Boss Hauke!">
+  <meta name="description" content="Five Nights at Torge's v2.0 — Überlebe die Nachtschicht in Chef Torges Mitternachts-Imbiss gegen Chef Torge, Lost Anton, Schnorrer Tom & Boss Hauke mit FNaF-1-Gameplay, Fritteusen-Dampf, Express-Bons & Spezi-Kick!">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="FIVE NIGHTS AT TORGE'S — Mitternachts-Imbiss">
-  <meta property="og:description" content="Linke & rechte Stahltür, 10 CCTV-Kameras, knapper Notstrom & Boss Haukes Erdbeben-Sprint im West-Flur!">
+  <meta property="og:title" content="FIVE NIGHTS AT TORGE'S v2.0 — Mitternachts-Imbiss">
+  <meta property="og:description" content="Artikulierte Mascot-Animatronics, FNaF-1-Sound-Cues & Flurlichter, 10 CCTV-Kameras, Fritteusen-Dampf, Express-Bons & Boss Haukes Erdbeben-Sprint!">
   <meta property="og:image" content="https://anton037.github.io/Scavenger/gate.png">
   <meta name="twitter:card" content="summary">
   <title>FIVE NIGHTS AT TORGE'S</title>
@@ -70,7 +70,7 @@
         </nav>
 
         <div class="title-footer">
-          <p class="title-objective">Halte bis 6 Uhr durch. Kontrolliere Türen, Fritteusen-Dampf, Nacht-Bons &amp; Kameras.</p>
+          <p class="title-objective">Halte bis 6 Uhr durch. Höre auf Schritte &amp; Lachen, prüfe Flurlichter, kontrolliere Fritteusen-Dampf, Express-Bons &amp; Kameras.</p>
           <div class="title-tools">
             <button id="btn-dossier" class="btn-crt small" type="button">Personalakte</button>
             <button id="btn-achievements" class="btn-crt small" type="button">Stempelkarte <span id="title-ach-count" class="pill-count">0/16</span></button>
@@ -79,7 +79,7 @@
           </div>
           <div class="title-meta-row">
             <span id="build-version" class="title-version">%SCAVENGER_BUILD_VERSION%</span>
-            <span class="title-hint">PC: Q/W &amp; E/R Türen/Licht · V Ventil · T Bon · Space Kameras · X IR-Blitz · G Dampf</span>
+            <span class="title-hint">PC: Q/W &amp; E/R Türen/Licht · Space Kameras · V Ventil · T Bon · C Spezi · X IR-Blitz · G Dampf</span>
             <span class="title-hint-touch">Touch: Wischen zum Schauen · Schalter links/rechts · Schreibtisch- &amp; Kamera-Tools unten</span>
           </div>
         </div>
@@ -99,7 +99,7 @@
         </div>
         <div id="dossier-grid" class="dossier-grid"></div>
         <div class="dossier-tips">
-          <strong>Schicht-Systeme &amp; Geheimtipps:</strong> Geschlossene Türen stauen <em>Fritteusen-Dampf</em>! Lass ihn im Büro am <strong>roten Ventil (V)</strong> ab — oder nutze ab <strong>45 % Druck</strong> auf <strong>CAM 2B / 4B</strong> den kostenlosen <strong>Dampfstoß (G)</strong>! Stemple rechts am <strong>Bon-Drucker (T)</strong> Nacht-Bestellungen für <strong>+4 % Notstrom</strong> ab, und nutze im Monitor den <strong>IR-Blitz (X)</strong> gegen Störungen, Antons Videoanruf &amp; Haukes Vorhang.
+          <strong>FNaF-1-Gehör &amp; Imbiss-Taktik:</strong> Achte genau auf Schritte, Pfand-Klappern und Torges Lachen — und prüfe per Flurlicht (<strong>W / R</strong>) Tür &amp; Fenster! Am <strong>roten Ventil (V)</strong> kühlst du Hitzestau (Achtung: lautes Zischen dämpft Geräusche!), oder feuerst ab <strong>45 % Druck</strong> auf <strong>CAM 2B / 4B</strong> den kostenlosen <strong>Dampfstoß (G)</strong>. Stemple <strong>Express-Bons (T)</strong> schnell für <strong>+5 % Strom</strong>, locke Tom auf <strong>CAM 6 (B, 0 %)</strong> gratis weg und nutze maximal 2× pro Nacht deinen <strong>Spezi-Kick (C)</strong>!
         </div>
       </div>
     </section>
@@ -178,6 +178,14 @@
             </div>
             <button id="set-reduced-motion" class="btn-crt small" type="button" aria-pressed="false">AUS</button>
           </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <b>Audio-Untertitel (Geräusch-Hilfe)</b>
+              <small>Blendet Richtungs-Hinweise für Schritte &amp; Türen ein (Standard: AUS für echtes FNaF-1-Gefühl)</small>
+            </div>
+            <button id="set-audio-subs" class="btn-crt small" type="button" aria-pressed="false">AUS</button>
+          </div>
         </div>
       </div>
     </section>
@@ -196,8 +204,9 @@
         <div id="custom-grid" class="custom-grid">
           <div class="ai-card" data-char="torge">
             <div class="ai-badge badge-torge">TORGE</div>
+            <img class="ai-portrait" data-portrait="torge" alt="">
             <b>Chef Torge</b>
-            <small>Der Hausherr (Ost)</small>
+            <small>Cam-Stall &amp; Hitze (Ost)</small>
             <div class="ai-stepper">
               <button class="step-btn" type="button" data-step="-1" aria-label="Torge KI verringern">◀</button>
               <span class="ai-val" id="ai-torge">5</span>
@@ -206,8 +215,9 @@
           </div>
           <div class="ai-card" data-char="anton">
             <div class="ai-badge badge-anton">ANTON</div>
+            <img class="ai-portrait" data-portrait="anton" alt="">
             <b>Lost Anton</b>
-            <small>Linke Tür &amp; Video</small>
+            <small>Linke Tür &amp; Videoanruf</small>
             <div class="ai-stepper">
               <button class="step-btn" type="button" data-step="-1" aria-label="Anton KI verringern">◀</button>
               <span class="ai-val" id="ai-anton">5</span>
@@ -216,8 +226,9 @@
           </div>
           <div class="ai-card" data-char="tom">
             <div class="ai-badge badge-tom">TOM</div>
+            <img class="ai-portrait" data-portrait="tom" alt="">
             <b>Schnorrer Tom</b>
-            <small>Rechte Tür &amp; Küche</small>
+            <small>Rechtes Fenster &amp; Küche</small>
             <div class="ai-stepper">
               <button class="step-btn" type="button" data-step="-1" aria-label="Tom KI verringern">◀</button>
               <span class="ai-val" id="ai-tom">5</span>
@@ -226,6 +237,7 @@
           </div>
           <div class="ai-card" data-char="hauke">
             <div class="ai-badge badge-hauke">HAUKE</div>
+            <img class="ai-portrait" data-portrait="hauke" alt="">
             <b>Boss Hauke</b>
             <small>Erdbeben-Sprint (1C)</small>
             <div class="ai-stepper">
@@ -323,16 +335,21 @@
           <button id="look-right" class="look-arrow" type="button" aria-label="Nach rechts schauen">▶</button>
         </div>
 
-        <!-- Tactile Desk Hardware Strip (Steam Exhaust Valve + Nacht-Bon Printer) -->
+        <!-- Tactile Desk Hardware Strip (Steam Exhaust Valve + Spezi Koffein-Kick + Nacht-Bon Printer) -->
         <div id="desk-actions" class="desk-actions" aria-label="Schreibtisch-Geräte">
           <button id="btn-vent-steam" class="desk-pill vent-pill" type="button" title="Abluft-Ventil öffnen (V)">
             <span class="pill-led" aria-hidden="true"></span>
             <span id="vent-btn-label">VENTIL · 41°C</span>
             <kbd>V</kbd>
           </button>
+          <button id="btn-spezi-boost" class="desk-pill spezi-pill" type="button" title="Spezi Koffein-Kick trinken (C)">
+            <span class="pill-led" aria-hidden="true"></span>
+            <span id="spezi-btn-label">SPEZI 2/2</span>
+            <kbd>C</kbd>
+          </button>
           <button id="btn-stamp-bon" class="desk-pill bon-pill" type="button" title="Nacht-Bon abstempeln (T)" hidden>
             <span class="pill-led active" aria-hidden="true"></span>
-            <span id="bon-btn-label">BON STEMPELN +4%</span>
+            <span id="bon-btn-label">EXPRESS BON +5%</span>
             <kbd>T</kbd>
             <i id="bon-btn-bar" class="bon-timer-bar" aria-hidden="true"></i>
           </button>
@@ -372,7 +389,7 @@
             <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
           </div>
           <em id="kitchen-status" class="kitchen-status">AUDIO: RUHIG</em>
-          <button id="btn-kitchen-bell" class="btn-crt small" type="button" title="Bestellgong (B)">Gong −4 %</button>
+          <button id="btn-kitchen-bell" class="btn-crt small" type="button" title="Gratis Bestellgong / Spezi-Durchsage (B)">Bestellgong (0 %)</button>
         </div>
         <div id="cctv-disrupt" class="cctv-center-msg" hidden>
           <b>SIGNAL UNTERBROCHEN</b>

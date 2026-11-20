@@ -18,8 +18,8 @@ export function emit(run, kind, extra = {}) {
   run.events.push({ kind, ...extra });
 }
 
-export function notify(run, text, seconds = 4.5) {
-  run.notice = { text, until: run.time + seconds };
+export function notify(run, text, seconds = 4.5, opts = {}) {
+  run.notice = { text, until: run.time + seconds, audioCue: Boolean(opts.audioCue) };
 }
 
 export function pickLine(list, index) {

@@ -1,7 +1,12 @@
 import {
+  BASE_IDLE_DRAIN,
+  EXTRA_BAR_DRAIN,
   FUSE_RESET_COST,
   HOUR_SECONDS,
+  KITCHEN_BELL_COOLDOWN,
   KITCHEN_BELL_COST,
+  SPEZI_BOOST_SECONDS,
+  SPEZI_CHARGES,
   STEP,
   TOTAL_NIGHT_SECONDS,
 } from '../config/constants.js';
@@ -15,9 +20,9 @@ import {
 } from '../config/nights.js';
 import { computeShiftRank } from '../storage/saveSystem.js';
 import { stepAnton, stepAntonVideo } from './ai/antonAi.js';
-import { startHaukeCharge, stepHauke } from './ai/haukeAi.js';
+import { pulseHaukeCameraCheck, startHaukeCharge, stepHauke } from './ai/haukeAi.js';
 import { stepTom } from './ai/tomAi.js';
-import { stepTorge } from './ai/torgeAi.js';
+import { getTorgeCamStallSeconds, stepTorge } from './ai/torgeAi.js';
 import {
   clamp,
   emit,
@@ -32,7 +37,7 @@ import {
   triggerJumpscare,
 } from './runtime.js';
 import { triggerCamFlash } from './systems/camPulseSystem.js';
-import { createOrderState, stampOrderBon, stepOrderSystem } from './systems/orderSystem.js';
+import { createOrderState, isOrderExpress, stampOrderBon, stepOrderSystem } from './systems/orderSystem.js';
 import {
   createThermalState,
   getTemperatureCelsius,
@@ -49,6 +54,7 @@ export {
   getTemperatureCelsius,
   hasMotionBlip,
   HOUR_SECONDS,
+  isOrderExpress,
   isVentingSteam,
   KITCHEN_BELL_COST,
   randomFrom,
@@ -60,6 +66,10 @@ export {
   triggerSteamBurst,
   ventOfficeSteam,
 };
+
+export function isSpeziBoosted(run) {
+  return Boolean(run && (run.speziBoostUntil ?? 0) > (run.time ?? 0));
+}
 
 export function getFormattedShiftTime(run) {
   const totalSec = clamp(run?.time ?? 0, 0, TOTAL_NIGHT_SECONDS);
@@ -163,9 +173,11 @@ export function newNight(options = {}) {
     training: night === 1 ? 'waiting' : 'done',
     notice: null,
 
-    // New Tealerland / Fangame Mechanical Systems
+    // Fangame Mechanical Subsystems
     thermal: createThermalState(cfg, modifiers),
     orders: createOrderState(cfg, modifiers, rng),
+    speziCharges: SPEZI_CHARGES,
+    speziBoostUntil: 0,
 
     // Power Outage (FNAF 1 3-phase sequence)
     powerOutage: null,
@@ -173,9 +185,9 @@ export function newNight(options = {}) {
     // Animatronics
     ai,
     animatronics: {
-      torge: { room: '1A', pathIdx: 0, timer: 3.02, officeTimer: 0, sighted: false },
-      anton: { room: '1A', timer: 4.97, officeTimer: 0, sighted: false, stunUntil: 0 },
-      tom: { room: '1A', timer: 4.98, officeTimer: 0, sighted: false },
+      torge: { room: '1A', pathIdx: 0, timer: 3.02, stallTimer: 0, officeTimer: 0, sighted: false },
+      anton: { room: '1A', timer: 4.97, officeTimer: 0, sighted: false, stunUntil: 0, subPose: 0, doorWait: 0 },
+      tom: { room: '1A', timer: 4.98, officeTimer: 0, sighted: false, subPose: 0 },
       hauke: {
         stage: 0,
         curtainAnim: 0,
@@ -193,11 +205,12 @@ export function newNight(options = {}) {
       },
     },
 
-    // Secret Golden Duck
+    // Secret Golden Duck & Rare Hallucinations
     goldenPoster: false,
     goldenUsed: false,
     goldenActive: false,
     goldenTimer: 0,
+    cam5Stare: false,
 
     // Sensory feedback & atmosphere
     quake: 0,
@@ -211,6 +224,7 @@ export function newNight(options = {}) {
     officeBreathTimer: 2.8,
     haukeHumTimer: 11.0,
     ambienceTimer: 9.0,
+    calliopeTimer: 28.0,
     posterHonks: 0,
     posterBounce: 0,
     speziSips: 0,
@@ -237,6 +251,7 @@ export function newNight(options = {}) {
       haukeBlocked: 0,
       antonBlocked: 0,
       tomBlocked: 0,
+      torgeBlocked: 0,
       torgeStalled: 0,
       goldenBanished: 0,
       posterHonks: 0,
@@ -248,10 +263,12 @@ export function newNight(options = {}) {
       steamHits: 0,
       overheats: 0,
       bonsStamped: 0,
+      expressBons: 0,
       bonsMissed: 0,
       tipsEarned: 0,
       camFlashes: 0,
       camFlashHits: 0,
+      speziBoosts: 0,
     },
     events: [],
   };
@@ -331,6 +348,9 @@ export function toggleRightLight(run) {
       run.animatronics.tom.sighted = true;
       run.stingFlash = 0.55;
       emit(run, 'window_sting', { who: 'tom', side: 'right' });
+    } else if (run.animatronics.torge.room === '4B' && !run.animatronics.torge.sighted && run.rng() < 0.35) {
+      run.animatronics.torge.sighted = true;
+      emit(run, 'torge_laugh', { close: true, distance: 0 });
     }
   } else {
     emit(run, 'light', { side: 'right', on: false });
@@ -339,11 +359,21 @@ export function toggleRightLight(run) {
 }
 
 function onCameraViewed(run, camId) {
+  pulseHaukeCameraCheck(run, camId);
+  if (run.animatronics.torge.room === camId && !feedIsInterrupted(run, camId)) {
+    run.animatronics.torge.stallTimer = Math.max(
+      run.animatronics.torge.stallTimer ?? 0,
+      getTorgeCamStallSeconds(run.ai.torge),
+    );
+  }
   const sprint = run.animatronics.hauke.sprint;
   if (camId === '2A' && sprint.active && !sprint.triggered) {
     startHaukeCharge(run);
   }
-  if (camId === '2B' && run.night >= 2 && !run.goldenUsed && !run.goldenPoster && run.rng() < 0.03) {
+  if (camId === '5') {
+    run.cam5Stare = run.rng() < 0.16;
+  }
+  if (camId === '2B' && run.night >= 2 && !run.goldenUsed && !run.goldenPoster && run.rng() < 0.035) {
     run.goldenPoster = true;
     run.goldenUsed = true;
     emit(run, 'duck_giggle');
@@ -371,6 +401,7 @@ export function toggleMonitor(run) {
 
     onCameraViewed(run, run.activeCam);
   } else {
+    pulseHaukeCameraCheck(run, null);
     emit(run, 'monitor_close');
     endAntonVideo(run);
 
@@ -421,20 +452,33 @@ export function resetCameraFuse(run) {
 export function ringKitchenBell(run) {
   if (!run || run.state !== 'playing' || !run.monitorOpen || run.activeCam !== '6'
       || feedIsInterrupted(run) || run.kitchenBellUntil > run.time || run.power <= KITCHEN_BELL_COST) return false;
-  run.power -= KITCHEN_BELL_COST;
-  run.kitchenBellUntil = run.time + 26;
+  if (KITCHEN_BELL_COST > 0) run.power = Math.max(0, run.power - KITCHEN_BELL_COST);
+  run.kitchenBellUntil = run.time + KITCHEN_BELL_COOLDOWN;
   emit(run, 'kitchen_bell');
   const tom = run.animatronics.tom;
+  const torge = run.animatronics.torge;
+  let luredAny = false;
+
   if (tom.room === '4A' || tom.room === '4B' || tom.room === 'right_door') {
     noteRoomTransition(run, tom.room, '6', 'tom', false);
     tom.room = '6';
-    tom.timer = 9;
-    run.kitchenAudioTimer = 0.6;
+    tom.timer = 9.5;
+    run.kitchenAudioTimer = 0.55;
     run.stats.tomLured += 1;
     if (run.stats.tomLured >= 2) grantAchievement(run, 'spezi_bait');
     notify(run, pickLine(MEME_LINES.tomLure, run.stats.tomLured - 1));
-  } else {
-    notify(run, 'BON #404 · „Tom, Abholung!“ Keine Antwort aus dem Ost-Flur.');
+    luredAny = true;
+  }
+  if (torge.room === '6') {
+    torge.timer = Math.max(torge.timer, 6.5);
+    run.kitchenAudioTimer = 0.55;
+    if (!luredAny) {
+      notify(run, 'BON #404 · Chef Torge prüft misstrauisch die Durchreiche in CAM 6!');
+      luredAny = true;
+    }
+  }
+  if (!luredAny) {
+    notify(run, 'BON #404 · „Gratis-Spezi an der Ausgabe!“ Keine Reaktion im Ost-Flur.');
   }
   return true;
 }
@@ -458,10 +502,28 @@ export function honkPoster(run) {
 
 export function sipSpezi(run) {
   if (!run || run.state !== 'playing' || run.monitorOpen || run.powerOutage) return false;
+  if ((run.speziCharges ?? 0) <= 0) {
+    run.speziBounce = 0.22;
+    notify(run, 'SPEZI LEER · Dose komplett ausgetrunken! Kein Koffein-Kick mehr übrig.', 3.2);
+    emit(run, 'spezi_empty');
+    return true;
+  }
+
+  run.speziCharges -= 1;
   run.speziSips += 1;
-  run.speziBounce = 0.38;
-  notify(run, pickLine(MEME_LINES.speziSip, run.speziSips - 1), 4.0);
-  emit(run, 'spezi_sip');
+  run.stats.speziBoosts = (run.stats.speziBoosts || 0) + 1;
+  run.speziBounce = 0.42;
+  run.speziBoostUntil = run.time + SPEZI_BOOST_SECONDS;
+  run.quake *= 0.35;
+
+  // Risk/Reward: cracking open a fizzy Spezi can tempts Schnorrer Tom if he is roaming!
+  const tom = run.animatronics.tom;
+  if (run.ai.tom > 0 && tom.room !== 'office' && tom.room !== 'right_door') {
+    tom.timer = Math.min(tom.timer, 1.85);
+  }
+
+  notify(run, pickLine(MEME_LINES.speziSip, run.speziSips - 1), 4.2);
+  emit(run, 'spezi_sip', { remaining: run.speziCharges });
   return true;
 }
 
@@ -567,15 +629,18 @@ export function advance(run, input = {}, dt = STEP) {
   }
   if (run.state !== 'playing') return run;
 
+  const boosted = isSpeziBoosted(run);
+  const servoMult = boosted ? 1.48 : 1.0;
+
   // Smooth office pan + velocity-damped visual smoothing
   const prevLookX = run.lookX;
   if (!run.monitorOpen && typeof input.lookDelta === 'number' && input.lookDelta !== 0) {
-    run.lookX = clamp(run.lookX + input.lookDelta * dt, -1, 1);
+    run.lookX = clamp(run.lookX + input.lookDelta * servoMult * dt, -1, 1);
   }
   if (typeof input.lookTarget === 'number') {
-    run.lookX = clamp(run.lookX + (clamp(input.lookTarget, -1, 1) - run.lookX) * Math.min(1, dt * 10), -1, 1);
+    run.lookX = clamp(run.lookX + (clamp(input.lookTarget, -1, 1) - run.lookX) * Math.min(1, dt * 10 * servoMult), -1, 1);
   }
-  const smoothFactor = 1 - Math.exp(-dt * 15);
+  const smoothFactor = 1 - Math.exp(-dt * (boosted ? 20 : 15));
   const nextSmooth = run.lookSmooth + (run.lookX - run.lookSmooth) * smoothFactor;
   run.lookVel = clamp((nextSmooth - run.lookSmooth) / Math.max(0.001, dt), -4, 4);
   run.lookSmooth = nextSmooth;
@@ -585,18 +650,18 @@ export function advance(run, input = {}, dt = STEP) {
   }
 
   // Smooth mechanical animations
-  const doorSpeed = 6.8;
+  const doorSpeed = 6.8 * servoMult;
   run.leftDoorAnim += ((run.leftDoor ? 1 : 0) - run.leftDoorAnim) * Math.min(1, dt * doorSpeed * 2);
   run.rightDoorAnim += ((run.rightDoor ? 1 : 0) - run.rightDoorAnim) * Math.min(1, dt * doorSpeed * 2);
   run.leftDoorBounce = Math.max(0, run.leftDoorBounce - dt * 4.5);
   run.rightDoorBounce = Math.max(0, run.rightDoorBounce - dt * 4.5);
-  run.monitorAnim += ((run.monitorOpen ? 1 : 0) - run.monitorAnim) * Math.min(1, dt * 14);
+  run.monitorAnim += ((run.monitorOpen ? 1 : 0) - run.monitorAnim) * Math.min(1, dt * 14 * servoMult);
   run.monitorFlash = Math.max(0, run.monitorFlash - dt * 5.2);
   run.irFlash = Math.max(0, (run.irFlash || 0) - dt * 3.8);
   run.camPan = Math.sin(run.time * 0.42);
 
   // Smooth Hauke curtain opening
-  const targetCurtain = [0, 0.36, 0.76, 1.15][run.animatronics.hauke.stage] ?? 0;
+  const targetCurtain = [0, 0.38, 0.78, 1.18][run.animatronics.hauke.stage] ?? 0;
   run.animatronics.hauke.curtainAnim += (targetCurtain - run.animatronics.hauke.curtainAnim) * Math.min(1, dt * 6.5);
 
   // Decay visual timers
@@ -607,7 +672,7 @@ export function advance(run, input = {}, dt = STEP) {
   run.speziBounce = Math.max(0, run.speziBounce - dt);
   run.duckBounce = Math.max(0, run.duckBounce - dt);
   run.kitchenNoisePulse = Math.max(0, run.kitchenNoisePulse - dt * 1.15);
-  run.quake = Math.max(0, run.quake - dt * 1.45);
+  run.quake = Math.max(0, run.quake - dt * (boosted ? 2.1 : 1.45));
   run.quakeTime += dt;
 
   // Live seismograph indicator
@@ -660,9 +725,10 @@ export function advance(run, input = {}, dt = STEP) {
     return run;
   }
 
-  // Battery Drain
+  // Authentic FNaF 1 Battery Drain
   run.usage = getUsageBars(run);
-  const drainPerSec = 0.098 * run.usage + run.passiveDrain;
+  const boostRelief = boosted ? -0.032 : 0;
+  const drainPerSec = Math.max(0.05, BASE_IDLE_DRAIN + (run.usage - 1) * EXTRA_BAR_DRAIN + run.passiveDrain + boostRelief);
   run.power = Math.max(0, run.power - drainPerSec * dt);
   if (run.power <= 0) {
     run.power = 0;
@@ -685,7 +751,7 @@ export function advance(run, input = {}, dt = STEP) {
     return run;
   }
 
-  // New Mechanical Subsystems (Thermal/Steam & Order Printer)
+  // Mechanical Subsystems (Thermal/Steam & Order Printer)
   stepThermalSystem(run, dt);
   stepOrderSystem(run, dt);
 
@@ -717,13 +783,14 @@ export function advance(run, input = {}, dt = STEP) {
     }
   }
 
-  // Eerie office breathing when Anton or Tom already slipped inside while monitor is up
+  // Eerie office breathing & monitor glitch when Anton or Tom already slipped inside while monitor is up
   const antonIn = run.animatronics.anton.room === 'office';
   const tomIn = run.animatronics.tom.room === 'office';
   if ((antonIn || tomIn) && run.monitorOpen) {
     run.officeBreathTimer -= dt;
     if (run.officeBreathTimer <= 0) {
-      run.officeBreathTimer = 3.1 + run.rng() * 2.1;
+      run.officeBreathTimer = 2.6 + run.rng() * 1.9;
+      run.camSwitchStatic = Math.max(run.camSwitchStatic, 0.12);
       emit(run, 'office_breath', { side: antonIn ? 'left' : 'right' });
     }
   }
@@ -734,6 +801,15 @@ export function advance(run, input = {}, dt = STEP) {
     if (run.haukeHumTimer <= 0) {
       run.haukeHumTimer = 14 + run.rng() * 12;
       emit(run, 'hauke_hum', { loud: run.monitorOpen && run.activeCam === '1C' });
+    }
+  }
+
+  // Rare FNaF-1 style distant midnight carnival/radio calliope drift on Night 2+
+  if (run.night >= 2) {
+    run.calliopeTimer -= dt;
+    if (run.calliopeTimer <= 0) {
+      run.calliopeTimer = 42 + run.rng() * 38;
+      if (run.rng() < 0.45) emit(run, 'distant_calliope');
     }
   }
 

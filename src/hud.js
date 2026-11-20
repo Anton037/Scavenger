@@ -1,6 +1,8 @@
 import {
   ACHIEVEMENTS,
   ACHIEVEMENT_MAP,
+  BON_EXPRESS_POWER,
+  BON_EXPRESS_RUSTY_POWER,
   BON_REWARD_POWER,
   BON_RUSTY_REWARD_POWER,
   CAMERAS,
@@ -21,9 +23,12 @@ import {
   getHourLabel,
   getTemperatureCelsius,
   hasMotionBlip,
+  isOrderExpress,
+  isSpeziBoosted,
   isVentingSteam,
   KITCHEN_BELL_COST,
 } from './game.js';
+import { getCharacterPortraitUrl } from './render/portraits.js';
 
 export const get = (id) => document.getElementById(id);
 
@@ -34,13 +39,15 @@ export function write(el, text) {
 export class Hud {
   constructor(onSelectCam) {
     this.onSelectCam = onSelectCam;
+    this.audioSubtitles = false;
     this.toastQueue = [];
     this.toastTimer = null;
     this.el = Object.fromEntries([
       'hud', 'clock-hour', 'clock-night', 'power-box', 'power-pct', 'usage-bars', 'seismic-bars',
       'thermal-label', 'thermal-fill',
       'office-controls', 'btn-left-door', 'btn-left-light', 'btn-right-door', 'btn-right-light',
-      'desk-actions', 'btn-vent-steam', 'vent-btn-label', 'btn-stamp-bon', 'bon-btn-label', 'bon-btn-bar',
+      'desk-actions', 'btn-vent-steam', 'vent-btn-label', 'btn-spezi-boost', 'spezi-btn-label',
+      'btn-stamp-bon', 'bon-btn-label', 'bon-btn-bar',
       'btn-monitor', 'btn-fuse', 'btn-kitchen-bell', 'monitor-label', 'cctv-overlay', 'cctv-room-label', 'cctv-audio-only',
       'cctv-tools', 'btn-ir-flash', 'ir-flash-label', 'btn-steam-burst', 'steam-burst-label',
       'cctv-telemetry', 'cctv-time', 'cctv-signal', 'cctv-hint',
@@ -58,6 +65,7 @@ export class Hud {
 
     this.camButtons = new Map();
     this.buildCamButtons();
+    this.paintCustomPortraits();
     this.renderDossier();
 
     const mapToggle = get('btn-map');
@@ -67,6 +75,19 @@ export class Hud {
       mapToggle.setAttribute('aria-expanded', String(expanded));
     });
     this.syncTitleProgress();
+  }
+
+  setAudioSubtitles(on) {
+    this.audioSubtitles = Boolean(on);
+  }
+
+  paintCustomPortraits() {
+    if (typeof document === 'undefined') return;
+    for (const img of document.querySelectorAll('img[data-portrait]')) {
+      const id = img.dataset.portrait;
+      const url = getCharacterPortraitUrl(id);
+      if (url) img.src = url;
+    }
   }
 
   buildCamButtons() {
@@ -100,14 +121,20 @@ export class Hud {
     for (const key of ['torge', 'anton', 'tom', 'hauke', 'duck']) {
       const c = CHARACTERS[key];
       if (!c) continue;
+      const portrait = getCharacterPortraitUrl(key);
       const card = document.createElement('article');
       card.className = 'dossier-card';
       card.innerHTML = `
-        <div class="dossier-head">
-          <span class="dossier-badge" style="background:${c.color}">${c.badge}</span>
-          <span class="dossier-role">${c.role}</span>
+        <div class="dossier-top">
+          <img class="dossier-portrait" src="${portrait}" alt="">
+          <div class="dossier-title-col">
+            <div class="dossier-head">
+              <span class="dossier-badge" style="background:${c.color}">${c.badge}</span>
+              <span class="dossier-role">${c.role}</span>
+            </div>
+            <h3>${c.name}</h3>
+          </div>
         </div>
-        <h3>${c.name}</h3>
         <p class="dossier-lore">${c.lore}</p>
         <div class="dossier-meta">
           <div><b>Route:</b> ${c.route}</div>
@@ -144,7 +171,7 @@ export class Hud {
       const card = document.createElement('article');
       card.className = `ach-card${done ? ' unlocked' : ''}`;
       card.innerHTML = `
-        <span class="ach-icon" aria-hidden="true">${done ? ach.icon : '🔒'}</span>
+        <span class="ach-icon" aria-hidden="true">${done ? ach.icon : '◆'}</span>
         <div>
           <h3>${ach.title}</h3>
           <p>${ach.desc}</p>
@@ -203,7 +230,6 @@ export class Hud {
     write(ui['clock-hour'], getHourLabel(run));
     write(ui['clock-night'], run.nightTitle);
 
-    // Power, 5-bar Usage meter & 5-bar Seismograph!
     const pct = Math.ceil(run.power);
     write(ui['power-pct'], `${pct}%`);
     if (ui['power-box']) {
@@ -240,7 +266,7 @@ export class Hud {
       ui['thermal-fill'].className = heat >= 72 ? 'hot' : heat >= 45 ? 'warm' : '';
     }
 
-    // Office Steel Switches & Desk Tools
+    // Office Steel Switches & Tactile Desk Strip
     if (ui['office-controls']) {
       ui['office-controls'].hidden = run.monitorOpen || out || inJumpscare;
     }
@@ -249,8 +275,23 @@ export class Hud {
       ventBtn.disabled = venting || heat < 10;
       ventBtn.classList.toggle('hot', heat >= 70);
       ventBtn.classList.toggle('steam-ready', heat >= STEAM_BURST_MIN_HEAT && heat < 70);
-      write(ui['vent-btn-label'], venting ? 'ABLUFT ZISCHT...' : `VENTIL · ${tempC}°C`);
+      write(ui['vent-btn-label'], venting ? 'ZISCHT (LAUT!)' : `VENTIL · ${tempC}°C`);
     }
+
+    const speziBtn = ui['btn-spezi-boost'];
+    if (speziBtn) {
+      const boosted = isSpeziBoosted(run);
+      const charges = run.speziCharges ?? 0;
+      speziBtn.disabled = !boosted && charges <= 0;
+      speziBtn.classList.toggle('active-boost', boosted);
+      if (boosted) {
+        const left = Math.ceil((run.speziBoostUntil || 0) - run.time);
+        write(ui['spezi-btn-label'], `FOKUS (${left}s)`);
+      } else {
+        write(ui['spezi-btn-label'], `SPEZI ${charges}/2`);
+      }
+    }
+
     const bonBtn = ui['btn-stamp-bon'];
     const activeBon = run.orders?.active;
     if (bonBtn) {
@@ -258,12 +299,18 @@ export class Hud {
       if (activeBon) {
         const leftSec = Math.max(0, activeBon.deadline - run.time);
         const pctBon = Math.max(0, Math.min(100, (leftSec / activeBon.duration) * 100));
-        const boost = run.modifiers?.includes('rusty_gen') ? BON_RUSTY_REWARD_POWER : BON_REWARD_POWER;
+        const express = isOrderExpress(run);
+        const isRusty = run.modifiers?.includes('rusty_gen');
+        const boost = express
+          ? (isRusty ? BON_EXPRESS_RUSTY_POWER : BON_EXPRESS_POWER)
+          : (isRusty ? BON_RUSTY_REWARD_POWER : BON_REWARD_POWER);
         bonBtn.classList.toggle('urgent', leftSec < 5.0);
-        write(ui['bon-btn-label'], `BON #${activeBon.id} +${boost}%`);
+        bonBtn.classList.toggle('express', express);
+        write(ui['bon-btn-label'], express ? `EXPRESS #${activeBon.id} +${boost}%` : `BON #${activeBon.id} +${boost}%`);
         if (ui['bon-btn-bar']) ui['bon-btn-bar'].style.width = `${pctBon.toFixed(1)}%`;
       }
     }
+
     const syncSwitch = (btn, active, jammed) => {
       if (!btn) return;
       btn.setAttribute('aria-pressed', String(Boolean(active)));
@@ -305,11 +352,11 @@ export class Hud {
       }
       if (ui['cctv-hint']) {
         let hint = '';
-        if (activeBon) hint = '⚠ BON IM BÜRO DRUCKT!';
+        if (activeBon) hint = isOrderExpress(run) ? '⚡ EXPRESS-BON DRUCKT!' : '⚠ BON IM BÜRO!';
         else if (heat >= 75) hint = '⚠ FRITTEUSE ÜBERHITZT!';
         else if (run.activeCam === '1C' && run.animatronics.hauke.stage === 2) hint = '⚠ VORHANG OFFEN';
         else if (run.activeCam === '1C' && run.animatronics.hauke.stage >= 3) hint = '⚠ HAUKE IST WEG!';
-        else if (run.activeCam === '4B' && run.animatronics.torge.room === '4B') hint = '⚠ CHEF TORGE IM BLICK';
+        else if (run.activeCam === '4B' && run.animatronics.torge.room === '4B') hint = '⚠ CAM-STALL AKTIV';
         else if (run.activeCam === '2B' && run.goldenPoster) hint = '⚠ ES BIN ICH';
         write(ui['cctv-hint'], hint);
       }
@@ -337,7 +384,6 @@ export class Hud {
         }
       }
 
-      // Hilarious Lost Anton Incoming Video Call Overlay
       const videoActive = Boolean(run.antonVideo.deadline && run.antonVideo.deadline > run.time && !disrupted);
       if (ui['anton-call-overlay']) {
         ui['anton-call-overlay'].hidden = !videoActive;
@@ -354,7 +400,8 @@ export class Hud {
           const bell = ui['btn-kitchen-bell'];
           const cooldown = Math.ceil(run.kitchenBellUntil - run.time);
           bell.disabled = cooldown > 0 || run.power <= KITCHEN_BELL_COST;
-          write(bell, cooldown > 0 ? `Gong in ${cooldown} s` : `Bestellgong −${KITCHEN_BELL_COST} %`);
+          const costSuffix = KITCHEN_BELL_COST > 0 ? `−${KITCHEN_BELL_COST} %` : '0 % · GRATIS';
+          write(bell, cooldown > 0 ? `Gong in ${cooldown} s` : `Bestellgong (${costSuffix})`);
           const pulse = run.kitchenNoisePulse || 0;
           const active = pulse > 0.08;
           ui['kitchen-wave'].classList.toggle('active', active);
@@ -368,8 +415,8 @@ export class Hud {
           write(
             ui['kitchen-status'],
             active
-              ? (run.animatronics.tom.room === '6' ? 'TÖPFE KLAPPERN · TOM IST HIER' : 'LEISE SPIELUHR')
-              : 'FRITTEUSE ZISCHT',
+              ? (run.animatronics.tom.room === '6' ? 'PFAND & TÖPFE KLAPPERN · TOM HIER' : 'SPIELUHR & GRILL · TORGE HIER')
+              : 'FRITTEUSE ZISCHT LEISE',
           );
         }
       }
@@ -393,17 +440,23 @@ export class Hud {
       if (showCall) write(ui['call-text'], run.callText);
     }
 
-    // Subliminal Hallucination Flash
     if (ui.hallucination) {
       ui.hallucination.hidden = !run.hallucination || inJumpscare;
       if (run.hallucination) write(ui['hallucination-text'], run.hallucination.text);
     }
   }
 
+  /**
+   * Pure FNaF-1 sensory discipline:
+   * Doorway footsteps/rushes & "WEST FREI" notices are ONLY shown as text if `this.audioSubtitles` is enabled in Settings!
+   * Hardware status (blown fuse, active bon expiring while on CCTV, incoming video call if interrupted) stays crisp.
+   */
   paintShiftAlert(run, fuseSeconds) {
-    const sprint = run.animatronics.hauke.sprint.triggered;
-    const west = run.training !== 'door' && !run.leftDoor && run.animatronics.anton.room === 'left_door';
-    const east = !run.rightDoor && run.animatronics.tom.room === 'right_door';
+    const subs = Boolean(this.audioSubtitles);
+    const sprint = subs && run.animatronics.hauke.sprint.triggered;
+    const west = subs && run.training !== 'door' && !run.leftDoor && run.animatronics.anton.room === 'left_door';
+    const east = subs && !run.rightDoor && run.animatronics.tom.room === 'right_door';
+
     let title;
     let text;
     let timer;
@@ -413,30 +466,26 @@ export class Hud {
       text = sprint ? 'Monitor runter, dann linke Tür!' : '„Guck nicht so.“ Kamera wechseln oder Monitor senken!';
       timer = Math.ceil(run.antonVideo.deadline - run.time);
     } else if (sprint) {
-      title = 'HAUKE RENNT · WEST-FLUR';
-      text = 'Monitor runter. Linke Tür zu!';
+      title = 'AUDIO-UNTERTITEL · BEBEN WEST-FLUR';
+      text = 'Schwere Schritte von links! Linke Stahltür [Q] schließen!';
     } else if (west || east) {
-      title = west && east ? 'GERÄUSCHE AN BEIDEN TÜREN' : west ? 'SCHRITTE LINKS' : 'SCHLEIFEN RECHTS';
-      text = run.monitorOpen ? 'Monitor runter und die Flurlichter prüfen.' : 'Flurlicht prüfen und die betroffene Seite sichern.';
+      title = west && east ? 'AUDIO-UNTERTITEL · GERÄUSCHE BEIDSEITIG' : west ? 'AUDIO-UNTERTITEL · SCHRITTE LINKS' : 'AUDIO-UNTERTITEL · KLAPPERN RECHTS';
+      text = 'Flurlicht [W/R] prüfen und Tür sichern.';
     } else if (fuseSeconds > 0) {
-      title = 'HAUKE · SICHERUNG RAUS';
-      text = `Tür hält. Kameras kommen von selbst zurück oder für ${FUSE_RESET_COST} % sofort.`;
+      title = 'KAMERA-SICHERUNG RAUS';
+      text = `Stahltür hat gehalten! Kameras laden nach oder per Sicherung (−${FUSE_RESET_COST} %) sofort.`;
       timer = fuseSeconds;
-    } else if ((run.thermal?.heat ?? 0) >= 82 && !isVentingSteam(run)) {
-      title = 'FRITTEUSEN-HITZESTAU';
-      text = run.monitorOpen
-        ? 'Auf CAM 2B/4B Dampfstoß [G] zünden oder im Büro Ventil [V] öffnen!'
-        : 'Rotes Abluft-Ventil [V] drehen, bevor Torge ausrastet!';
-    } else if (run.orders?.active && run.monitorOpen && run.orders.active.deadline - run.time < 7.5) {
-      title = `NACHT-BON #${run.orders.active.id} LÄUFT AB`;
-      text = 'Monitor senken und Bon [T] abstempeln für +Notstrom!';
+    } else if (run.orders?.active && run.monitorOpen && run.orders.active.deadline - run.time < 6.0) {
+      title = `BON #${run.orders.active.id} PIEPT IM BÜRO`;
+      text = 'Monitor senken und Bon [T] abstempeln!';
       timer = Math.ceil(run.orders.active.deadline - run.time);
-    } else if (run.notice?.until > run.time) {
-      title = 'SCHICHTFUNK';
+    } else if (run.notice?.until > run.time && (!run.notice.audioCue || subs)) {
+      title = run.notice.audioCue ? 'AUDIO-UNTERTITEL' : 'IMBISS-FUNK';
       text = run.notice.text;
     } else {
       return false;
     }
+
     const ui = this.el;
     ui['shift-alert'].classList.toggle('urgent', sprint || west || east || Boolean(run.antonVideo.deadline));
     write(ui['shift-alert-title'], title);
@@ -479,7 +528,7 @@ export class Hud {
     write(this.el['win-sub'], bonus);
     write(
       this.el['win-stats'],
-      `Reststrom: ${Math.ceil(run.power)}% · Türen: ${run.stats.haukeBlocked + run.stats.antonBlocked + run.stats.tomBlocked}× · Bons: ${run.stats.bonsStamped}× · Dampf-Treffer: ${run.stats.steamHits}× · IR-Blitze: ${run.stats.camFlashHits}×`,
+      `Reststrom: ${Math.ceil(run.power)}% · Geblockt: ${run.stats.haukeBlocked + run.stats.antonBlocked + run.stats.tomBlocked}× · Bons: ${run.stats.bonsStamped}× (Express: ${run.stats.expressBons || 0}×) · Dampf: ${run.stats.steamHits}×`,
     );
     setTimeout(() => {
       write(this.el['win-clock'], '6:00 AM');

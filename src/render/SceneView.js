@@ -7,24 +7,30 @@ import {
   goldenDuckModel,
   lostAntonModel,
   schnorrerTomModel,
+  spareMascotHeadMesh,
 } from './characters3d.js';
 import { createPostShaderMaterial } from './postShader.js';
 import {
   batchStaticGroup,
+  brassMaterial,
   color,
   emissive,
   material,
   orb,
+  PALETTE,
   piece,
   round,
+  setEndoEyes,
   solid,
   tapered,
 } from './primitives.js';
 import {
+  arcadeCabinetModel,
   bonPrinterModel,
   crateMesh,
   deskFanModel,
   donerSpitModel,
+  doorButtonBoxModel,
   dustParticlesModel,
   hallSteamCloudModel,
   miniDuckModel,
@@ -34,6 +40,7 @@ import {
   steamValveAssemblyModel,
 } from './props3d.js';
 import {
+  arcadeScreenTexture,
   checkerFloorTexture,
   coveSignTexture,
   deskWoodTexture,
@@ -48,11 +55,11 @@ import {
 
 const PIXEL_SCALE = 2.15;
 const SCARE_SHOTS = {
-  anton: { headY: 1.88, fromX: -0.84, stopZ: -0.86, speed: 14, shake: 0.4 },
-  tom: { headY: 1.62, fromX: 1.48, stopZ: -1.02, speed: 7, shake: 0.3 },
-  hauke: { headY: 1.66, fromX: -0.28, stopZ: -1.12, speed: 12, shake: 1.0 },
-  torge: { headY: 1.61, fromX: 0, stopZ: -0.94, speed: 5, shake: 0.12 },
-  duck: { headY: 1.05, fromX: 0.28, stopZ: -1.04, speed: 22, shake: 0.04 },
+  anton: { headY: 1.72, fromX: -0.95, stopZ: -0.44, speed: 14, shake: 0.44 },
+  tom: { headY: 1.58, fromX: 0.95, stopZ: -0.46, speed: 12, shake: 0.36 },
+  hauke: { headY: 1.74, fromX: -0.45, stopZ: -0.58, speed: 15, shake: 1.0 },
+  torge: { headY: 1.66, fromX: 0.18, stopZ: -0.46, speed: 11, shake: 0.32 },
+  duck: { headY: 1.32, fromX: 0.12, stopZ: -0.52, speed: 20, shake: 0.28 },
 };
 
 export class SceneView {
@@ -73,14 +80,14 @@ export class SceneView {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.16;
+    this.renderer.toneMappingExposure = 1.18;
     // Set shadowMap.enabled BEFORE creating shadow-casting lights (Three.js r182+ PCFShadowMap)
     this.renderer.shadowMap.enabled = this.settings.graphics === 'hd';
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.scene = new THREE.Scene();
-    this.scene.background = color(0x05060b);
-    this.scene.fog = new THREE.FogExp2(0x05060b, 0.068);
+    this.scene.background = color(0x060508);
+    this.scene.fog = new THREE.FogExp2(0x07060a, 0.062);
 
     this.camera = new THREE.PerspectiveCamera(56, 16 / 9, 0.08, 38);
     this.raycaster = new THREE.Raycaster();
@@ -105,7 +112,7 @@ export class SceneView {
     this.postMat = createPostShaderMaterial(this.pixelTarget.texture, isRetro);
     this.postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.postMat));
 
-    // Shared procedural HD textures
+    // Shared procedural HD diner/Imbiss textures
     this.floorTex = checkerFloorTexture();
     this.floorTex.repeat.set(6, 6);
     this.wallTex = wallPanelTexture();
@@ -114,7 +121,9 @@ export class SceneView {
     this.shutterTex = shutterTexture();
     this.posterNormalTex = posterTexture(false);
     this.posterGoldenTex = posterTexture(true);
-    this.rulesPosterTex = rulesPosterTexture();
+    this.rulesPosterTex = rulesPosterTexture(false);
+    this.rulesPosterCorruptTex = rulesPosterTexture(true);
+    this.arcadeTex = arcadeScreenTexture();
     this.menuBoardTex = menuBoardTexture();
     this.signNormalTex = coveSignTexture(false);
     this.signAngryTex = coveSignTexture(true);
@@ -122,7 +131,7 @@ export class SceneView {
     this.neonHallTex = neonSignTexture('DÖNER & SPEZI', 'NUR MIT KASSENBON', '#38f2af', '#ff5ea8');
     this.liveDisplays = new LiveDeskDisplays();
 
-    // 4 isolated lightweight roots (only 1 visible per frame)
+    // Scene roots
     this.titleRoot = new THREE.Group();
     this.officeRoot = new THREE.Group();
     this.cctvRoot = new THREE.Group();
@@ -218,40 +227,43 @@ export class SceneView {
 
   setMode(mode) {
     this.titleRoot.visible = mode === 'title';
-    this.officeRoot.visible = mode === 'office';
-    this.cctvRoot.visible = mode === 'cctv';
-    this.jumpscareRoot.visible = mode === 'jumpscare';
+    this.officeRoot.visible = mode === 'office' || mode === 'jumpscare_office';
+    this.cctvRoot.visible = mode === 'cctv' || mode === 'jumpscare_cctv';
+    this.jumpscareRoot.visible = mode === 'jumpscare_office' || mode === 'jumpscare_cctv';
   }
 
   buildTitleStage() {
     const g = this.titleRoot;
-    const ambient = new THREE.AmbientLight(0x1e2842, 0.95);
+    const ambient = new THREE.AmbientLight(0x362a34, 1.05);
     g.add(ambient);
 
-    this.titleSpot = new THREE.SpotLight(0xffd79e, 34, 14, 0.68, 0.65, 1.25);
-    this.titleSpot.position.set(1.1, 3.3, 2.5);
-    this.titleSpot.target.position.set(0.88, 1.35, -1.35);
+    this.titleSpot = new THREE.SpotLight(0xffdca8, 38, 15, 0.72, 0.62, 1.2);
+    this.titleSpot.position.set(1.15, 3.35, 2.55);
+    this.titleSpot.target.position.set(0.92, 1.38, -1.35);
     this.titleSpot.castShadow = true;
     this.titleSpot.shadow.mapSize.set(512, 512);
     this.titleSpot.shadow.radius = 2;
     g.add(this.titleSpot, this.titleSpot.target);
 
-    this.titleRim = new THREE.PointLight(0xff3b56, 12, 7.5, 1.6);
+    this.titleRim = new THREE.PointLight(0xff3b56, 13, 7.5, 1.6);
     this.titleRim.position.set(2.35, 2.0, -2.0);
     g.add(this.titleRim);
 
-    const cyanFill = new THREE.PointLight(0x52c8ff, 7, 7, 1.8);
-    cyanFill.position.set(-1.1, 1.7, -1.6);
+    const cyanFill = new THREE.PointLight(0x42d6ff, 8, 7.5, 1.7);
+    cyanFill.position.set(-0.9, 1.8, -0.8);
     g.add(cyanFill);
 
     const staticStage = new THREE.Group();
-    const wallMat = new THREE.MeshStandardMaterial({ map: this.wallTex, roughness: 0.72, metalness: 0.12 });
-    const floorMat = new THREE.MeshStandardMaterial({ map: this.floorTex, roughness: 0.65, metalness: 0.12 });
+    const wallMat = new THREE.MeshStandardMaterial({ map: this.wallTex, roughness: 0.68, metalness: 0.10 });
+    const floorMat = new THREE.MeshStandardMaterial({ map: this.floorTex, roughness: 0.56, metalness: 0.12 });
     const neonMat = new THREE.MeshBasicMaterial({ map: this.neonStageTex });
-    piece(staticStage, solid, floorMat, 0, -0.05, -1.0, 9, 0.1, 6);
-    piece(staticStage, solid, wallMat, 0, 1.8, -3.2, 9.4, 4.4, 0.2);
-    piece(staticStage, solid, neonMat, 0.92, 2.48, -3.04, 2.3, 0.82, 0.06);
-    partyGarland(staticStage, -2.5, 3.3, 3.24, -2.65);
+    const redCurtain = material(0x8f1d2c, 0.62, 0.08);
+    piece(staticStage, solid, floorMat, 0, -0.05, -1.0, 9.2, 0.1, 6.2);
+    piece(staticStage, solid, wallMat, 0, 1.8, -3.2, 9.6, 4.4, 0.2);
+    piece(staticStage, solid, redCurtain, -2.8, 1.9, -2.98, 1.1, 3.8, 0.28);
+    piece(staticStage, solid, redCurtain, 3.4, 1.9, -2.98, 1.1, 3.8, 0.28);
+    piece(staticStage, solid, neonMat, 0.92, 2.58, -3.04, 2.45, 0.84, 0.06);
+    partyGarland(staticStage, -2.6, 3.4, 3.24, -2.62);
     batchStaticGroup(g, staticStage, { castShadow: false, receiveShadow: true });
 
     this.titleSpit = donerSpitModel();
@@ -264,58 +276,55 @@ export class SceneView {
 
     this.titleTorge = chefTorgeModel();
     this.titleTorge.root.position.set(0.88, 0.0, -1.35);
-    this.titleTorge.root.rotation.y = -0.24;
+    this.titleTorge.root.rotation.y = -0.22;
     g.add(this.titleTorge.root);
 
     this.titleAnton = lostAntonModel();
-    this.titleAnton.root.position.set(0.88, -0.1, -1.35);
+    this.titleAnton.root.position.set(0.88, 0.0, -1.35);
     this.titleAnton.root.rotation.y = -0.18;
+    setEndoEyes(this.titleAnton, true);
     this.titleAnton.root.visible = false;
     g.add(this.titleAnton.root);
 
     this.titleTom = schnorrerTomModel();
-    this.titleTom.root.position.set(0.9, 0.0, -1.32);
-    this.titleTom.root.rotation.y = -0.2;
+    this.titleTom.root.position.set(0.90, 0.0, -1.32);
+    this.titleTom.root.rotation.y = -0.20;
+    setEndoEyes(this.titleTom, true);
     this.titleTom.root.visible = false;
     g.add(this.titleTom.root);
 
     this.titleHauke = bossHaukeModel();
-    this.titleHauke.root.position.set(0.95, 0.0, -1.45);
+    this.titleHauke.root.position.set(0.95, 0.0, -1.42);
     this.titleHauke.root.rotation.y = -0.22;
+    setEndoEyes(this.titleHauke, true);
     this.titleHauke.root.visible = false;
     g.add(this.titleHauke.root);
   }
 
   buildOffice() {
     const g = this.officeRoot;
-    const floorMat = new THREE.MeshStandardMaterial({ map: this.floorTex, roughness: 0.58, metalness: 0.14 });
-    const wallMat = new THREE.MeshStandardMaterial({ map: this.wallTex, roughness: 0.72, metalness: 0.12 });
-    const darkMetal = material(0x191e2e, 0.42, 0.58);
-    const shutterMat = new THREE.MeshStandardMaterial({ map: this.shutterTex, roughness: 0.4, metalness: 0.65 });
-    const deskWood = new THREE.MeshStandardMaterial({ map: this.deskTex, roughness: 0.58, metalness: 0.1 });
+    const floorMat = new THREE.MeshStandardMaterial({ map: this.floorTex, roughness: 0.54, metalness: 0.14 });
+    const wallMat = new THREE.MeshStandardMaterial({ map: this.wallTex, roughness: 0.68, metalness: 0.10 });
+    const darkMetal = material(0x1b2030, 0.42, 0.62);
+    const copperPipe = brassMaterial(PALETTE.copper);
+    const shutterMat = new THREE.MeshStandardMaterial({ map: this.shutterTex, roughness: 0.38, metalness: 0.68 });
+    const deskWood = new THREE.MeshStandardMaterial({ map: this.deskTex, roughness: 0.56, metalness: 0.10 });
     const steelMat = material(0x6c7991, 0.34, 0.65);
-    const glassMat = new THREE.MeshStandardMaterial({
-      color: 0x7aa4c4,
-      transparent: true,
-      opacity: 0.16,
-      roughness: 0.18,
-      metalness: 0.45,
-    });
 
-    this.officeAmb = new THREE.AmbientLight(0x303c5a, 1.05);
+    this.officeAmb = new THREE.AmbientLight(0x423648, 1.12);
     g.add(this.officeAmb);
 
     this.officeBulbGroup = new THREE.Group();
     this.officeBulbGroup.position.set(0, 3.25, -1.2);
     piece(this.officeBulbGroup, round, darkMetal, 0, -0.22, 0, 0.025, 0.44, 0.025, { shadow: false });
-    piece(this.officeBulbGroup, tapered, darkMetal, 0, -0.45, 0, 0.3, 0.14, 0.3, { shadow: false });
-    this.officeBulbOrb = piece(this.officeBulbGroup, orb, emissive(0xffdf9e), 0, -0.52, 0, 0.095, 0.095, 0.095);
+    piece(this.officeBulbGroup, tapered, darkMetal, 0, -0.45, 0, 0.32, 0.15, 0.32, { shadow: false });
+    this.officeBulbOrb = piece(this.officeBulbGroup, orb, emissive(0xffe2a8), 0, -0.52, 0, 0.095, 0.095, 0.095);
 
-    const coneGeo = new THREE.ConeGeometry(2.15, 2.85, 24, 1, true);
+    const coneGeo = new THREE.ConeGeometry(2.25, 2.85, 24, 1, true);
     const coneMat = new THREE.MeshBasicMaterial({
-      color: 0xffd596,
+      color: 0xffd89e,
       transparent: true,
-      opacity: 0.058,
+      opacity: 0.055,
       side: THREE.DoubleSide,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -324,7 +333,7 @@ export class SceneView {
     this.officeLightCone.position.set(0, -1.9, 0);
     this.officeBulbGroup.add(this.officeLightCone);
 
-    this.officeLight = new THREE.PointLight(0xffd49e, 14.8, 11.8, 1.4);
+    this.officeLight = new THREE.PointLight(0xffd7a2, 16.0, 12.2, 1.38);
     this.officeLight.position.set(0, -0.62, 0.15);
     this.officeLight.castShadow = true;
     this.officeLight.shadow.mapSize.set(512, 512);
@@ -333,7 +342,7 @@ export class SceneView {
     this.officeBulbGroup.add(this.officeLight);
     g.add(this.officeBulbGroup);
 
-    // Emergency red ceiling beacon light when battery < 20%!
+    // Emergency red ceiling beacon light when battery < 20%
     this.emergencyLight = new THREE.PointLight(0xff2842, 0, 6.5, 1.6);
     this.emergencyLight.position.set(0, 2.95, -2.4);
     g.add(this.emergencyLight);
@@ -341,18 +350,20 @@ export class SceneView {
     this.officeDust = dustParticlesModel(55);
     g.add(this.officeDust);
 
-    // Batch all static room architecture & desk shell into ~5 draw calls!
+    // Static Batched Architecture & Desk Shell
     const staticOffice = new THREE.Group();
     piece(staticOffice, solid, floorMat, 0, -0.05, -1.4, 7.6, 0.1, 6.2);
     piece(staticOffice, solid, darkMetal, 0, 3.3, -1.4, 7.6, 0.1, 6.2);
     piece(staticOffice, solid, wallMat, 0, 1.65, -3.2, 6.2, 3.4, 0.2);
 
-    for (const cx of [-1.85, 1.95]) {
+    // Overhead copper fryer-steam conduit plumbed right down into the left desk valve!
+    piece(staticOffice, round, copperPipe, -1.30, 3.16, -2.55, 0.045, 2.4, 0.045).rotation.z = Math.PI / 2;
+    piece(staticOffice, round, copperPipe, -1.30, 2.15, -2.98, 0.042, 2.1, 0.042);
+    piece(staticOffice, round, copperPipe, -1.30, 1.15, -2.52, 0.036, 0.95, 0.036).rotation.x = Math.PI / 2;
+
+    for (const cx of [-1.95, 1.95]) {
       piece(staticOffice, round, darkMetal, cx, 3.18, -1.4, 0.04, 5.2, 0.04).rotation.x = Math.PI / 2;
     }
-
-    const rulesMat = new THREE.MeshStandardMaterial({ map: this.rulesPosterTex, roughness: 0.62 });
-    piece(staticOffice, solid, rulesMat, -1.56, 1.98, -3.07, 0.96, 1.22, 0.035);
 
     for (const side of [-1, 1]) {
       const sx = side * 3.1;
@@ -367,37 +378,50 @@ export class SceneView {
       piece(staticOffice, solid, wallMat, sx, 2.85, -2.35, 0.22, 0.95, 1.25);
       piece(staticOffice, solid, darkMetal, sx, 1.72, -2.98, 0.26, 3.4, 0.26);
 
+      // Industrial steel doorway shutter tracks & window sills
       piece(staticOffice, solid, darkMetal, sx - side * 0.06, 2.42, -0.95, 0.28, 0.14, 1.34);
       piece(staticOffice, solid, darkMetal, sx - side * 0.04, 1.25, -0.32, 0.14, 2.45, 0.08);
       piece(staticOffice, solid, darkMetal, sx - side * 0.04, 1.25, -1.58, 0.14, 2.45, 0.08);
-      piece(staticOffice, solid, darkMetal, side * 2.98, 1.36, -0.18, 0.1, 0.58, 0.22);
-
-      // Transparent window glass stays unmerged on g for clean alpha sorting
-      piece(g, solid, glassMat, sx, 1.72, -2.35, 0.05, 1.36, 1.18, { shadow: false, receive: false });
+      piece(staticOffice, solid, brassMaterial(PALETTE.brass), sx - side * 0.02, 1.03, -2.35, 0.26, 0.05, 1.26);
     }
 
     // Security Desk + Dual CRT Monitor housings
-    piece(staticOffice, solid, deskWood, 0, 0.86, -2.22, 3.16, 0.12, 1.22);
-    piece(staticOffice, solid, darkMetal, -1.42, 0.42, -2.22, 0.14, 0.84, 1.08);
-    piece(staticOffice, solid, darkMetal, 1.42, 0.42, -2.22, 0.14, 0.84, 1.08);
-    piece(staticOffice, solid, darkMetal, 0, 0.42, -2.74, 2.75, 0.78, 0.08);
+    piece(staticOffice, solid, deskWood, 0, 0.86, -2.22, 3.20, 0.12, 1.24);
+    piece(staticOffice, solid, darkMetal, -1.44, 0.42, -2.22, 0.14, 0.84, 1.08);
+    piece(staticOffice, solid, darkMetal, 1.44, 0.42, -2.22, 0.14, 0.84, 1.08);
+    piece(staticOffice, solid, darkMetal, 0, 0.42, -2.74, 2.78, 0.78, 0.08);
 
-    // Monitor casings
+    // Monitor casings + crumpled Döner foil & shift note
     piece(staticOffice, solid, darkMetal, -0.80, 1.16, -2.32, 0.62, 0.46, 0.44);
     piece(staticOffice, solid, steelMat, -0.80, 1.54, -2.34, 0.50, 0.32, 0.36);
-    piece(staticOffice, solid, material(0xf4eedc, 0.85, 0.02), 0.20, 0.925, -1.96, 0.16, 0.01, 0.22).rotation.y = 0.22;
-    piece(staticOffice, orb, material(0xc4ccd8, 0.22, 0.82, true), 0.22, 0.96, -2.36, 0.08, 0.06, 0.08);
+    piece(staticOffice, solid, material(0xfff0a8, 0.85, 0.02), 0.18, 0.925, -1.94, 0.14, 0.01, 0.18).rotation.y = 0.22;
+    piece(staticOffice, orb, material(0xd0d8e8, 0.22, 0.82, true), 0.22, 0.96, -2.36, 0.08, 0.055, 0.08);
 
     batchStaticGroup(g, staticOffice, { castShadow: true, receiveShadow: true });
 
-    // Party garland (toggles off during power outage)
-    this.officeGarland = partyGarland(g, -2.5, 2.5, 3.16, -3.02);
+    // Separate Left & Right Window Glass panes (fog up with condensation when fryer heat rises!)
+    this.leftWindowGlassMat = new THREE.MeshStandardMaterial({
+      color: 0x8cb8d4,
+      transparent: true,
+      opacity: 0.15,
+      roughness: 0.18,
+      metalness: 0.38,
+    });
+    this.rightWindowGlassMat = this.leftWindowGlassMat.clone();
+    this.leftWindowGlass = piece(g, solid, this.leftWindowGlassMat, -3.1, 1.72, -2.35, 0.05, 1.36, 1.18, { shadow: false, receive: false });
+    this.rightWindowGlass = piece(g, solid, this.rightWindowGlassMat, 3.1, 1.72, -2.35, 0.05, 1.36, 1.18, { shadow: false, receive: false });
 
-    // Clickable Chef Torge Poster
-    const posterMat = new THREE.MeshStandardMaterial({ map: this.posterNormalTex, roughness: 0.52 });
-    this.officePoster = piece(g, solid, posterMat, 0.24, 1.98, -3.07, 1.1, 1.4, 0.04, { shadow: false });
+    // Hausordnung Poster (corrupts on Nights 4+) & Clickable Group Poster
+    this.officeRulesMat = new THREE.MeshStandardMaterial({ map: this.rulesPosterTex, roughness: 0.58 });
+    this.officeRulesPoster = piece(g, solid, this.officeRulesMat, -1.58, 1.98, -3.07, 0.96, 1.24, 0.035, { shadow: false });
+
+    const posterMat = new THREE.MeshStandardMaterial({ map: this.posterNormalTex, roughness: 0.48 });
+    this.officePoster = piece(g, solid, posterMat, 0.24, 1.98, -3.07, 1.18, 1.48, 0.04, { shadow: false });
     this.officePoster.userData.propKind = 'poster';
     this.clickables.push(this.officePoster);
+
+    // Festive Triangular Diner Bunting Garland
+    this.officeGarland = partyGarland(g, -2.55, 2.55, 3.16, -3.02);
 
     // Animated Industrial Steel Roller Shutters (Left & Right)
     this.leftShutter = new THREE.Group();
@@ -410,22 +434,27 @@ export class SceneView {
     piece(this.rightShutter, solid, shutterMat, 0, 0, 0, 0.14, 2.45, 1.24, { shadow: true });
     g.add(this.rightShutter);
 
-    // 3D Wall control LEDs
-    this.leftBtnDoor = piece(g, solid, emissive(0xff3b56), -2.92, 1.48, -0.18, 0.08, 0.16, 0.14);
-    this.leftBtnLight = piece(g, solid, emissive(0x73d7ff), -2.92, 1.24, -0.18, 0.08, 0.16, 0.14);
-    this.rightBtnDoor = piece(g, solid, emissive(0xff3b56), 2.92, 1.48, -0.18, 0.08, 0.16, 0.14);
-    this.rightBtnLight = piece(g, solid, emissive(0x73d7ff), 2.92, 1.24, -0.18, 0.08, 0.16, 0.14);
+    // Clickable 3D Doorframe Switch Boxes (Physical FNaF-1 DOOR + LIGHT buttons!)
+    this.leftSwitchBox = doorButtonBoxModel('left');
+    this.leftSwitchBox.root.position.set(-2.96, 1.36, -0.18);
+    g.add(this.leftSwitchBox.root);
+    this.clickables.push(this.leftSwitchBox.root);
+
+    this.rightSwitchBox = doorButtonBoxModel('right');
+    this.rightSwitchBox.root.position.set(2.96, 1.36, -0.18);
+    g.add(this.rightSwitchBox.root);
+    this.clickables.push(this.rightSwitchBox.root);
 
     // Hallway lights + Volumetric Hallway Beams!
-    this.leftHallLight = new THREE.PointLight(0xd9ecff, 0, 6.8, 1.4);
-    this.leftHallLight.position.set(-3.75, 2.15, -1.65);
+    this.leftHallLight = new THREE.PointLight(0xd9ecff, 0, 7.2, 1.35);
+    this.leftHallLight.position.set(-3.72, 2.18, -1.72);
     g.add(this.leftHallLight);
 
-    this.rightHallLight = new THREE.PointLight(0xd9ecff, 0, 6.8, 1.4);
-    this.rightHallLight.position.set(3.75, 2.15, -1.65);
+    this.rightHallLight = new THREE.PointLight(0xd9ecff, 0, 7.2, 1.35);
+    this.rightHallLight.position.set(3.72, 2.18, -1.72);
     g.add(this.rightHallLight);
 
-    const hallBeamGeo = new THREE.ConeGeometry(1.45, 2.6, 18, 1, true);
+    const hallBeamGeo = new THREE.ConeGeometry(1.5, 2.65, 18, 1, true);
     const hallBeamMat = new THREE.MeshBasicMaterial({
       color: 0xd0ebff,
       transparent: true,
@@ -435,12 +464,12 @@ export class SceneView {
       blending: THREE.AdditiveBlending,
     });
     this.leftHallBeam = new THREE.Mesh(hallBeamGeo, hallBeamMat);
-    this.leftHallBeam.position.set(-3.75, 1.45, -1.65);
+    this.leftHallBeam.position.set(-3.72, 1.45, -1.72);
     this.leftHallBeam.visible = false;
     g.add(this.leftHallBeam);
 
     this.rightHallBeam = new THREE.Mesh(hallBeamGeo, hallBeamMat);
-    this.rightHallBeam.position.set(3.75, 1.45, -1.65);
+    this.rightHallBeam.position.set(3.72, 1.45, -1.72);
     this.rightHallBeam.visible = false;
     g.add(this.rightHallBeam);
 
@@ -460,9 +489,9 @@ export class SceneView {
     g.add(this.steamValve.root);
     this.clickables.push(this.steamValve.root);
 
-    // Center Desk Fan, Spezi, Mini Duck & Mug
+    // Center Desk Fan, Crisp Spezi Can, Chef Mini Duck & Coffee Mug
     this.deskFan = deskFanModel();
-    this.deskFan.root.position.set(-0.12, 0.92, -2.18);
+    this.deskFan.root.position.set(-0.14, 0.92, -2.18);
     g.add(this.deskFan.root);
 
     this.deskSpezi = speziModel();
@@ -472,16 +501,16 @@ export class SceneView {
     this.clickables.push(this.deskSpezi);
 
     this.deskMiniDuck = miniDuckModel();
-    this.deskMiniDuck.position.set(0.66, 0.92, -1.90);
-    this.deskMiniDuck.rotation.y = -0.55;
+    this.deskMiniDuck.position.set(0.64, 0.92, -1.92);
+    this.deskMiniDuck.rotation.y = -0.52;
     this.deskMiniDuck.userData.propKind = 'duck';
     g.add(this.deskMiniDuck);
     this.clickables.push(this.deskMiniDuck);
 
     this.deskMug = new THREE.Group();
-    this.deskMug.position.set(0.58, 0.92, -2.34);
-    piece(this.deskMug, round, material(0xf4ebd9, 0.4, 0.1), 0, 0.11, 0, 0.082, 0.22, 0.082, { shadow: false });
-    piece(this.deskMug, round, material(0x2a140c, 0.3, 0.1), 0, 0.21, 0, 0.070, 0.02, 0.070, { shadow: false });
+    this.deskMug.position.set(0.56, 0.92, -2.34);
+    piece(this.deskMug, round, material(0xf4ebd9, 0.4, 0.1), 0, 0.09, 0, 0.072, 0.18, 0.072, { shadow: false });
+    piece(this.deskMug, round, material(0x2a140c, 0.3, 0.1), 0, 0.172, 0, 0.062, 0.02, 0.062, { shadow: false });
     g.add(this.deskMug);
 
     // Interactive 3D Nacht-Bon Receipt Printer (Right Desk)
@@ -493,56 +522,55 @@ export class SceneView {
 
     // Retro Security Telephone
     this.deskPhone = officePhoneModel();
-    this.deskPhone.root.position.set(1.30, 0.92, -2.22);
+    this.deskPhone.root.position.set(1.32, 0.92, -2.22);
     this.deskPhone.root.rotation.y = -0.32;
     g.add(this.deskPhone.root);
 
-    // Office Threats
+    // Office Hallway Threats (Endo-Stare enabled for terrifying window/doorway reveals!)
     this.officeAnton = lostAntonModel();
-    this.officeAnton.root.position.set(-3.72, 0.02, -1.12);
-    this.officeAnton.root.rotation.y = Math.PI / 2 - 0.15;
+    setEndoEyes(this.officeAnton, true);
     this.officeAnton.root.visible = false;
     g.add(this.officeAnton.root);
 
     this.officeTom = schnorrerTomModel();
-    this.officeTom.root.position.set(3.52, 0.36, -2.26);
-    this.officeTom.root.rotation.y = -Math.PI / 2 + 0.16;
+    setEndoEyes(this.officeTom, true);
     this.officeTom.root.visible = false;
     g.add(this.officeTom.root);
 
     this.officeOutageTorge = chefTorgeModel();
-    this.officeOutageTorge.root.position.set(-3.68, 0.0, -0.98);
-    this.officeOutageTorge.root.rotation.y = Math.PI / 2 - 0.1;
+    setEndoEyes(this.officeOutageTorge, true);
     this.officeOutageTorge.root.visible = false;
     g.add(this.officeOutageTorge.root);
-    this.outageEyeLight = new THREE.PointLight(0x88f4ff, 0, 2.4, 2.0);
+
+    this.outageEyeLight = new THREE.PointLight(0x88f4ff, 0, 2.5, 2.0);
     this.outageEyeLight.position.set(-3.25, 1.78, -0.95);
     g.add(this.outageEyeLight);
 
     this.officeGoldenDuck = goldenDuckModel();
-    this.officeGoldenDuck.root.position.set(0.08, 0.0, -1.18);
+    this.officeGoldenDuck.root.position.set(0.06, 0.18, -1.34);
     this.officeGoldenDuck.root.visible = false;
     g.add(this.officeGoldenDuck.root);
   }
 
   buildCctvRooms() {
     const g = this.cctvRoot;
-    this.cctvAmb = new THREE.AmbientLight(0x2e3d4f, 0.98);
+    this.cctvAmb = new THREE.AmbientLight(0x343a4c, 1.04);
     g.add(this.cctvAmb);
 
-    this.cctvSpot = new THREE.SpotLight(0xdff5ff, 34, 18, 0.88, 0.58, 1.2);
+    this.cctvSpot = new THREE.SpotLight(0xe4f5ff, 36, 18, 0.88, 0.58, 1.2);
     g.add(this.cctvSpot, this.cctvSpot.target);
 
-    this.cctvFill = new THREE.PointLight(0xffb84d, 5.4, 11, 1.55);
+    this.cctvFill = new THREE.PointLight(0xffb84d, 5.6, 11, 1.55);
     g.add(this.cctvFill);
 
-    const floorMat = new THREE.MeshStandardMaterial({ map: this.floorTex, roughness: 0.64 });
-    const wallMat = new THREE.MeshStandardMaterial({ map: this.wallTex, roughness: 0.72 });
+    const floorMat = new THREE.MeshStandardMaterial({ map: this.floorTex, roughness: 0.58 });
+    const wallMat = new THREE.MeshStandardMaterial({ map: this.wallTex, roughness: 0.68 });
     const darkMat = material(0x161a26, 0.7, 0.15);
     const steel = material(0x7c8ca3, 0.32, 0.65);
-    const redCurtain = material(0x8f1d2c, 0.65, 0.08);
-    const creamCurtain = material(0xe3d6b8, 0.65, 0.06);
-    const wood = new THREE.MeshStandardMaterial({ map: this.deskTex, roughness: 0.68 });
+    const redCurtain = material(0x8f1d2c, 0.62, 0.08);
+    const purpleCurtain = material(0x52267a, 0.62, 0.08);
+    const creamCurtain = material(0xe8dcc0, 0.62, 0.06);
+    const wood = new THREE.MeshStandardMaterial({ map: this.deskTex, roughness: 0.65 });
     const menuMat = new THREE.MeshBasicMaterial({ map: this.menuBoardTex });
     const stageNeonMat = new THREE.MeshBasicMaterial({ map: this.neonStageTex });
     const hallNeonMat = new THREE.MeshBasicMaterial({ map: this.neonHallTex });
@@ -564,40 +592,45 @@ export class SceneView {
 
     this.rooms = {};
 
-    // CAM 1A: Döner-Bühne
-    this.rooms['1A'] = makeRoom(7.2, 6.0, (st, r) => {
-      piece(st, solid, wood, 0, 0.22, -1.65, 5.4, 0.44, 2.2);
-      piece(st, solid, redCurtain, -2.55, 1.85, -2.7, 0.9, 3.2, 0.35);
-      piece(st, solid, redCurtain, 2.55, 1.85, -2.7, 0.9, 3.2, 0.35);
-      piece(st, solid, stageNeonMat, 0, 2.58, -2.86, 2.5, 0.85, 0.06);
-      partyGarland(st, -2.8, 2.8, 3.05, -2.3);
+    // CAM 1A: Döner-Bühne (Twin Döner Spits + Velvet Curtains + Bunting)
+    this.rooms['1A'] = makeRoom(7.4, 6.0, (st, r) => {
+      piece(st, solid, wood, 0, 0.22, -1.65, 5.6, 0.44, 2.2);
+      piece(st, solid, brassMaterial(PALETTE.brass), 0, 0.44, -0.56, 5.64, 0.04, 0.06);
+      piece(st, solid, redCurtain, -2.65, 1.85, -2.7, 0.95, 3.2, 0.35);
+      piece(st, solid, redCurtain, 2.65, 1.85, -2.7, 0.95, 3.2, 0.35);
+      piece(st, solid, stageNeonMat, 0, 2.58, -2.86, 2.55, 0.85, 0.06);
+      partyGarland(st, -2.9, 2.9, 3.08, -2.3);
       this.stageSpit = donerSpitModel();
-      this.stageSpit.root.position.set(2.15, 0.44, -1.55);
+      this.stageSpit.root.position.set(2.22, 0.44, -1.62);
       this.stageSpit.root.rotation.y = -0.35;
       r.add(this.stageSpit.root);
     });
 
-    // CAM 1B: Gastraum
+    // CAM 1B: Gastraum (+ Retro FLAPPY ENTE '87 Arcade Cabinet!)
     this.rooms['1B'] = makeRoom(8.2, 7.6, (st) => {
-      partyGarland(st, -3.5, 3.5, 3.05, -2.2);
-      piece(st, solid, menuMat, 0, 2.2, -3.65, 2.6, 1.25, 0.06);
-      for (const [tx, tz] of [[-2.0, -1.4], [2.0, -1.4], [-2.0, 1.2], [2.0, 1.2]]) {
+      partyGarland(st, -3.5, 3.5, 3.08, -2.2);
+      piece(st, solid, menuMat, 0, 2.25, -3.65, 2.65, 1.25, 0.06);
+      const cab = arcadeCabinetModel(this.arcadeTex);
+      cab.position.set(-3.2, 0, -2.95);
+      cab.rotation.y = 0.35;
+      st.add(cab);
+      for (const [tx, tz] of [[-1.95, -1.3], [2.05, -1.3], [-1.95, 1.25], [2.05, 1.25]]) {
         piece(st, solid, wood, tx, 0.78, tz, 1.55, 0.1, 1.0);
-        piece(st, solid, material(0xc4283b, 0.6, 0.05), tx, 0.835, tz, 1.48, 0.02, 0.92);
+        piece(st, solid, material(0xc4283b, 0.55, 0.05), tx, 0.835, tz, 1.48, 0.02, 0.92);
         piece(st, round, darkMat, tx, 0.38, tz, 0.12, 0.76, 0.12);
         piece(st, tapered, emissive(0xff3b56), tx - 0.34, 0.94, tz, 0.05, 0.2, 0.05);
         piece(st, tapered, material(0xf4ebd9, 0.4, 0.1), tx + 0.25, 0.94, tz, 0.05, 0.2, 0.05);
         const can = speziModel();
         can.position.set(tx + 0.02, 0.84, tz + 0.18);
-        can.scale.setScalar(0.65);
+        can.scale.setScalar(0.82);
         st.add(can);
       }
     });
 
-    // CAM 1C: Haukes Buffet-Bucht
+    // CAM 1C: Haukes Buffet-Bucht (Pirate Cove Homage Curtains + Easel Sign)
     this.rooms['1C'] = makeRoom(6.4, 5.8, (st, r) => {
-      piece(st, solid, wood, 0, 0.18, -1.5, 4.2, 0.36, 2.2);
-      piece(st, round, steel, 0, 3.22, -0.52, 0.05, 4.4, 0.05).rotation.z = Math.PI / 2;
+      piece(st, solid, wood, 0, 0.18, -1.5, 4.3, 0.36, 2.2);
+      piece(st, round, steel, 0, 3.22, -0.52, 0.05, 4.5, 0.05).rotation.z = Math.PI / 2;
       const crackMat = material(0x090a10, 0.95, 0);
       piece(st, solid, crackMat, -0.35, 0.01, 0.45, 0.08, 0.02, 1.4).rotation.y = 0.42;
       piece(st, solid, crackMat, 0.22, 0.01, 0.72, 0.06, 0.02, 1.1).rotation.y = -0.35;
@@ -606,12 +639,12 @@ export class SceneView {
       this.coveCurtainL = new THREE.Group();
       this.coveCurtainR = new THREE.Group();
       for (let i = 0; i < 4; i++) {
-        piece(this.coveCurtainL, solid, i % 2 === 0 ? redCurtain : creamCurtain, -1.45 + i * 0.36, 1.75, -0.52, 0.35, 3.0, 0.14);
-        piece(this.coveCurtainR, solid, i % 2 === 0 ? creamCurtain : redCurtain, 0.37 + i * 0.36, 1.75, -0.52, 0.35, 3.0, 0.14);
+        piece(this.coveCurtainL, solid, i % 2 === 0 ? purpleCurtain : creamCurtain, -1.45 + i * 0.36, 1.75, -0.52, 0.35, 3.0, 0.14);
+        piece(this.coveCurtainR, solid, i % 2 === 0 ? creamCurtain : purpleCurtain, 0.37 + i * 0.36, 1.75, -0.52, 0.35, 3.0, 0.14);
       }
       r.add(this.coveCurtainL, this.coveCurtainR);
 
-      this.coveSignMat = new THREE.MeshStandardMaterial({ map: this.signNormalTex, roughness: 0.55 });
+      this.coveSignMat = new THREE.MeshStandardMaterial({ map: this.signNormalTex, roughness: 0.52 });
       piece(r, solid, this.coveSignMat, 1.68, 1.15, 0.45, 1.24, 0.64, 0.08).rotation.y = -0.35;
     });
 
@@ -624,16 +657,17 @@ export class SceneView {
       piece(st, tapered, material(0xf5c838, 0.45, 0.08), -1.15, 0.35, 0.6, 0.18, 0.7, 0.18);
     });
 
-    // CAM 2B: West-Ecke (+ Steam Pipe & Steam Burst Cloud!)
+    // CAM 2B: West-Ecke (+ Brass Steam Nozzle & Changing Golden Duck Poster)
     this.rooms['2B'] = makeRoom(4.0, 5.4, (st, r) => {
       const cr = crateMesh(false);
       cr.position.set(1.25, 0, -1.8);
       st.add(cr);
-      piece(st, round, steel, 1.72, 2.65, -0.6, 0.07, 3.4, 0.07).rotation.x = Math.PI / 2;
+      piece(st, round, brassMaterial(PALETTE.copper), 1.72, 2.65, -0.6, 0.07, 3.4, 0.07).rotation.x = Math.PI / 2;
+      piece(st, tapered, brassMaterial(PALETTE.brass), 1.56, 2.42, -0.6, 0.09, 0.22, 0.09).rotation.z = Math.PI * 0.35;
       piece(st, solid, emissive(0xff3b56), 0.2, 3.25, -2.55, 0.65, 0.22, 0.06);
 
-      this.cam2bPosterMat = new THREE.MeshStandardMaterial({ map: this.posterNormalTex, roughness: 0.52 });
-      piece(r, solid, this.cam2bPosterMat, -1.86, 1.72, -0.8, 0.05, 1.45, 1.1);
+      this.cam2bPosterMat = new THREE.MeshStandardMaterial({ map: this.posterNormalTex, roughness: 0.48 });
+      piece(r, solid, this.cam2bPosterMat, -1.86, 1.72, -0.8, 0.05, 1.48, 1.12);
       this.cam2bSteam = hallSteamCloudModel();
       r.add(this.cam2bSteam.group);
     });
@@ -646,9 +680,10 @@ export class SceneView {
         st.add(box);
       }
       const s1 = speziModel();
-      s1.position.set(1.15, 0.64, -1.45);
+      s1.position.set(1.15, 0.62, -1.45);
       st.add(s1);
       piece(st, round, wood, -1.55, 0.9, -0.2, 0.03, 1.8, 0.03).rotation.z = -0.14;
+      piece(st, orb, emissive(0xffe09e), 0, 3.12, -0.6, 0.08, 0.09, 0.08);
     });
 
     // CAM 4A: Ost-Flur
@@ -657,26 +692,34 @@ export class SceneView {
       piece(st, round, darkMat, -1.35, 0.4, -2.6, 0.28, 0.8, 0.28);
     });
 
-    // CAM 4B: Ost-Ecke (+ Steam Pipe & Steam Burst Cloud!)
+    // CAM 4B: Ost-Ecke (+ Brass Steam Nozzle & Steam Burst Cloud)
     this.rooms['4B'] = makeRoom(3.8, 5.2, (st, r) => {
       piece(st, solid, steel, -1.38, 0.82, -1.6, 0.78, 1.64, 0.76);
-      piece(st, round, steel, 1.68, 2.65, -0.5, 0.07, 3.2, 0.07).rotation.x = Math.PI / 2;
+      piece(st, round, brassMaterial(PALETTE.copper), 1.68, 2.65, -0.5, 0.07, 3.2, 0.07).rotation.x = Math.PI / 2;
+      piece(st, tapered, brassMaterial(PALETTE.brass), 1.52, 2.42, -0.5, 0.09, 0.22, 0.09).rotation.z = Math.PI * 0.35;
       piece(st, solid, emissive(0x38f2af), -0.98, 1.45, -1.45, 0.04, 0.08, 0.14);
       this.cam4bSteam = hallSteamCloudModel();
       r.add(this.cam4bSteam.group);
     });
 
-    // CAM 5: Fritteusen-Werkstatt
-    this.rooms['5'] = makeRoom(5.8, 5.6, (st) => {
+    // CAM 5: Ersatzteil-Werkstatt (+ Creepy Staring Spare Mascot Heads!)
+    this.cam5Heads = [];
+    this.rooms['5'] = makeRoom(5.8, 5.6, (st, r) => {
       piece(st, solid, steel, 0, 0.55, -1.65, 2.5, 0.96, 1.02);
       piece(st, solid, emissive(0xff8e42), -0.45, 1.05, -1.65, 0.82, 0.06, 0.64);
       piece(st, solid, emissive(0xff6b2b), 0.55, 1.05, -1.65, 0.72, 0.06, 0.64);
-      piece(st, solid, wood, -1.95, 1.5, -2.25, 1.1, 0.06, 0.55);
-      piece(st, solid, wood, -1.95, 2.0, -2.25, 1.1, 0.06, 0.55);
-      for (let i = 0; i < 3; i++) {
+      piece(st, solid, wood, -1.95, 1.45, -2.25, 1.35, 0.06, 0.55);
+      piece(st, solid, wood, -1.95, 2.05, -2.25, 1.35, 0.06, 0.55);
+      for (let i = 0; i < 2; i++) {
         const spare = crownMesh(0.75);
-        spare.position.set(-2.2 + i * 0.34, 1.56 + (i % 2) * 0.5, -2.22);
+        spare.position.set(-2.35 + i * 0.45, 2.11, -2.22);
         st.add(spare);
+      }
+      for (let i = 0; i < 3; i++) {
+        const sh = spareMascotHeadMesh(i);
+        sh.root.position.set(-2.38 + i * 0.44, 1.48, -2.20);
+        r.add(sh.root);
+        this.cam5Heads.push(sh);
       }
     });
 
@@ -693,13 +736,11 @@ export class SceneView {
 
   buildJumpscareStage() {
     const g = this.jumpscareRoot;
-    this.jsAmb = new THREE.AmbientLight(0x281018, 1.15);
-    g.add(this.jsAmb);
-    this.jsStrobe = new THREE.PointLight(0xffffff, 26, 8, 1.2);
-    this.jsStrobe.position.set(0, 1.65, 0.8);
+    this.jsStrobe = new THREE.PointLight(0xffffff, 24, 9, 1.2);
+    this.jsStrobe.position.set(0, 1.72, 0.95);
     g.add(this.jsStrobe);
-    this.jsRed = new THREE.PointLight(0xff2040, 20, 8, 1.2);
-    this.jsRed.position.set(0.6, 1.4, 0.4);
+    this.jsRed = new THREE.PointLight(0xff2040, 22, 9, 1.2);
+    this.jsRed.position.set(0.55, 1.45, 0.55);
     g.add(this.jsRed);
 
     this.jsModels = {
@@ -710,6 +751,7 @@ export class SceneView {
       duck: goldenDuckModel(),
     };
     for (const m of Object.values(this.jsModels)) {
+      setEndoEyes(m, true);
       m.root.visible = false;
       g.add(m.root);
     }
@@ -748,7 +790,6 @@ export class SceneView {
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.postScene, this.postCamera);
 
-    // Lightweight FPS tracker
     const now = performance.now();
     this.fpsFrames += 1;
     this.fpsAccum += now - this.fpsLastNow;
@@ -765,7 +806,7 @@ export class SceneView {
     const reduced = this.isReducedMotion();
     const sway = reduced ? 0 : Math.sin(time * 0.45) * 0.04;
     this.camera.position.set(sway, 1.58, 2.02);
-    this.camera.rotation.set(-0.04, sway * -0.15, 0);
+    this.camera.rotation.set(-0.03, sway * -0.15, 0);
 
     this.titleSpit.spit.rotation.y = time * 1.1;
     this.titleDust.rotation.y = time * 0.04;
@@ -782,17 +823,18 @@ export class SceneView {
     this.titleTom.root.visible = showTom;
 
     if (this.titleTorge.root.visible) {
+      setEndoEyes(this.titleTorge, glitch);
       const twitch = glitch ? (Math.sin(time * 95) * 0.24) : Math.sin(time * 0.85) * 0.045;
       this.titleTorge.head.rotation.z = twitch;
-      this.titleTorge.head.rotation.y = -0.18 + (glitch ? Math.cos(time * 73) * 0.18 : Math.sin(time * 0.5) * 0.04);
+      this.titleTorge.head.rotation.y = -0.16 + (glitch ? Math.cos(time * 73) * 0.18 : Math.sin(time * 0.5) * 0.05);
       this.titleTorge.core.position.y = Math.sin(time * 1.6) * 0.015;
-      this.titleTorge.eyes.visible = !glitch || Math.sin(time * 60) > 0;
+      this.titleTorge.jaw.rotation.x = glitch ? 0.34 : Math.max(0, Math.sin(time * 2.1)) * 0.08;
     }
-    this.titleSpot.intensity = glitch ? 16 + Math.random() * 22 : 33 + Math.sin(time * 3.1) * 2.5;
+    this.titleSpot.intensity = glitch ? 14 + Math.random() * 16 : 22 + Math.sin(time * 3.1) * 2.0;
 
     this.renderPass(time, {
       cctv: 0,
-      staticAmt: glitch ? 0.36 : 0.04,
+      staticAmt: glitch ? 0.36 : 0.035,
       blackout: 0,
       shock: glitch ? 0.28 : 0,
       quake: 0,
@@ -800,56 +842,45 @@ export class SceneView {
     });
   }
 
-  draw(run) {
-    if (!run) return;
+  syncOfficeEnvironment(run) {
     const t = run.time;
-
-    if (run.state === 'jumpscare' && run.jumpscare) {
-      this.drawJumpscare(run);
-      return;
-    }
-
-    if (run.monitorOpen && !run.powerOutage) {
-      this.drawCctv(run);
-      return;
-    }
-
-    // OFFICE VIEW
-    this.setMode('office');
     const out = run.powerOutage;
     const reduced = this.isReducedMotion();
     const q = (run.quake || 0) * (reduced ? 0.2 : 1);
-    const shakeX = q > 0.01 ? (Math.sin(run.quakeTime * 54) * 0.095 * q) : 0;
-    const shakeY = q > 0.01 ? (Math.cos(run.quakeTime * 68) * 0.075 * q) : 0;
-    const shakeRoll = q > 0.01 ? (Math.sin(run.quakeTime * 46) * 0.055 * q) : 0;
-
-    const look = Number.isFinite(run.lookSmooth) ? run.lookSmooth : run.lookX;
-    const breathY = reduced ? 0 : Math.sin(t * 1.55) * 0.011;
-    const panRoll = reduced ? 0 : -(run.lookVel || 0) * 0.008;
-
-    this.camera.position.set(look * 0.34 + shakeX, 1.62 + breathY + shakeY, 0.72);
-    this.camera.rotation.set(-0.04, -look * 0.62, shakeRoll + panRoll);
 
     const leftBounce = Math.sin(run.leftDoorBounce * Math.PI * 2.5) * 0.05 * run.leftDoorBounce;
     const rightBounce = Math.sin(run.rightDoorBounce * Math.PI * 2.5) * 0.05 * run.rightDoorBounce;
     this.leftShutter.position.y = 3.55 - run.leftDoorAnim * 2.38 + leftBounce;
     this.rightShutter.position.y = 3.55 - run.rightDoorAnim * 2.38 + rightBounce;
 
-    this.leftBtnDoor.material.color.setHex(run.leftJammed ? 0x222630 : run.leftDoor ? 0x38f2af : 0xff3b56);
-    this.leftBtnLight.material.color.setHex(run.leftJammed ? 0x222630 : run.leftLight ? 0xffe082 : 0x5282a8);
-    this.rightBtnDoor.material.color.setHex(run.rightJammed ? 0x222630 : run.rightDoor ? 0x38f2af : 0xff3b56);
-    this.rightBtnLight.material.color.setHex(run.rightJammed ? 0x222630 : run.rightLight ? 0xffe082 : 0x5282a8);
+    // 3D Clickable Doorframe Button LEDs
+    this.leftSwitchBox.doorMat.color.setHex(run.leftJammed ? 0x222630 : run.leftDoor ? 0x38f2af : 0xff3b56);
+    this.leftSwitchBox.lightMat.color.setHex(run.leftJammed ? 0x222630 : run.leftLight ? 0xffe082 : 0x5282a8);
+    this.rightSwitchBox.doorMat.color.setHex(run.rightJammed ? 0x222630 : run.rightDoor ? 0x38f2af : 0xff3b56);
+    this.rightSwitchBox.lightMat.color.setHex(run.rightJammed ? 0x222630 : run.rightLight ? 0xffe082 : 0x5282a8);
 
-    // Desk props animation + live CRT displays
+    // Corrupted Hausordnung lore poster on Nights 4+
+    const wantRulesTex = run.night >= 4 ? this.rulesPosterCorruptTex : this.rulesPosterTex;
+    if (this.officeRulesMat.map !== wantRulesTex) {
+      this.officeRulesMat.map = wantRulesTex;
+      this.officeRulesMat.needsUpdate = true;
+    }
+
     if (!out) {
-      this.deskFan.blades.rotation.z = t * 20;
+      const fanSpeed = (run.speziBoostUntil ?? 0) > t ? 28 : 20;
+      this.deskFan.blades.rotation.z = t * fanSpeed;
       this.officeDust.rotation.y = t * 0.035;
       this.officeDust.position.y = Math.sin(t * 0.7) * 0.05;
       this.liveDisplays.update(run);
     }
 
-    // 3D Steam Valve Manometer & Rising Steam Puffs!
+    // Window glass steam condensation when fryer heat rises!
     const heat = run.thermal?.heat ?? 16;
+    const glassFog = out ? 0.12 : 0.14 + Math.max(0, (heat - 58) / 42) * 0.34;
+    this.leftWindowGlassMat.opacity = glassFog;
+    this.rightWindowGlassMat.opacity = glassFog;
+
+    // 3D Steam Valve Manometer & Rising Steam Puffs
     const venting = (run.thermal?.ventingUntil ?? 0) > t;
     const needleAngle = (0.5 - heat / 100) * 2.55;
     this.steamValve.needlePivot.rotation.z = needleAngle;
@@ -877,7 +908,7 @@ export class SceneView {
       }
     }
 
-    // 3D Thermal Bon Printer animation!
+    // 3D Thermal Bon Printer animation
     const activeBon = run.orders?.active;
     const stampPop = run.orders?.stampBounce ?? 0;
     this.deskBonPrinter.root.position.y = 0.92 + Math.sin(stampPop * Math.PI) * 0.045;
@@ -885,10 +916,13 @@ export class SceneView {
       this.deskBonPrinter.paperGroup.visible = true;
       const elapsed = Math.min(1, (t - activeBon.createdAt) / 0.85);
       const urgent = activeBon.deadline - t < 5.0;
+      const express = (t - activeBon.createdAt) <= 5.5;
       this.deskBonPrinter.paperGroup.scale.y = 0.2 + elapsed * 0.8;
       this.deskBonPrinter.paperGroup.position.y = 0.16 + elapsed * 0.04;
-      const blink = Math.sin(t * (urgent ? 18 : 9)) > 0;
-      this.deskBonPrinter.ledMat.color.setHex(urgent ? (blink ? 0xff3550 : 0x3a0c14) : (blink ? 0xffcf56 : 0x38f2af));
+      const blink = Math.sin(t * (urgent ? 18 : 11)) > 0;
+      this.deskBonPrinter.ledMat.color.setHex(
+        urgent ? (blink ? 0xff3550 : 0x3a0c14) : express ? (blink ? 0x38f2af : 0x165c42) : (blink ? 0xffcf56 : 0x38f2af),
+      );
       this.deskBonPrinter.lcdMat.color.setHex(urgent ? 0x5c1824 : 0x1d5c48);
     } else {
       this.deskBonPrinter.paperGroup.visible = false;
@@ -918,7 +952,7 @@ export class SceneView {
     const lowPowerAmt = !out && run.power <= 20 ? Math.min(1, (20 - run.power) / 18 + 0.2) : 0;
 
     if (out) {
-      this.officeAmb.intensity = 0.025;
+      this.officeAmb.intensity = 0.03;
       this.officeLight.intensity = 0;
       this.emergencyLight.intensity = 0;
       this.officeLightCone.visible = false;
@@ -933,44 +967,106 @@ export class SceneView {
       this.leftHallBeam.visible = false;
       this.rightHallBeam.visible = false;
     } else {
-      this.officeAmb.intensity = 1.05;
-      this.officeLight.intensity = (14.8 - q * 4.2 - lowPowerAmt * 3.2) * run.lightFlicker;
+      this.officeAmb.intensity = 1.12;
+      this.officeLight.intensity = (16.0 - q * 4.2 - lowPowerAmt * 3.2) * run.lightFlicker;
       this.emergencyLight.intensity = lowPowerAmt > 0 ? (2.2 + Math.sin(t * 5.2) * 1.4) * lowPowerAmt : 0;
       this.officeLightCone.visible = true;
       this.officeDust.visible = this.settings.graphics !== 'retro';
-      this.officeBulbOrb.material.color.setHex(0xffdf9e);
+      this.officeBulbOrb.material.color.setHex(0xffe2a8);
       this.officeGarland.visible = true;
       this.deskCrt1.visible = true;
       this.deskCrt2.visible = true;
       const warnGlow = (run.seismicLevel || 0) > 0.35 || heat >= 75;
       this.deskCrtGlow.color.setHex(warnGlow ? 0xff3b56 : activeBon ? 0xffcf56 : 0x38f2af);
       this.deskCrtGlow.intensity = warnGlow ? (2.2 + Math.sin(t * 18) * 0.6) : 1.35;
-      this.leftHallLight.intensity = run.leftLight ? (27 * run.lightFlicker) : 0;
-      this.rightHallLight.intensity = run.rightLight ? (27 * run.lightFlicker) : 0;
+      this.leftHallLight.intensity = run.leftLight ? (22 * run.lightFlicker) : 0;
+      this.rightHallLight.intensity = run.rightLight ? (22 * run.lightFlicker) : 0;
       this.leftHallBeam.visible = Boolean(run.leftLight);
       this.rightHallBeam.visible = Boolean(run.rightLight);
     }
 
-    const showAnton = !out && run.leftLight && run.animatronics.anton.room === 'left_door';
-    const showTom = !out && run.rightLight && run.animatronics.tom.room === 'right_door';
-    this.officeAnton.root.visible = showAnton;
-    if (showAnton) {
-      this.officeAnton.head.rotation.z = 0.18 + Math.sin(t * 3.2) * 0.04;
-      this.officeAnton.core.position.y = Math.sin(t * 2.1) * 0.015;
-    }
-    this.officeTom.root.visible = showTom;
-    if (showTom) {
-      this.officeTom.head.rotation.y = Math.sin(t * 2.5) * 0.06;
-      this.officeTom.core.position.y = Math.sin(t * 2.4) * 0.015;
+    return { out, q, heat, lowPowerAmt, reduced };
+  }
+
+  draw(run) {
+    if (!run) return;
+    const t = run.time;
+
+    if (run.state === 'jumpscare' && run.jumpscare) {
+      this.drawJumpscare(run);
+      return;
     }
 
+    if (run.monitorOpen && !run.powerOutage) {
+      this.drawCctv(run);
+      return;
+    }
+
+    // OFFICE VIEW
+    this.setMode('office');
+    const { out, q, heat, lowPowerAmt, reduced } = this.syncOfficeEnvironment(run);
+
+    const shakeX = q > 0.01 ? (Math.sin(run.quakeTime * 54) * 0.095 * q) : 0;
+    const shakeY = q > 0.01 ? (Math.cos(run.quakeTime * 68) * 0.075 * q) : 0;
+    const shakeRoll = q > 0.01 ? (Math.sin(run.quakeTime * 46) * 0.055 * q) : 0;
+
+    const look = Number.isFinite(run.lookSmooth) ? run.lookSmooth : run.lookX;
+    const breathY = reduced ? 0 : Math.sin(t * 1.55) * 0.011;
+    const panRoll = reduced ? 0 : -(run.lookVel || 0) * 0.008;
+
+    this.camera.position.set(look * 0.34 + shakeX, 1.62 + breathY + shakeY, 0.72);
+    this.camera.rotation.set(-0.04, -look * 0.62, shakeRoll + panRoll);
+
+    // Authentic FNaF 1 Doorway & Window Threat Visibility!
+    // Left Light: Open door -> Anton in doorway; Closed door -> Anton's silhouette & glowing phone right outside Left Window!
+    const showAnton = !out && run.leftLight && run.animatronics.anton.room === 'left_door';
+    this.officeAnton.root.visible = showAnton;
+    if (showAnton) {
+      if (run.leftDoor) {
+        this.officeAnton.root.position.set(-3.48, 0.14, -2.32);
+        this.officeAnton.root.rotation.y = Math.PI / 2 + 0.12;
+      } else {
+        this.officeAnton.root.position.set(-3.62, 0.02, -1.06);
+        this.officeAnton.root.rotation.y = Math.PI / 2 - 0.18;
+      }
+      this.officeAnton.head.rotation.z = 0.18 + Math.sin(t * 3.8) * 0.05;
+      this.officeAnton.jaw.rotation.x = 0.16 + Math.abs(Math.sin(t * 3.1)) * 0.08;
+      this.officeAnton.arms[1].rotation.x = -0.85;
+    }
+
+    // Right Light: Tom pressed right up against the Right Office Window!
+    const showTom = !out && run.rightLight && run.animatronics.tom.room === 'right_door';
+    this.officeTom.root.visible = showTom;
+    if (showTom) {
+      this.officeTom.root.position.set(3.46, 0.24, -2.30);
+      this.officeTom.root.rotation.y = -Math.PI / 2 + 0.18;
+      this.officeTom.head.rotation.y = Math.sin(t * 2.8) * 0.07;
+      this.officeTom.jaw.rotation.x = 0.18 + Math.abs(Math.sin(t * 4.2)) * 0.10;
+    }
+
+    // Power Outage Torge (Left Doorway Toreador Jingle) OR Subtle East Blind-Spot Glint when Torge camps 4B!
     const showOutageTorge = Boolean(out && out.phase === 'jingle' && out.eyesOn);
-    this.officeOutageTorge.root.visible = showOutageTorge;
-    this.outageEyeLight.intensity = showOutageTorge ? 3.2 : 0;
+    const showEastTorgePeek = Boolean(!out && run.rightLight && !run.rightDoor && run.animatronics.torge.room === '4B');
+    this.officeOutageTorge.root.visible = showOutageTorge || showEastTorgePeek;
+    if (showOutageTorge) {
+      this.officeOutageTorge.root.position.set(-3.66, 0.0, -0.98);
+      this.officeOutageTorge.root.rotation.y = Math.PI / 2 - 0.10;
+      this.officeOutageTorge.jaw.rotation.x = 0.12 + Math.abs(Math.sin(t * 6.5)) * 0.16;
+      this.outageEyeLight.position.set(-3.25, 1.78, -0.95);
+      this.outageEyeLight.intensity = 3.4;
+    } else if (showEastTorgePeek) {
+      this.officeOutageTorge.root.position.set(4.18, 0.0, -1.28);
+      this.officeOutageTorge.root.rotation.y = -Math.PI / 2 + 0.12;
+      this.officeOutageTorge.jaw.rotation.x = 0.22;
+      this.outageEyeLight.position.set(3.65, 1.78, -1.25);
+      this.outageEyeLight.intensity = 1.6;
+    } else {
+      this.outageEyeLight.intensity = 0;
+    }
 
     this.officeGoldenDuck.root.visible = Boolean(run.goldenActive && !out);
     if (this.officeGoldenDuck.root.visible) {
-      this.officeGoldenDuck.head.rotation.z = -0.15 + Math.sin(t * 28) * 0.025;
+      this.officeGoldenDuck.head.rotation.z = -0.26 + Math.sin(t * 28) * 0.035;
     }
 
     const shock = Math.max(run.stingFlash * 1.4, run.doorSlamFlash * 1.1, run.goldenActive ? 0.35 : 0);
@@ -1019,6 +1115,7 @@ export class SceneView {
     }
     for (const m of [this.cctvTorge, this.cctvAnton, this.cctvTom, this.cctvHauke]) {
       m.root.visible = false;
+      if (m.jaw) m.jaw.rotation.x = 0;
     }
 
     const sweep = run.camPan * 0.28;
@@ -1026,12 +1123,10 @@ export class SceneView {
     const qx = q > 0.02 ? Math.sin(run.quakeTime * 58) * 0.08 * q : 0;
     const qy = q > 0.02 ? Math.cos(run.quakeTime * 66) * 0.06 * q : 0;
 
-    // Boost CCTV spotlight during IR-Flash!
-    const irBoost = (run.irFlash || 0) * 28;
-    this.cctvSpot.intensity = 34 + irBoost;
+    const irBoost = (run.irFlash || 0) * 18;
+    this.cctvSpot.intensity = 18.5 + irBoost;
     this.cctvFill.color.setHex(0xffb84d);
 
-    // Animate Hallway Steam Burst Clouds on CAM 2B / 4B!
     const burst = run.thermal?.burstVisual;
     const syncSteamCloud = (cloud, targetCam) => {
       if (!cloud) return;
@@ -1051,23 +1146,23 @@ export class SceneView {
     syncSteamCloud(this.cam4bSteam, '4B');
 
     if (camId === '1A') {
-      this.camera.position.set(0.2 + qx, 2.35 + qy, 2.35);
-      this.camera.lookAt(sweep * 2.2, 1.25, -1.6);
-      this.cctvSpot.position.set(0, 3.2, 1.5);
-      this.cctvSpot.target.position.set(0, 1.1, -1.6);
+      this.camera.position.set(0.15 + qx, 2.32 + qy, 2.42);
+      this.camera.lookAt(sweep * 2.1, 1.32, -1.55);
+      this.cctvSpot.position.set(0, 3.25, 1.6);
+      this.cctvSpot.target.position.set(0, 1.2, -1.6);
       this.cctvFill.position.set(0, 2.4, 0.2);
       this.stageSpit.spit.rotation.y = t * 1.4;
     } else if (camId === '1B') {
-      this.camera.position.set(-2.6 + qx, 2.55 + qy, 3.1);
-      this.camera.lookAt(sweep * 3.0, 1.0, -1.2);
+      this.camera.position.set(-2.5 + qx, 2.55 + qy, 3.1);
+      this.camera.lookAt(sweep * 2.8, 1.05, -1.25);
       this.cctvSpot.position.set(0, 3.3, 1.0);
       this.cctvSpot.target.position.set(0, 0.9, -1.5);
       this.cctvFill.position.set(0, 2.2, -1.5);
     } else if (camId === '1C') {
-      this.camera.position.set(-1.3 + qx, 2.2 + qy, 2.3);
-      this.camera.lookAt(0.2 + sweep * 1.5, 1.25, -1.2);
-      this.cctvSpot.position.set(0, 3.1, 1.8);
-      this.cctvSpot.target.position.set(0, 1.1, -1.2);
+      this.camera.position.set(-1.2 + qx, 2.22 + qy, 2.38);
+      this.camera.lookAt(0.15 + sweep * 1.3, 1.32, -1.1);
+      this.cctvSpot.position.set(0, 3.15, 1.85);
+      this.cctvSpot.target.position.set(0, 1.2, -1.1);
       this.cctvFill.color.setHex(0xb85cff);
       this.cctvFill.position.set(1.5, 1.9, 1.0);
       const openAmt = run.animatronics.hauke.curtainAnim ?? 0;
@@ -1082,15 +1177,15 @@ export class SceneView {
       this.cctvFill.position.set(0, 2.1, 0.4);
     } else if (camId === '2B') {
       this.camera.position.set(0.95 + qx, 2.25 + qy, 2.25);
-      this.camera.lookAt(-0.55 + sweep * 0.8, 1.45, -1.4);
+      this.camera.lookAt(-0.45 + sweep * 0.7, 1.48, -1.2);
       this.cctvSpot.position.set(0.5, 3.1, 1.6);
-      this.cctvSpot.target.position.set(-0.6, 1.3, -1.2);
+      this.cctvSpot.target.position.set(-0.5, 1.35, -1.1);
       this.cctvFill.color.setHex(run.goldenPoster ? 0xffcf4d : 0xff5a66);
       this.cctvFill.position.set(-0.5, 2.1, -0.5);
       this.cam2bPosterMat.map = run.goldenPoster ? this.posterGoldenTex : this.posterNormalTex;
     } else if (camId === '3') {
       this.camera.position.set(0.9 + qx, 2.6 + qy, 1.7);
-      this.camera.lookAt(-0.2 + sweep * 0.6, 1.2, -1.1);
+      this.camera.lookAt(-0.2 + sweep * 0.6, 1.25, -1.0);
       this.cctvSpot.position.set(0.2, 3.2, 1.2);
       this.cctvSpot.target.position.set(-0.2, 1.0, -1.0);
       this.cctvFill.position.set(0, 2.0, 0);
@@ -1102,106 +1197,128 @@ export class SceneView {
       this.cctvFill.color.setHex(0x38f2af);
       this.cctvFill.position.set(0.8, 2.2, -1.4);
     } else if (camId === '4B') {
-      this.camera.position.set(-0.7 + qx, 2.2 + qy, 2.05);
-      this.camera.lookAt(0.15 + sweep * 0.6, 1.45, -1.2);
+      this.camera.position.set(-0.7 + qx, 2.22 + qy, 2.05);
+      this.camera.lookAt(0.12 + sweep * 0.55, 1.48, -1.0);
       this.cctvSpot.position.set(-0.4, 3.0, 1.5);
-      this.cctvSpot.target.position.set(0.2, 1.3, -1.0);
+      this.cctvSpot.target.position.set(0.2, 1.35, -0.9);
       this.cctvFill.position.set(0, 2.1, 0);
     } else if (camId === '5') {
       this.camera.position.set(1.6 + qx, 2.35 + qy, 2.2);
-      this.camera.lookAt(-0.4 + sweep * 1.1, 1.3, -1.4);
+      this.camera.lookAt(-0.4 + sweep * 1.1, 1.35, -1.4);
       this.cctvSpot.position.set(0.6, 3.2, 1.6);
       this.cctvSpot.target.position.set(-0.3, 1.2, -1.4);
       this.cctvFill.color.setHex(0xff8e42);
       this.cctvFill.position.set(-0.4, 1.8, -1.4);
+      const stare = Boolean(run.cam5Stare);
+      for (const sh of this.cam5Heads) {
+        sh.pins.visible = stare;
+        sh.root.rotation.y = stare ? 0.62 : 0.12;
+      }
     }
 
     const { torge, anton, tom, hauke } = run.animatronics;
+    const stageStare = run.night >= 4 && Math.sin(t * 0.9) > 0.92;
 
     if (torge.room === camId) {
       this.cctvTorge.root.visible = true;
       this.cctvTorge.core.position.y = Math.sin(t * 1.7) * 0.014;
+      setEndoEyes(this.cctvTorge, camId !== '1A' || stageStare);
       if (camId === '1A') {
-        this.cctvTorge.root.position.set(0, 0.44, -1.6);
+        this.cctvTorge.root.position.set(0, 0.44, -1.55);
         this.cctvTorge.root.rotation.y = 0;
-        this.cctvTorge.head.rotation.y = Math.sin(t * 0.7) * 0.14;
+        this.cctvTorge.head.rotation.y = stageStare ? 0.08 : Math.sin(t * 0.7) * 0.14;
+        this.cctvTorge.head.rotation.x = stageStare ? -0.26 : 0;
+        this.cctvTorge.jaw.rotation.x = Math.max(0, Math.sin(t * 2.4)) * 0.12;
       } else if (camId === '1B') {
-        this.cctvTorge.root.position.set(0.3, 0, -2.5);
+        this.cctvTorge.root.position.set(0.3, 0, -2.35);
         this.cctvTorge.root.rotation.y = -0.35;
+        this.cctvTorge.head.rotation.x = -0.18;
       } else if (camId === '4A') {
-        this.cctvTorge.root.position.set(-0.55, 0, -1.4);
+        this.cctvTorge.root.position.set(-0.45, 0, -1.2);
         this.cctvTorge.root.rotation.y = 0.22;
+        this.cctvTorge.head.rotation.x = -0.16;
       } else if (camId === '4B') {
-        this.cctvTorge.root.position.set(0.05, 0.15, 0.45);
-        this.cctvTorge.root.rotation.y = -0.3;
-        this.cctvTorge.head.rotation.z = Math.sin(t * 2.2) * 0.06;
+        // Iconic FNaF-1 CAM 4B Freddy Extreme Close-Up Stare!
+        this.cctvTorge.root.position.set(-0.22, 0.22, 0.85);
+        this.cctvTorge.root.rotation.y = -0.32;
+        this.cctvTorge.head.rotation.x = -0.28;
+        this.cctvTorge.head.rotation.z = Math.sin(t * 2.2) * 0.07;
+        this.cctvTorge.jaw.rotation.x = 0.22 + Math.abs(Math.sin(t * 3.1)) * 0.12;
       }
     }
 
     if (anton.room === camId) {
       this.cctvAnton.root.visible = true;
       this.cctvAnton.core.position.y = Math.sin(t * 2.0) * 0.014;
+      const closeUp = camId === '2B' || camId === '5' || videoWarning || stageStare;
+      setEndoEyes(this.cctvAnton, closeUp);
       if (camId === '1A') {
-        this.cctvAnton.root.position.set(-1.32, 0.44, -1.55);
+        this.cctvAnton.root.position.set(-1.38, 0.44, -1.52);
         this.cctvAnton.root.rotation.y = 0.18;
       } else if (camId === '1B') {
-        this.cctvAnton.root.position.set(-1.35, 0, -0.4);
-        this.cctvAnton.root.rotation.y = 0.45;
+        this.cctvAnton.root.position.set(-1.25, 0, -0.35);
+        this.cctvAnton.root.rotation.y = 0.42;
       } else if (camId === '5') {
-        this.cctvAnton.root.position.set(0.55, 0.0, 0.55);
-        this.cctvAnton.root.rotation.y = 0.52;
+        // Iconic FNaF-1 Backstage Close-Up Lens Stare!
+        this.cctvAnton.root.position.set(0.68, 0.18, 0.92);
+        this.cctvAnton.root.rotation.y = 0.56;
       } else if (camId === '3') {
-        this.cctvAnton.root.position.set(0.0, 0, -0.4);
-        this.cctvAnton.root.rotation.y = 0.35;
+        this.cctvAnton.root.position.set(0.15, 0, 0.15);
+        this.cctvAnton.root.rotation.y = 0.48;
       } else if (camId === '2A') {
-        this.cctvAnton.root.position.set(0.5, 0, -0.8);
-        this.cctvAnton.root.rotation.y = -0.25;
+        this.cctvAnton.root.position.set(0.45, 0, -0.75);
+        this.cctvAnton.root.rotation.y = -0.22;
       } else if (camId === '2B') {
-        this.cctvAnton.root.position.set(0.2, 0.1, 0.45);
-        this.cctvAnton.root.rotation.y = 0.35;
+        const twitchMode = !reduced && (anton.subPose === 1 || run.ai.anton >= 12);
+        this.cctvAnton.root.position.set(0.32, 0.16, 0.85);
+        this.cctvAnton.root.rotation.y = 0.45;
+        this.cctvAnton.jaw.rotation.x = twitchMode ? (0.20 + Math.abs(Math.sin(t * 28)) * 0.28) : 0.12;
       }
       const stunned = (anton.stunUntil ?? 0) > t;
-      this.cctvAnton.head.rotation.z = stunned ? -0.32 : (0.16 + Math.sin(t * 2.1) * 0.04);
-      this.cctvAnton.arms[1].rotation.x = videoWarning ? -1.45 : stunned ? -1.9 : -0.15;
-      if (this.cctvAnton.phoneScreen) {
-        const pulseHex = videoWarning ? (Math.sin(t * 18) > 0 ? 0x38f2af : 0xff3b56) : 0x1a302b;
-        this.cctvAnton.phoneScreen.material.color.setHex(pulseHex);
-      }
+      this.cctvAnton.head.rotation.z = stunned ? -0.34 : (0.14 + Math.sin(t * 2.1) * 0.04);
+      this.cctvAnton.arms[1].rotation.x = videoWarning ? -1.45 : stunned ? -1.85 : -0.35;
       if (videoWarning) {
-        const lean = reduced ? 0.16 : 0.28;
+        const lean = reduced ? 0.16 : 0.30;
         this.cctvAnton.root.position.x = THREE.MathUtils.lerp(this.cctvAnton.root.position.x, this.camera.position.x, lean);
         this.cctvAnton.root.position.z = THREE.MathUtils.lerp(this.cctvAnton.root.position.z, this.camera.position.z, lean);
-        this.cctvAnton.head.rotation.z = -0.24;
+        this.cctvAnton.head.rotation.z = -0.22;
       }
     }
 
     if (tom.room === camId) {
       this.cctvTom.root.visible = true;
       this.cctvTom.core.position.y = Math.sin(t * 2.3) * 0.014;
+      setEndoEyes(this.cctvTom, camId === '4B' || stageStare);
       if (camId === '1A') {
-        this.cctvTom.root.position.set(1.28, 0.44, -1.55);
+        this.cctvTom.root.position.set(1.36, 0.44, -1.52);
         this.cctvTom.root.rotation.y = -0.18;
       } else if (camId === '1B') {
-        this.cctvTom.root.position.set(1.25, 0, 0.15);
-        this.cctvTom.root.rotation.y = -0.6;
+        this.cctvTom.root.position.set(1.22, 0, 0.18);
+        this.cctvTom.root.rotation.y = -0.58;
       } else if (camId === '4A') {
-        this.cctvTom.root.position.set(0.35, 0, -0.5);
+        this.cctvTom.root.position.set(0.35, 0, -0.45);
         this.cctvTom.root.rotation.y = -0.15;
       } else if (camId === '4B') {
-        this.cctvTom.root.position.set(0.15, 0.15, 0.55);
-        this.cctvTom.root.rotation.y = -0.32;
+        const twitchMode = !reduced && (tom.subPose === 1 || run.ai.tom >= 12);
+        this.cctvTom.root.position.set(-0.18, 0.22, 0.88);
+        this.cctvTom.root.rotation.y = -0.36;
+        this.cctvTom.head.rotation.z = twitchMode ? Math.sin(t * 24) * 0.18 : -0.12;
+        this.cctvTom.jaw.rotation.x = twitchMode ? (0.24 + Math.abs(Math.sin(t * 26)) * 0.24) : 0.14;
       }
     }
 
     if (camId === '1C' && hauke.stage < 3) {
       this.cctvHauke.root.visible = hauke.stage >= 1;
+      setEndoEyes(this.cctvHauke, hauke.stage >= 2);
       this.cctvHauke.core.position.y = Math.sin(t * 2.2) * 0.018;
       if (hauke.stage === 1) {
-        this.cctvHauke.root.position.set(0.0, 0.36, -1.25);
-        this.cctvHauke.root.rotation.y = -0.1;
+        this.cctvHauke.root.position.set(0.0, 0.36, -1.18);
+        this.cctvHauke.root.rotation.y = -0.14;
+        this.cctvHauke.jaw.rotation.x = 0.08;
       } else if (hauke.stage === 2) {
-        this.cctvHauke.root.position.set(0.0, 0.36, -0.45);
-        this.cctvHauke.root.rotation.y = -0.22;
+        this.cctvHauke.root.position.set(-0.08, 0.36, -0.28);
+        this.cctvHauke.root.rotation.y = -0.26;
+        this.cctvHauke.jaw.rotation.x = 0.24;
       }
       this.cctvHauke.legs[0].rotation.x = 0;
       this.cctvHauke.legs[1].rotation.x = 0;
@@ -1209,11 +1326,13 @@ export class SceneView {
       this.cctvHauke.arms[1].rotation.x = 0;
     } else if (camId === '2A' && hauke.sprint.active && hauke.sprint.triggered) {
       this.cctvHauke.root.visible = true;
+      setEndoEyes(this.cctvHauke, true);
       const p = Math.min(1, hauke.sprint.progress);
-      this.cctvHauke.root.position.set(Math.sin(t * 24) * 0.14, Math.abs(Math.sin(t * 22)) * 0.24, -4.2 + p * 7.2);
+      this.cctvHauke.root.position.set(Math.sin(t * 24) * 0.12, Math.abs(Math.sin(t * 22)) * 0.22, -4.2 + p * 7.2);
       this.cctvHauke.root.rotation.y = Math.sin(t * 18) * 0.1;
-      this.cctvHauke.legs[0].rotation.x = Math.sin(t * 22) * 0.9;
-      this.cctvHauke.legs[1].rotation.x = -Math.sin(t * 22) * 0.9;
+      this.cctvHauke.jaw.rotation.x = 0.36;
+      this.cctvHauke.legs[0].rotation.x = Math.sin(t * 22) * 0.85;
+      this.cctvHauke.legs[1].rotation.x = -Math.sin(t * 22) * 0.85;
       this.cctvHauke.arms[0].rotation.x = -0.8 - Math.sin(t * 22) * 0.5;
       this.cctvHauke.arms[1].rotation.x = -0.8 + Math.sin(t * 22) * 0.5;
     }
@@ -1236,9 +1355,31 @@ export class SceneView {
     });
   }
 
+  /**
+   * Renders terrifying in-context 3D Jumpscares right inside the flickering Security Office (or live CCTV room)!
+   */
   drawJumpscare(run) {
-    this.setMode('jumpscare');
     const js = run.jumpscare;
+    const video = js.cause === 'video';
+    this.setMode(video ? 'jumpscare_cctv' : 'jumpscare_office');
+
+    if (!video) {
+      this.syncOfficeEnvironment(run);
+      this.officeAnton.root.visible = false;
+      this.officeTom.root.visible = false;
+      this.officeOutageTorge.root.visible = false;
+      this.officeGoldenDuck.root.visible = false;
+      this.officeLight.intensity = 10 + Math.sin(js.timer * 12) * 3;
+    } else {
+      const targetRoom = js.cam || run.activeCam || '1A';
+      for (const [id, room] of Object.entries(this.rooms)) {
+        room.visible = id === targetRoom;
+      }
+      for (const m of [this.cctvTorge, this.cctvAnton, this.cctvTom, this.cctvHauke]) {
+        m.root.visible = false;
+      }
+    }
+
     const p = Math.min(1, js.timer / js.duration);
     const t = js.timer;
 
@@ -1247,42 +1388,54 @@ export class SceneView {
     }
     const active = this.jsModels[js.who] ?? this.jsModels.torge;
     const shot = SCARE_SHOTS[js.who] ?? SCARE_SHOTS.torge;
-    const video = js.cause === 'video';
     const reduced = this.isReducedMotion();
-    const lunge = reduced ? 0.82 : 1 - Math.exp(-t * (video ? 8 : shot.speed));
+    const lunge = reduced ? 0.85 : 1 - Math.exp(-t * (video ? 9 : shot.speed));
     const shake = reduced ? 0 : shot.shake;
-    const stopZ = video ? -0.52 : shot.stopZ;
-    const startZ = stopZ - (video ? 0.62 : 1.5);
+
+    this.camera.position.set(
+      Math.sin(t * 34) * 0.075 * shake,
+      1.62 + Math.cos(t * 38) * 0.065 * shake,
+      0.72,
+    );
+    this.camera.rotation.set(
+      -0.02 + Math.cos(t * 29) * 0.04 * shake,
+      0,
+      Math.sin(t * 26) * 0.11 * shake,
+    );
+
+    const stopZ = video ? -0.18 : shot.stopZ;
+    const startZ = stopZ - (video ? 0.85 : 1.55);
+    const baseY = (js.who === 'duck' ? 0.36 : -0.12) + (1.62 - shot.headY);
 
     active.root.position.set(
-      (video ? 0.10 : shot.fromX) * (1 - lunge) + Math.sin(t * 33) * 0.10 * shake,
-      (js.who === 'duck' ? 0.35 : 0) + Math.cos(t * 18) * 0.08 * shake,
+      (video ? 0.08 : shot.fromX) * (1 - lunge) + Math.sin(t * 36) * 0.09 * shake,
+      baseY + Math.cos(t * 24) * 0.06 * shake,
       startZ + lunge * (stopZ - startZ),
     );
-    active.root.rotation.y = (1 - lunge) * -shot.fromX * 0.45;
+    active.root.rotation.y = (1 - lunge) * -shot.fromX * 0.42;
+
     if (active.head) {
-      active.head.rotation.z = video ? -0.24 : Math.sin(t * 14) * 0.19 * shake;
-      active.head.rotation.x = video ? 0.10 : Math.cos(t * 15) * 0.15 * shake;
+      active.head.rotation.z = video ? -0.22 : Math.sin(t * 22) * 0.22 * shake;
+      active.head.rotation.x = video ? 0.08 : Math.cos(t * 19) * 0.14 * shake;
     }
     if (active.jaw) {
-      active.jaw.scale.y = 1.15 + lunge * 0.72;
+      active.jaw.rotation.x = 0.28 + Math.abs(Math.sin(t * 38)) * 0.42;
     }
     if (active.arms) {
-      active.arms[0].rotation.x = -lunge * (video ? 2.1 : 1.25);
-      active.arms[1].rotation.x = -lunge * (js.who === 'tom' ? 2.05 : 1.35);
+      active.arms[0].rotation.x = -lunge * (video ? 1.35 : 0.95);
+      active.arms[1].rotation.x = -lunge * (js.who === 'tom' ? 1.25 : 0.92);
+      active.arms[0].rotation.z = -0.32 * lunge;
+      active.arms[1].rotation.z = 0.32 * lunge;
     }
 
-    this.camera.position.set(Math.sin(t * 28) * 0.06 * shake, shot.headY + Math.cos(t * 32) * 0.07 * shake, 0.38);
-    this.camera.rotation.set(0, 0, Math.sin(t * 24) * 0.11 * shake);
-
-    this.jsStrobe.intensity = video ? 19 : 10 + 6 * lunge;
-    this.jsRed.intensity = video ? 3 : 9;
+    this.jsStrobe.intensity = video ? 11 : 6.5 + 4.5 * lunge;
+    this.jsRed.intensity = video ? 4 : 8.5;
 
     this.renderPass(t, {
       cctv: video ? 1 : 0,
-      staticAmt: video ? 0.12 + p * 0.25 : 0.065,
-      blackout: Math.max(0, (p - 0.85) / 0.15),
-      shock: video ? 0.16 : 0.36,
+      staticAmt: video ? 0.14 + p * 0.26 : 0.08,
+      blackout: Math.max(0, (p - 0.86) / 0.14),
+      shock: video ? 0.22 : 0.44,
       quake: shake,
       flicker: 1,
       monitorFlash: 0,

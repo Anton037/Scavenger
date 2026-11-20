@@ -128,6 +128,7 @@ const gameActions = {
   fuse: playAction(resetCameraFuse),
   bell: playAction(ringKitchenBell),
   vent: playAction(ventOfficeSteam),
+  spezi: playAction(sipSpezi),
   stampBon: playAction(stampOrderBon),
   camFlash: playAction(triggerCamFlash),
   steamBurst: playAction(triggerSteamBurst),
@@ -137,6 +138,7 @@ const gameActions = {
 };
 
 const hud = new Hud(gameActions.cam);
+hud.setAudioSubtitles(settings.audioSubtitles);
 const controls = new Controls(canvas, {
   ...gameActions,
   pause: () => handleEscapeOrPause(),
@@ -148,6 +150,22 @@ const controls = new Controls(canvas, {
   canvasTap: (rx, ry) => {
     if (stage !== 'play' || !run || run.monitorOpen || run.powerOutage) return;
     const hit = view?.pickOfficeProp?.(rx, ry);
+    if (hit === 'left_door_btn') {
+      gameActions.leftDoor();
+      return;
+    }
+    if (hit === 'left_light_btn') {
+      gameActions.leftLight();
+      return;
+    }
+    if (hit === 'right_door_btn') {
+      gameActions.rightDoor();
+      return;
+    }
+    if (hit === 'right_light_btn') {
+      gameActions.rightLight();
+      return;
+    }
     if (hit === 'valve') {
       sound.open();
       if (ventOfficeSteam(run)) flushEvents(run);
@@ -191,6 +209,7 @@ controls.setMouseSensitivity(settings.mouseSens);
 
 function hideAllScreens() {
   hudScreen.inert = false;
+  if (titleScreen) titleScreen.inert = false;
   pausedFocus = null;
   for (const s of [
     titleScreen, customScreen, dossierScreen, achievementsScreen, settingsScreen,
@@ -237,12 +256,19 @@ function syncSettingsUi() {
     rmBtn.setAttribute('aria-pressed', String(settings.reducedMotion));
     write(rmBtn, settings.reducedMotion ? 'AN' : 'AUS');
   }
+
+  const subBtn = get('set-audio-subs');
+  if (subBtn) {
+    subBtn.setAttribute('aria-pressed', String(Boolean(settings.audioSubtitles)));
+    write(subBtn, settings.audioSubtitles ? 'AN' : 'AUS');
+  }
 }
 
 function applyAllSettings(patch = {}) {
   settings = saveSettings(patch);
   sound.setVolume(settings.volume);
   controls.setMouseSensitivity(settings.mouseSens);
+  hud.setAudioSubtitles(settings.audioSubtitles);
   view?.applySettings(settings);
   syncSettingsUi();
 }
@@ -591,6 +617,12 @@ get('set-reduced-motion')?.addEventListener('click', () => {
   sound.play({ kind: 'cam_blip' });
 });
 
+get('set-audio-subs')?.addEventListener('click', () => {
+  applyAllSettings({ audioSubtitles: !settings.audioSubtitles });
+  sound.open();
+  sound.play({ kind: 'cam_blip' });
+});
+
 // Menu & Overlay bindings
 get('btn-new-game')?.addEventListener('click', () => startNight(1));
 get('btn-continue')?.addEventListener('click', () => {
@@ -654,6 +686,7 @@ for (const [id, action] of [
   ['btn-right-door', gameActions.rightDoor],
   ['btn-right-light', gameActions.rightLight],
   ['btn-vent-steam', gameActions.vent],
+  ['btn-spezi-boost', gameActions.spezi],
   ['btn-stamp-bon', gameActions.stampBon],
   ['btn-ir-flash', gameActions.camFlash],
   ['btn-steam-burst', gameActions.steamBurst],

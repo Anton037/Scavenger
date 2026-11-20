@@ -10,6 +10,15 @@ import {
   triggerJumpscare,
 } from '../runtime.js';
 
+export function pulseHaukeCameraCheck(run, camId = run?.activeCam) {
+  if (!run?.animatronics?.hauke) return;
+  const h = run.animatronics.hauke;
+  if (h.sprint.active) return;
+  // Authentic FNaF 1 Foxy rule: any camera monitor activity briefly calms Pirate/Buffet Cove!
+  const bonus = camId === '1C' ? 3.6 : (1.55 + run.rng() * 1.45);
+  h.lockTimer = Math.max(h.lockTimer, bonus);
+}
+
 export function startHaukeCharge(run) {
   const sprint = run.animatronics.hauke.sprint;
   if (sprint.triggered) return;
@@ -75,9 +84,11 @@ export function stepHauke(run, dt) {
     return;
   }
 
-  h.lockTimer = run.monitorOpen && run.activeCam === '1C' && !feedIsInterrupted(run)
-    ? 3.5
-    : Math.max(0, h.lockTimer - dt);
+  if (run.monitorOpen && run.activeCam === '1C' && !feedIsInterrupted(run)) {
+    h.lockTimer = 3.6;
+  } else {
+    h.lockTimer = Math.max(0, h.lockTimer - dt);
+  }
 
   h.timer -= dt;
   if (h.timer > 0) return;

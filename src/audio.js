@@ -115,6 +115,13 @@ export class Soundscape {
     this.master = ctx.createGain();
     this.master.gain.value = 0;
 
+    // World-cue lowpass filter: muffles footsteps & hallway cues while loud office steam valve (V) is venting!
+    this.cuesFilter = ctx.createBiquadFilter();
+    this.cuesFilter.type = 'lowpass';
+    this.cuesFilter.frequency.value = 16000;
+    this.cuesFilter.Q.value = 0.7;
+    this.cuesFilter.connect(this.master);
+
     const compressor = ctx.createDynamicsCompressor();
     compressor.threshold.value = -13;
     compressor.knee.value = 10;
@@ -343,8 +350,8 @@ export class Soundscape {
     this.mix();
   }
 
-  route(source, panVal = 0, { wet = 0, distort = false } = {}) {
-    const dest = distort ? this.distortBus : this.master;
+  route(source, panVal = 0, { wet = 0, distort = false, worldCue = false } = {}) {
+    const dest = distort ? this.distortBus : (worldCue && this.cuesFilter ? this.cuesFilter : this.master);
     let output = source;
     if (typeof this.context.createStereoPanner === 'function') {
       output = this.context.createStereoPanner();
@@ -424,7 +431,7 @@ export class Soundscape {
   }
 
   footImpact(strength, pan, offset, heavy = false) {
-    const damp = { wet: 0.46 };
+    const damp = { wet: 0.46, worldCue: true };
     this.burst(heavy ? 330 : 470, 0.68, heavy ? 0.23 : 0.15, strength, pan, offset, damp);
     this.burst(heavy ? 690 : 1180, 1, 0.085, strength * 0.54, pan, offset + 0.016, damp);
     if (heavy) this.burst(1780, 2.2, 0.10, strength * 0.27, pan, offset + 0.065, damp);
@@ -508,7 +515,10 @@ export class Soundscape {
     const venting = active && (run.thermal?.ventingUntil ?? 0) > run.time;
     this.fanGain.gain.setTargetAtTime(active ? (camera ? 0.065 : 0.21) : 0, t, 0.08);
     if (this.steamGain) {
-      this.steamGain.gain.setTargetAtTime(venting ? (camera ? 0.07 : 0.22) : 0, t, 0.06);
+      this.steamGain.gain.setTargetAtTime(venting ? (camera ? 0.07 : 0.24) : 0, t, 0.06);
+    }
+    if (this.cuesFilter) {
+      this.cuesFilter.frequency.setTargetAtTime(venting && !camera ? 540 : 16000, t, 0.08);
     }
     this.cctvGain.gain.setTargetAtTime(camera ? (disrupted ? 0.042 : 0.009) : 0, t, 0.05);
     this.roomGain.gain.setTargetAtTime(camera && !disrupted ? camera.gain : 0, t, 0.12);
@@ -592,16 +602,22 @@ export class Soundscape {
         if (event.on) this.burst(760, 1.8, 0.14, 0.16, sidePan, 0.032);
         break;
       case 'jammed':
-        this.metal(530, 0.22, sidePan);
-        this.metal(440, 0.14, sidePan, 0.12);
+        // Authentic FNaF 1 harsh jammed-door error buzzer ("ERR-ERR!")
+        for (const off of [0, 0.16]) {
+          this.tone(146, 138, 0.12, 0.34, sidePan, off, 'sawtooth', { distort: true, wet: 0.16 });
+          this.tone(108, 102, 0.12, 0.30, sidePan, off, 'square', { wet: 0.12 });
+        }
+        this.metal(420, 0.18, sidePan, 0.01);
         break;
       case 'monitor_open':
-        this.burst(580, 0.7, 0.16, 0.29, 0, 0, { attack: 0.035 });
-        this.burst(1570, 1.1, 0.082, 0.16, 0, 0.072);
+        this.burst(580, 0.7, 0.15, 0.28, 0, 0, { attack: 0.025 });
+        this.burst(1620, 1.2, 0.08, 0.16, 0, 0.055);
+        this.tone(2400, 4800, 0.14, 0.055, 0, 0.04, 'sine');
         break;
       case 'monitor_close':
         this.burst(860, 0.82, 0.12, 0.20);
         this.burst(350, 1.4, 0.105, 0.25, 0, 0.066);
+        this.tone(3600, 1100, 0.11, 0.05, 0, 0.02, 'sine');
         break;
       case 'cam_blip': {
         const frequency = CAMERA_AUDIO[event.cam]?.frequency ?? 900;
@@ -678,18 +694,33 @@ export class Soundscape {
         this.tone(1480, 2960, 0.28, 0.16, 0, 0.02, 'sine', { wet: 0.32 });
         break;
       case 'window_sting':
-        this.burst(860, 0.75, 0.52, 0.37, sidePan, 0, { attack: 0.076, wet: 0.58 });
-        this.metal(event.who === 'tom' ? 405 : 520, 0.30, sidePan, 0.035, 0.63);
-        this.burst(2450, 2.1, 0.18, 0.20, sidePan, 0.098, { wet: 0.45 });
+        // Iconic FNaF 1 piercing dissonant horror window-scare chord!
+        this.tone(110, 55, 0.85, 0.42, sidePan, 0, 'sawtooth', { distort: true, wet: 0.55 });
+        this.tone(932.3, 918, 0.72, 0.24, sidePan, 0.005, 'sawtooth', { distort: true, wet: 0.62 });
+        this.tone(987.8, 1002, 0.76, 0.24, sidePan, 0.01, 'sawtooth', { distort: true, wet: 0.62 });
+        this.tone(1396.9, 1372, 0.68, 0.19, sidePan, 0.015, 'square', { wet: 0.65 });
+        this.metal(520, 0.34, sidePan, 0.01, 0.62);
+        break;
+      case 'door_knock':
+        this.footImpact(0.46, sidePan, 0, true);
+        this.metal(310, 0.34, sidePan, 0.02, 0.45);
+        this.footImpact(0.38, sidePan, 0.22, true);
         break;
       case 'footstep': {
-        const strength = event.loud ? 0.51 : 0.25;
+        const baseStrength = event.loud ? 0.52 : event.receding ? 0.20 : 0.28;
         if (event.who === 'tom') {
-          this.burst(855, 1.35, 0.37, strength * 0.85, sidePan, 0, { attack: 0.085, wet: 0.5 });
-          this.footImpact(strength, sidePan, 0.18, true);
+          // Schnorrer Tom: heavy step + clinking Pfand bottles & Spezi cans!
+          this.footImpact(baseStrength, sidePan, 0, true);
+          this.metal(1680, baseStrength * 0.42, sidePan, 0.08, 0.48);
+          this.metal(2240, baseStrength * 0.34, sidePan, 0.21, 0.45);
+          this.footImpact(baseStrength * 0.72, sidePan, 0.26, true);
         } else {
-          this.footImpact(strength, sidePan, 0);
-          this.footImpact(strength * 0.68, sidePan, 0.23 + Math.random() * 0.065);
+          // Lost Anton / Hauke: sneaker squeak + echoed hallway step
+          this.footImpact(baseStrength, sidePan, 0);
+          if (event.who === 'anton' && event.loud) {
+            this.tone(1480, 1220, 0.055, 0.07, sidePan, 0.06, 'sine', { wet: 0.3, worldCue: true });
+          }
+          this.footImpact(baseStrength * 0.68, sidePan, 0.23 + Math.random() * 0.065);
         }
         break;
       }
@@ -732,11 +763,17 @@ export class Soundscape {
         }
         break;
       case 'torge_laugh': {
-        const strength = event.close ? 0.35 : 0.21;
-        const formants = [[540, 4.4], [1080, 5.1], [1960, 6.5]];
-        for (const [offset, pitch, length] of [[0, 126, 0.18], [0.26, 114, 0.23], [0.56, 122, 0.35]]) {
-          this.tone(pitch, pitch * 0.78, length, strength, 0.42, offset, 'sawtooth', { formants, wet: 0.68 });
-          this.burst(1190, 1.05, length, strength * 0.45, 0.42, offset + 0.025, { wet: 0.52 });
+        const dist = event.distance ?? (event.close ? 0 : 2);
+        const strength = dist === 0 ? 0.38 : dist === 1 ? 0.28 : 0.19;
+        const pan = dist === 0 ? 0.62 : 0.44;
+        const formants = [[520, 4.4], [1040, 5.1], [1920, 6.5]];
+        for (const [offset, pitch, length] of [[0, 124, 0.18], [0.25, 112, 0.22], [0.52, 104, 0.36]]) {
+          this.tone(pitch, pitch * 0.78, length, strength, pan, offset, 'sawtooth', {
+            formants,
+            wet: 0.72,
+            worldCue: true,
+          });
+          this.burst(1150, 1.05, length, strength * 0.42, pan, offset + 0.025, { wet: 0.55, worldCue: true });
         }
         break;
       }
@@ -777,9 +814,20 @@ export class Soundscape {
         this.tone(272, 209, 0.20, 0.32, 0, 0, 'sawtooth', { formants: [[710, 2.2], [1130, 4.2]] });
         break;
       case 'spezi_sip':
-        // Crisp Spezi pull-tab click + fizzy carbonation hiss!
-        this.metal(1420, 0.18, 0.22, 0, 0.14);
-        this.burst(3400, 0.85, 0.36, 0.19, 0.22, 0.05, { attack: 0.03, wet: 0.18 });
+        // Crisp Spezi pull-tab click + fizzy carbonation hiss + energetic power chord!
+        this.metal(1480, 0.22, 0.22, 0, 0.14);
+        this.burst(3400, 0.85, 0.40, 0.22, 0.22, 0.05, { attack: 0.02, wet: 0.18 });
+        this.tone(523.25, 783.99, 0.22, 0.14, 0.15, 0.10, 'triangle', { wet: 0.28 });
+        break;
+      case 'spezi_empty':
+        this.metal(920, 0.16, 0.22, 0, 0.15);
+        this.metal(680, 0.12, 0.22, 0.09, 0.15);
+        break;
+      case 'distant_calliope':
+        // Rare eerie FNaF-1 style distant carnival organ melody drifting down the hall!
+        for (const [off, hz] of [[0, 523.25], [0.38, 659.25], [0.76, 587.33], [1.14, 493.88], [1.52, 523.25]]) {
+          this.tone(hz * 0.992, hz * 1.005, 0.36, 0.042, -0.35, off, 'triangle', { wet: 0.88, worldCue: true });
+        }
         break;
       case 'duck_squeak':
         // Playful rubber duck squeak!

@@ -141,6 +141,9 @@ export class Controls {
       } else if (event.code === 'KeyG') {
         event.preventDefault();
         this.actions.steamBurst?.();
+      } else if (event.code === 'KeyC') {
+        event.preventDefault();
+        this.actions.spezi?.();
       } else if (event.code === 'KeyH') {
         event.preventDefault();
         this.actions.honk?.();

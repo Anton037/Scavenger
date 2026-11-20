@@ -45,7 +45,7 @@ export function stepAnton(run, dt) {
   const a = run.animatronics.anton;
   if (a.room === 'office') {
     a.officeTimer += dt;
-    if (a.officeTimer >= 7) {
+    if (a.officeTimer >= 6.8) {
       triggerJumpscare(run, 'anton');
     }
     return;
@@ -58,6 +58,7 @@ export function stepAnton(run, dt) {
       const prev = a.room;
       run.training = 'camera';
       a.room = '2B';
+      a.subPose = 1;
       noteRoomTransition(run, prev, a.room, 'anton');
       notify(run, 'PROBESCHICHT · Geräusch in der West-Ecke. Prüf CAM 2B.', 8);
       emit(run, 'footstep', { side: 'left', who: 'anton', loud: true });
@@ -67,7 +68,7 @@ export function stepAnton(run, dt) {
       a.timer = 9;
       a.sighted = false;
       noteRoomTransition(run, '2B', a.room, 'anton');
-      notify(run, 'PROBEALARM · Monitor runter, Licht links prüfen, linke Tür schließen.', 9);
+      notify(run, 'PROBEALARM · Monitor runter, Licht links (W) prüfen, linke Tür (Q) schließen!', 9);
       emit(run, 'door_approach', { side: 'left' });
     }
     return;
@@ -94,16 +95,30 @@ export function stepAnton(run, dt) {
       a.room = '1B';
       a.sighted = false;
       run.stats.antonBlocked += 1;
-      notify(run, pickLine(MEME_LINES.antonBlock, run.stats.antonBlocked - 1));
+      notify(run, pickLine(MEME_LINES.antonBlock, run.stats.antonBlocked - 1), 4.2, { audioCue: true });
       noteRoomTransition(run, 'left_door', '1B', 'anton');
-      emit(run, 'footstep', { side: 'left', who: 'anton' });
-    } else {
+      emit(run, 'footstep', { side: 'left', who: 'anton', receding: true });
+    } else if (run.monitorOpen) {
+      // Classic FNaF 1 Bonnie: slips inside while you are distracted on cameras & jams the door!
       a.room = 'office';
       a.officeTimer = 0;
       run.leftJammed = true;
       run.leftLight = false;
-      notify(run, 'SCHRITTE IM BÜRO · Anton ist durch die linke Tür.', 7);
+      notify(run, 'SCHRITTE IM BÜRO · Anton ist durch die linke Tür!', 6, { audioCue: true });
       emit(run, 'sneak_in', { side: 'left', who: 'anton' });
+    } else {
+      // If player leaves left door open too long in the office without reacting, Anton lunges!
+      a.doorWait = (a.doorWait || 0) + 1;
+      if (a.doorWait >= 2) {
+        a.doorWait = 0;
+        triggerJumpscare(run, 'anton', 'office');
+      } else {
+        a.room = 'office';
+        a.officeTimer = 0;
+        run.leftJammed = true;
+        run.leftLight = false;
+        emit(run, 'sneak_in', { side: 'left', who: 'anton' });
+      }
     }
     return;
   }
@@ -113,9 +128,11 @@ export function stepAnton(run, dt) {
   const next = choices[Math.floor(run.rng() * choices.length)];
   const prev = a.room;
   a.room = next;
+  a.doorWait = 0;
+  a.subPose = run.rng() < 0.45 ? 1 : 0;
   if (next === 'left_door') {
     a.sighted = false;
-    emit(run, 'door_approach', { side: 'left' });
+    emit(run, 'door_approach', { side: 'left', who: 'anton' });
   }
   noteRoomTransition(run, prev, next, 'anton');
   emit(run, 'footstep', { side: 'left', who: 'anton', loud: next === 'left_door' || next === '2B' });

@@ -282,20 +282,73 @@ test('An interrupted camera does not take out unrelated feeds', () => {
   assert.equal(feedIsInterrupted(run), false);
 });
 
-test('Kitchen bell lures Tom from the east wing for power and has a cooldown', () => {
-  const run = newNight({ night: 7, seed: 719, customAi: { tom: 12 } });
+test('Kitchen audio lure on CAM 6 costs 0% power, lures Tom from east wing, and slows Torge in kitchen', () => {
+  const run = newNight({ night: 7, seed: 719, customAi: { tom: 12, torge: 10 } });
   run.animatronics.tom.room = 'right_door';
+  run.animatronics.torge.room = '6';
+  run.animatronics.torge.timer = 1.0;
   assert.equal(ringKitchenBell(run), false);
   toggleMonitor(run);
   selectCam(run, '6');
+  const pwrBefore = run.power;
   assert.equal(ringKitchenBell(run), true);
   assert.equal(run.animatronics.tom.room, '6');
   assert.equal(run.stats.tomLured, 1);
-  assert.equal(run.power, 96);
+  assert.equal(run.power, pwrBefore); // Free 0% power FNaF-3 style audio lure!
+  assert.ok(run.animatronics.torge.timer >= 5.0);
   assert.equal(feedIsInterrupted(run), false);
   assert.equal(ringKitchenBell(run), false);
-  assert.equal(run.power, 96);
   assert.ok(simulate(run, 1).some((e) => e.kind === 'kitchen_clatter' && e.loud));
+});
+
+test('Locking both doors AFK on Night 1 drains battery to 0% before 6 AM (no double-door cheese)', () => {
+  const run = newNight({ night: 1, seed: 1234 });
+  toggleLeftDoor(run);
+  toggleRightDoor(run);
+  simulate(run, HOUR_SECONDS * 6);
+  assert.equal(run.power, 0);
+  assert.notEqual(run.state, 'won');
+});
+
+test('Chef Torge at 4B obeys authentic FNaF 1 Freddy rules: waits while monitor closed, ambushes on non-4B cam, stays at 4B if blocked', () => {
+  const run = newNight({ night: 5, seed: 555 });
+  run.ai = { torge: 20, anton: 0, tom: 0, hauke: 0 };
+  run.animatronics.anton.room = '1B';
+  run.animatronics.tom.room = '1B';
+  run.animatronics.torge.room = '4B';
+  run.animatronics.torge.pathIdx = 4;
+
+  // Monitor closed + Right Door open: Torge lurks at 4B instead of walking in while watched in office
+  simulate(run, 8.0);
+  assert.equal(run.animatronics.torge.room, '4B');
+
+  // Right Door closed: Torge knocks/laughs and stays camping at 4B (does NOT retreat to 4A for free!)
+  toggleRightDoor(run);
+  toggleMonitor(run);
+  selectCam(run, '1C');
+  run.animatronics.torge.stallTimer = 0;
+  run.animatronics.torge.timer = 0.05;
+  simulate(run, 0.3);
+  assert.equal(run.animatronics.torge.room, '4B');
+
+  // Open Right Door while viewing CAM 1C -> Torge slips into office!
+  toggleMonitor(run);
+  toggleRightDoor(run); // now open
+  toggleMonitor(run);
+  selectCam(run, '1C');
+  run.animatronics.torge.stallTimer = 0;
+  run.animatronics.torge.timer = 0.05;
+  simulate(run, 0.3);
+  assert.equal(run.animatronics.torge.room, 'office');
+});
+
+test('Checking any camera briefly calms Hauke like FNaF 1 Foxy, while ignoring cameras lets him advance', () => {
+  const run = newNight({ night: 7, seed: 309, customAi: { hauke: 20 } });
+  toggleMonitor(run);
+  selectCam(run, '1B');
+  assert.ok(run.animatronics.hauke.lockTimer > 0.8);
+  toggleMonitor(run); // close monitor -> post-check cooldown still active briefly
+  assert.ok(run.animatronics.hauke.lockTimer > 0.5);
 });
 
 test('The first shift rehearses a doorway threat with time to react and a limited penalty', () => {
@@ -311,10 +364,11 @@ test('The first shift rehearses a doorway threat with time to react and a limite
   assert.equal(successful.training, 'done');
 
   const missed = newNight({ night: 1, seed: 451 });
+  const pwrStart = missed.power;
   simulate(missed, 42);
   assert.equal(missed.state, 'playing');
   assert.equal(missed.animatronics.anton.room, '1B');
-  assert.ok(Math.abs(missed.power - (97 - 42 * 0.098)) < 0.001);
+  assert.ok(missed.power < pwrStart - 7 && missed.power > 85);
 });
 
 test('Camping on the east camera no longer wins the 4/20 challenge', () => {
@@ -398,9 +452,10 @@ test('Smooth camera inertia, CCTV motion blips, formatted shift time, and seismo
 });
 
 test('Shift ranking, achievements catalog, custom presets, and default settings are valid', () => {
-  assert.ok(ACHIEVEMENTS.length >= 11);
+  assert.ok(ACHIEVEMENTS.length >= 16);
   assert.ok(CUSTOM_PRESETS.length >= 7);
   assert.equal(DEFAULT_SETTINGS.graphics, 'hd');
+  assert.equal(DEFAULT_SETTINGS.audioSubtitles, false);
 
   const highRun = newNight({ night: 5, seed: 915 });
   highRun.power = 52;

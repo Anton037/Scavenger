@@ -217,9 +217,8 @@ export const MEME_LINES = {
     'SEISMISCHER TREFFER · Die Kaffeetasse überlebt knapp.',
   ],
   speziSip: [
-    'SCHICHT-BOOST · Eiskaltes Spezi. Moral +100 %, Strom leider +0 %.',
-    'SPEZI-PAUSE · *Pssshhh!* Schmeckt besser als Überstunden.',
-    'SPEZI-CHECK · Noch halb voll. Gut, dass Tom nicht reingekommen ist.',
+    'SPEZI-KICK AKTIV · *Pssshhh!* 8s Koffein-Fokus! (Hoffentlich hat Tom das nicht gehört...)',
+    'SPEZI-BOOST #2 · Eiskalt runtergekippt! Reflexe & Nerven auf Maximum!',
   ],
   duckSqueak: [
     'QUIETSCH! · Die Schreibtisch-Ente urteilt schweigend über dich.',

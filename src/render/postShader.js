@@ -82,8 +82,8 @@ export function createPostShaderMaterial(diffuseTexture, isRetro = false) {
           texture2D(tDiffuse, clamp(uv + vec2(0.004, -0.003), 0.001, 0.999)).rgb +
           texture2D(tDiffuse, clamp(uv + vec2(-0.004, 0.003), 0.001, 0.999)).rgb
         ) * 0.25;
-        vec3 bright = max(bloomSample - vec3(0.58), vec3(0.0));
-        col += bright * (0.46 + uCctv * 0.20 + uIrFlash * 0.35);
+        vec3 bright = max(bloomSample - vec3(0.72), vec3(0.0));
+        col += bright * (0.36 + uCctv * 0.16 + uIrFlash * 0.28);
 
         // Office flicker & Blackout
         col *= mix(1.0, uFlicker, 0.24);

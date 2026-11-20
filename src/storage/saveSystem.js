@@ -12,6 +12,7 @@ export function loadSettings() {
       volume: Math.max(0, Math.min(1, Number.isFinite(Number(parsed.volume)) ? Number(parsed.volume) : DEFAULT_SETTINGS.volume)),
       mouseSens: Math.max(0.5, Math.min(2.0, Number.isFinite(Number(parsed.mouseSens)) ? Number(parsed.mouseSens) : DEFAULT_SETTINGS.mouseSens)),
       reducedMotion: Boolean(parsed.reducedMotion),
+      audioSubtitles: Boolean(parsed.audioSubtitles),
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
