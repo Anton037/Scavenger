@@ -261,7 +261,7 @@ test('Smooth camera inertia, CCTV motion blips, formatted shift time, rank gradi
 
   assert.ok(ACHIEVEMENTS.length >= 16);
   assert.equal(CUSTOM_PRESETS.length, 6);
-  assert.equal(DEFAULT_SETTINGS.graphics, 'hd');
+  assert.ok(!('graphics' in DEFAULT_SETTINGS)); // v2.3: one unified PSX+ style, no graphics modes
   assert.equal(DEFAULT_SETTINGS.audioSubtitles, false);
 
   const highRun = newNight({ night: 5, seed: 915 });

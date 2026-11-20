@@ -4,7 +4,6 @@ import { Controls } from './controls.js';
 import {
   CHARACTERS,
   CUSTOM_PRESETS,
-  SAVE_KEYS,
   loadCompletedPresets,
   loadCosmeticState,
   loadProgress,
@@ -373,12 +372,6 @@ const controls = new Controls(canvas, {
   },
 });
 controls.setMouseSensitivity(settings.mouseSens);
-
-// First-run mobile default: touch devices without saved settings start on 'balanced'
-// so mid-range phones keep a stable frame rate (can be raised in Optionen → Grafik).
-if (controls.touch && !localStorage.getItem(SAVE_KEYS.settings)) {
-  settings = saveSettings({ graphics: 'balanced' });
-}
 
 // Fullscreen & landscape lock for touch devices: hides browser chrome and disables
 // accidental system gestures during a shift. Desktop never gets forced fullscreen.

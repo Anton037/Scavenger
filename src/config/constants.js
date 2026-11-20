@@ -64,8 +64,7 @@ export const SAVE_KEYS = {
 };
 
 export const DEFAULT_SETTINGS = {
-  graphics: 'hd', // 'hd' | 'balanced' | 'retro'
-  crt: 'subtle', // 'subtle' | 'strong' | 'off'
+  crt: 'subtle', // 'subtle' | 'strong' | 'off' — VHS-Post-Intensität (ein Grafikstil für alle Geräte)
   volume: 0.85, // 0.0 .. 1.0
   mouseSens: 1.0, // 0.5 .. 2.0
   reducedMotion: false,

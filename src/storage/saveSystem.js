@@ -8,7 +8,6 @@ export function loadSettings() {
     if (!raw) return { ...DEFAULT_SETTINGS };
     const parsed = JSON.parse(raw);
     return {
-      graphics: ['hd', 'balanced', 'retro'].includes(parsed.graphics) ? parsed.graphics : 'hd',
       crt: ['subtle', 'strong', 'off'].includes(parsed.crt) ? parsed.crt : 'subtle',
       volume: Math.max(0, Math.min(1, Number.isFinite(Number(parsed.volume)) ? Number(parsed.volume) : DEFAULT_SETTINGS.volume)),
       mouseSens: Math.max(0.5, Math.min(2.0, Number.isFinite(Number(parsed.mouseSens)) ? Number(parsed.mouseSens) : DEFAULT_SETTINGS.mouseSens)),

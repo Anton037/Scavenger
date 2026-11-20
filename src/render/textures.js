@@ -24,7 +24,7 @@ export function makeCanvasTexture(w, h, drawFn, { repeat = false, nearest = fals
   } else {
     texture.magFilter = THREE.LinearFilter;
     texture.minFilter = THREE.LinearMipmapLinearFilter;
-    texture.anisotropy = 4;
+    texture.anisotropy = 8;
   }
   if (repeat) {
     texture.wrapS = THREE.RepeatWrapping;

@@ -93,11 +93,6 @@ button {
   touch-action: none;
 }
 
-#stage.retro-canvas {
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-}
-
 .screen {
   position: fixed;
   inset: 0;

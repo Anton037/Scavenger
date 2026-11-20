@@ -62,7 +62,6 @@ import {
   stainlessSteelPbrSet,
 } from './textures.js';
 
-const PIXEL_SCALE = 2.15;
 const SCARE_SHOTS = {
   anton: { headY: 1.72, fromX: -0.65, stopZ: -0.44, speed: 14, shake: 0.44 },
   tom: { headY: 1.58, fromX: 0.65, stopZ: -0.46, speed: 13, shake: 0.38 },
@@ -75,7 +74,6 @@ export class SceneView {
   constructor(canvas, settings = {}) {
     this.reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     this.settings = {
-      graphics: ['hd', 'balanced', 'retro'].includes(settings.graphics) ? settings.graphics : 'hd',
       crt: ['subtle', 'strong', 'off'].includes(settings.crt) ? settings.crt : 'subtle',
       reducedMotion: Boolean(settings.reducedMotion),
     };
@@ -86,16 +84,18 @@ export class SceneView {
     };
 
     this.canvas = canvas;
+    // Unified PSX+ pipeline: one fixed internal pixel resolution (see resize()) with
+    // 4x MSAA, linear upscale and VHS post — identical look & load on every device.
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: this.settings.graphics === 'hd',
+      antialias: false,
       powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.12;
-    this.renderer.shadowMap.enabled = this.settings.graphics === 'hd';
+    this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.scene = new THREE.Scene();
@@ -116,15 +116,15 @@ export class SceneView {
     this.currentFps = 60;
     this.lastDrawCalls = 0;
 
-    const isRetro = this.settings.graphics === 'retro';
-    this.pixelTarget = new THREE.WebGLRenderTarget(960, 540, {
-      minFilter: isRetro ? THREE.NearestFilter : THREE.LinearFilter,
-      magFilter: isRetro ? THREE.NearestFilter : THREE.LinearFilter,
+    this.pixelTarget = new THREE.WebGLRenderTarget(712, 400, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
       generateMipmaps: false,
+      samples: 4,
     });
     this.postScene = new THREE.Scene();
     this.postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    this.postMat = createPostShaderMaterial(this.pixelTarget.texture, isRetro);
+    this.postMat = createPostShaderMaterial(this.pixelTarget.texture);
     this.postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.postMat));
 
     // Shared Procedural PBR Surface Sets (Albedo + Sobel Normal + Roughness)
@@ -221,7 +221,7 @@ export class SceneView {
     return {
       fps: this.currentFps,
       drawCalls: this.lastDrawCalls,
-      mode: this.settings.graphics,
+      mode: 'psx-plus',
     };
   }
 
@@ -249,53 +249,33 @@ export class SceneView {
   }
 
   applySettings(next = {}) {
-    if (['hd', 'balanced', 'retro'].includes(next.graphics)) {
-      this.settings.graphics = next.graphics;
-    }
     if (['subtle', 'strong', 'off'].includes(next.crt)) {
       this.settings.crt = next.crt;
     }
     if (typeof next.reducedMotion === 'boolean') {
       this.settings.reducedMotion = next.reducedMotion;
     }
-    const isRetro = this.settings.graphics === 'retro';
-    const isHd = this.settings.graphics === 'hd';
-    this.renderer.shadowMap.enabled = isHd;
-    this.renderer.shadowMap.needsUpdate = true;
-    this.pixelTarget.texture.minFilter = isRetro ? THREE.NearestFilter : THREE.LinearFilter;
-    this.pixelTarget.texture.magFilter = isRetro ? THREE.NearestFilter : THREE.LinearFilter;
-    this.pixelTarget.texture.needsUpdate = true;
-    this.canvas.classList.toggle('retro-canvas', isRetro);
-
-    this.postMat.uniforms.uRetro.value = isRetro ? 1.0 : 0.0;
-    this.postMat.uniforms.uCrtStrength.value = this.settings.crt === 'off' ? 0.0 : this.settings.crt === 'strong' ? 1.15 : 0.55;
+    this.postMat.uniforms.uRetro.value = 1.0;
+    this.postMat.uniforms.uCrtStrength.value = this.settings.crt === 'off' ? 0.0 : this.settings.crt === 'strong' ? 0.95 : 0.55;
     this.resize();
   }
 
   resize() {
     const w = Math.max(320, Math.floor(window.innerWidth));
     const h = Math.max(240, Math.floor(window.innerHeight));
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.fov = 56;
     this.camera.updateProjectionMatrix();
 
-    let pw;
-    let ph;
-    if (this.settings.graphics === 'retro') {
-      const scale = w < 640 ? 2.4 : PIXEL_SCALE;
-      pw = Math.max(240, Math.min(620, Math.floor(w / scale)));
-      ph = Math.max(160, Math.min(360, Math.floor(h / scale)));
-    } else if (this.settings.graphics === 'balanced') {
-      pw = Math.max(560, Math.min(1280, w));
-      ph = Math.max(320, Math.min(720, h));
-    } else {
-      const hdScale = Math.min(dpr, 1.55);
-      pw = Math.max(640, Math.min(1680, Math.floor(w * hdScale)));
-      ph = Math.max(360, Math.min(945, Math.floor(h * hdScale)));
-    }
+    // Unified PSX+ internal resolution: fixed 400 rows, width follows the aspect
+    // ratio. Constant ~0.29 MP fragment load on every device (phone-first), while
+    // 4x MSAA + mipmapped textures keep it crisp — the HD×Retro sweet spot.
+    const ph = 400;
+    const pw = Math.max(600, Math.min(960, Math.round((ph * w) / h)));
+    this.postMat.uniforms.uPixelH.value = ph;
     if (this.pixelTarget.width !== pw || this.pixelTarget.height !== ph) {
       this.pixelTarget.setSize(pw, ph);
     }
@@ -336,6 +316,8 @@ export class SceneView {
     this.titleSpot.target.position.set(0.92, 1.38, -1.35);
     this.titleSpot.castShadow = true;
     this.titleSpot.shadow.mapSize.set(512, 512);
+    this.titleSpot.shadow.bias = -0.0018;
+    this.titleSpot.shadow.normalBias = 0.02;
     g.add(this.titleSpot, this.titleSpot.target);
 
     const warmSpitGlow = new THREE.PointLight(0xd85a24, 9, 6.5, 1.7);
@@ -418,6 +400,7 @@ export class SceneView {
     this.officeLight.castShadow = true;
     this.officeLight.shadow.mapSize.set(512, 512);
     this.officeLight.shadow.bias = -0.002;
+    this.officeLight.shadow.normalBias = 0.02;
     this.officeBulbGroup.add(this.officeLight);
     g.add(this.officeBulbGroup);
 
@@ -1377,7 +1360,7 @@ export class SceneView {
       this.emergencyLight.intensity = run.overtime
         ? (3.8 + Math.sin(t * 7.5) * 2.0)
         : (lowPowerAmt > 0 ? (2.2 + Math.sin(t * 5.2) * 1.4) * lowPowerAmt : 0);
-      this.officeDust.visible = this.settings.graphics !== 'retro';
+      this.officeDust.visible = true;
       this.officeBulbOrb.material.color.setHex(0xdcebf2);
       this.deskCrt1.visible = true;
       this.deskCrt2.visible = true;

@@ -6,10 +6,11 @@ import * as THREE from 'three';
  * - Realistic Flashlight radial cone highlight & edge falloff
  * - 4 Selectable Cosmetic VHS Shader Themes (0 Standard, 1 Camcorder '98 Green, 2 Bleach Bypass, 3 PSX 4x4 Dither)
  */
-export function createPostShaderMaterial(diffuseTexture, isRetro = false) {
+export function createPostShaderMaterial(diffuseTexture) {
   return new THREE.ShaderMaterial({
     uniforms: {
       tDiffuse: { value: diffuseTexture },
+      uPixelH: { value: 400.0 },
       uTime: { value: 0 },
       uCctv: { value: 0 },
       uStatic: { value: 0 },
@@ -19,7 +20,7 @@ export function createPostShaderMaterial(diffuseTexture, isRetro = false) {
       uFlicker: { value: 1 },
       uCrtStrength: { value: 0.55 },
       uMonitorFlash: { value: 0 },
-      uRetro: { value: isRetro ? 1.0 : 0.0 },
+      uRetro: { value: 1.0 },
       uHeat: { value: 0 },
       uSteam: { value: 0 },
       uIrFlash: { value: 0 },
@@ -36,6 +37,7 @@ export function createPostShaderMaterial(diffuseTexture, isRetro = false) {
     `,
     fragmentShader: `
       uniform sampler2D tDiffuse;
+      uniform float uPixelH;
       uniform float uTime;
       uniform float uCctv;
       uniform float uStatic;
@@ -80,8 +82,10 @@ export function createPostShaderMaterial(diffuseTexture, isRetro = false) {
           uv.x += wave * uHeat * 0.0038;
         }
 
-        // Authentic VHS horizontal chroma bleed (luma sharp, red/blue horizontally smeared)
-        float ca = 0.0011 + uShock * 0.009 + uCctv * 0.0022 + uRetro * 0.0012 + uCrtStrength * 0.0008;
+        // Authentic VHS horizontal chroma bleed (luma sharp, red/blue horizontally smeared).
+        // Kept gentle at the 400p internal resolution: a UV offset of ~1px fringes every
+        // 1px-period texture line (tile grout, shutter corrugation) into rainbow noise.
+        float ca = 0.0005 + uShock * 0.009 + uCctv * 0.0022;
         vec3 centerSample = texture2D(tDiffuse, clamp(uv, 0.001, 0.999)).rgb;
         float rBleed = (
           texture2D(tDiffuse, clamp(uv + vec2(ca, 0.0), 0.001, 0.999)).r +
@@ -91,7 +95,7 @@ export function createPostShaderMaterial(diffuseTexture, isRetro = false) {
           texture2D(tDiffuse, clamp(uv - vec2(ca, 0.0), 0.001, 0.999)).b +
           texture2D(tDiffuse, clamp(uv - vec2(ca * 2.1, 0.0), 0.001, 0.999)).b
         ) * 0.5;
-        vec3 col = vec3(mix(centerSample.r, rBleed, 0.72), centerSample.g, mix(centerSample.b, bBleed, 0.72));
+        vec3 col = vec3(mix(centerSample.r, rBleed, 0.5), centerSample.g, mix(centerSample.b, bBleed, 0.5));
 
         // Soft highlight bloom on IR eye-shine, CRTs, and emergency LEDs
         vec3 bloomSample = (
@@ -124,25 +128,28 @@ export function createPostShaderMaterial(diffuseTexture, isRetro = false) {
           vec3 desat = mix(vec3(lum), col, 0.34);
           col = clamp((desat - 0.12) * 1.22 + vec3(0.01, 0.02, 0.035), 0.0, 1.0);
         } else if (uVhsTheme >= 2.5) {
-          // 3: PSX 1997 Ordered Dither + 15-bit Quantization
-          vec2 pix = floor(gl_FragCoord.xy * 0.5);
+          // 3: PSX 1997 Ordered Dither + 15-bit Quantization (source-pixel stable,
+          // gl_FragCoord depends on the display's DPR and would shimmer between devices)
+          vec2 pix = floor(vUv * uPixelH * 0.5);
           float bayer = fract(dot(mod(pix, 2.0), vec2(0.5, 0.25)));
           col = floor(col * 24.0 + bayer - 0.35) / 24.0;
         }
 
-        // CCTV Night-Vision Grading + Scanlines + IR Strobe
+        // CCTV Night-Vision Grading + Scanlines + IR Strobe.
+        // Scanlines are quantized to SOURCE pixel rows (uPixelH) instead of a raw
+        // sin(vUv.y * N) — a fixed UV sine beats against any real pixel grid and
+        // produces crawling moire bands (the "texture flicker"). Static rows never do.
         if (uCctv > 0.5) {
           float cLum = dot(col, vec3(0.30, 0.58, 0.12));
           vec3 tint = mix(col * 0.65, vec3(cLum * 0.76, cLum * 0.98, cLum * 0.88), 0.72);
-          float scanAmt = 0.09 * uCrtStrength;
-          float scan = (1.0 - scanAmt) + scanAmt * sin(vUv.y * 360.0 + uTime * 8.0);
-          col = tint * scan + vec3(0.05, 0.07, 0.06) * trackBand;
+          float cScan = mod(floor(vUv.y * uPixelH * 0.5), 2.0);
+          col = tint * (1.0 - 0.11 * uCrtStrength * cScan) + vec3(0.05, 0.07, 0.06) * trackBand;
           if (uIrFlash > 0.01) {
             col += vec3(0.42, 0.95, 0.82) * uIrFlash * 0.58;
           }
         } else if (uCrtStrength > 0.01) {
-          float scan = 1.0 - (0.024 * uCrtStrength) + (0.024 * uCrtStrength) * sin(vUv.y * 290.0);
-          col *= scan;
+          float scan = mod(floor(vUv.y * uPixelH), 2.0);
+          col *= 1.0 - 0.06 * uCrtStrength * scan;
         }
 
         // Steam condensation mist
@@ -161,10 +168,9 @@ export function createPostShaderMaterial(diffuseTexture, isRetro = false) {
           col += vec3(0.28, 0.02, 0.03) * edgeFactor * uLowPower * (0.35 + 0.65 * pulse);
         }
 
-        // Analog VHS noise grain
-        vec2 noiseRes = (uRetro > 0.5 || uVhsTheme >= 2.5) ? vec2(260.0, 150.0) : vec2(480.0, 270.0);
-        float snow = hash(floor(vUv * noiseRes) + fract(uTime * 19.37));
-        float grainAmt = (0.022 + uCctv * 0.048 + uRetro * 0.028) * max(0.28, uCrtStrength);
+        // Analog VHS noise grain (tuned for the unified 400p PSX+ pipeline)
+        float snow = hash(floor(vUv * vec2(320.0, 180.0)) + fract(uTime * 14.7));
+        float grainAmt = (0.010 + uCctv * 0.042) * max(0.28, uCrtStrength);
         col += vec3((snow - 0.5) * grainAmt);
 
         if (uStatic > 0.01) {
