@@ -477,6 +477,7 @@ button {
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 .clock-night {
   font-size: 0.78rem;
@@ -675,6 +676,36 @@ button {
 .steel-btn.light-chip kbd {
   font-size: 0.5rem;
   padding: 0 0.2rem;
+}
+
+/* Mobile-first touch ergonomics: hold-safe controls + thumb-sized targets.
+   touch-action:none guarantees no scroll/zoom gesture can steal a hold press mid-action. */
+.steel-btn,
+.desk-pill,
+.monitor-bar,
+.look-arrow {
+  touch-action: none;
+}
+.touch-input .btn-crt.small {
+  min-height: 40px;
+  min-width: 40px;
+}
+.touch-input .desk-pill {
+  min-height: 44px;
+}
+.touch-input .monitor-bar {
+  min-height: 44px;
+}
+.touch-input #btn-map {
+  min-height: 40px;
+}
+.touch-input .cctv-map:not([data-expanded]) .cam-btn {
+  min-height: 40px;
+  font-size: 0.62rem;
+}
+.touch-input .steel-btn.light-chip {
+  width: 44px;
+  min-width: 44px;
 }
 
 /* Quick Look Arrows (subtle, great on mobile & desktop!) */
@@ -1144,10 +1175,10 @@ button:disabled { opacity: 0.56; cursor: default; }
   .custom-actions { margin-top: 0.6rem; }
 
   .door-panel { gap: 0.36rem; padding: 0.36rem 0.3rem; }
-  .steel-btn { width: 54px; height: 52px; }
+  .steel-btn { width: 56px; height: 56px; }
   .steel-btn b { font-size: 0.64rem; }
-  .steel-btn.light-chip { width: 34px; min-width: 34px; }
-  .steel-btn.light-chip b { font-size: 0.44rem; }
+  .steel-btn.light-chip { width: 40px; min-width: 40px; }
+  .steel-btn.light-chip b { font-size: 0.48rem; }
   .steel-led { width: 10px; height: 10px; }
 
   .hud-top { top: max(8px, env(safe-area-inset-top)); }

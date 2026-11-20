@@ -4,6 +4,7 @@ import { Controls } from './controls.js';
 import {
   CHARACTERS,
   CUSTOM_PRESETS,
+  SAVE_KEYS,
   loadCompletedPresets,
   loadCosmeticState,
   loadProgress,
@@ -171,21 +172,29 @@ function pulseHaptic(event) {
     || event.kind === 'hauke_door_slam'
     || event.kind === 'breaker_trip'
     || event.kind === 'office_breach'
-    || event.kind === 'window_sting';
+    || event.kind === 'window_sting'
+    || event.kind === 'anton_video_warning'
+    || event.kind === 'hauke_charge_start';
   if (!urgent && now - lastHapticAt < 85) return;
   const pattern = event.kind === 'jumpscare'
     ? [70, 30, 90, 30, 120]
     : event.kind === 'hauke_door_slam' || event.kind === 'breaker_trip'
       ? [65, 25, 85, 25, 65]
-      : event.kind === 'office_breach'
+      : event.kind === 'office_breach' || event.kind === 'sneak_in'
         ? [45, 45, 60]
-        : event.kind === 'window_sting'
-          ? [36, 20, 48]
-          : event.kind === 'hauke_stomp'
-            ? 34
-            : event.kind === 'door' || event.kind === 'whip_turn'
-              ? 18
-              : 0;
+        : event.kind === 'anton_video_warning'
+          ? [40, 60, 40]
+          : event.kind === 'hauke_charge_start'
+            ? [30, 25, 30]
+            : event.kind === 'window_sting'
+              ? [36, 20, 48]
+              : event.kind === 'hatch_clink' || event.kind === 'duck_rustle'
+                ? 26
+                : event.kind === 'hauke_stomp'
+                  ? 34
+                  : event.kind === 'door' || event.kind === 'whip_turn'
+                    ? 18
+                    : 0;
   if (!pattern) return;
   lastHapticAt = now;
   try {
@@ -365,6 +374,35 @@ const controls = new Controls(canvas, {
 });
 controls.setMouseSensitivity(settings.mouseSens);
 
+// First-run mobile default: touch devices without saved settings start on 'balanced'
+// so mid-range phones keep a stable frame rate (can be raised in Optionen → Grafik).
+if (controls.touch && !localStorage.getItem(SAVE_KEYS.settings)) {
+  settings = saveSettings({ graphics: 'balanced' });
+}
+
+// Fullscreen & landscape lock for touch devices: hides browser chrome and disables
+// accidental system gestures during a shift. Desktop never gets forced fullscreen.
+let autoFullscreenEntered = false;
+function enterGameFullscreen() {
+  if (!controls.touch || typeof document === 'undefined') return;
+  const el = document.documentElement;
+  if (document.fullscreenElement || typeof el.requestFullscreen !== 'function') {
+    tryLandscapeLock();
+    return;
+  }
+  el.requestFullscreen({ navigationUI: 'hide' })
+    .then(() => {
+      autoFullscreenEntered = true;
+      tryLandscapeLock();
+    })
+    .catch(() => tryLandscapeLock());
+}
+function exitAutoFullscreen() {
+  if (!autoFullscreenEntered || typeof document === 'undefined') return;
+  autoFullscreenEntered = false;
+  if (document.fullscreenElement) document.exitFullscreen?.().catch?.(() => {});
+}
+
 function paintAudioButtons() {
   const txt = sound.enabled ? 'Ton: AN' : 'Ton: AUS';
   for (const id of ['title-audio', 'pause-audio']) {
@@ -434,6 +472,7 @@ function showTitle() {
     clearTimeout(introTimer);
     introTimer = null;
   }
+  exitAutoFullscreen();
   minigame = null;
   stage = 'title';
   modalReturnStage = 'title';
@@ -644,7 +683,7 @@ async function startNight(night, customOverride = null, presetId = null) {
     clearTimeout(introTimer);
     introTimer = null;
   }
-  tryLandscapeLock();
+  enterGameFullscreen();
   sound.open();
   sound.reset();
   try {
@@ -702,7 +741,7 @@ async function startNight(night, customOverride = null, presetId = null) {
 
 // ==================== PLAYABLE 3D VHS POST-SHIFT MINIGAMES ====================
 async function startVhsMinigame(tapeId, { nextNight = null, returnStage = 'title' } = {}) {
-  tryLandscapeLock();
+  enterGameFullscreen();
   sound.open();
   sound.reset();
   try {
@@ -1092,20 +1131,26 @@ for (const [id, action] of [
 }
 
 // Hold-Interaction Buttons (unified Bon work step, and Under-Desk Hold Breath)
+// Pointer capture keeps the hold alive when the finger slides slightly off the button;
+// a touch pointerleave only cancels when capture is NOT active (legacy fallback).
 function bindHoldPrepBtn(id, station) {
   const btn = get(id);
   if (!btn) return;
   const start = (e) => {
     if (e.pointerType === 'touch') controls.noteTouch();
     e.preventDefault();
+    try { btn.setPointerCapture(e.pointerId); } catch { /* legacy: no capture */ }
     controls.setPrepHold(station);
     gameActions.prepInteract(station);
   };
   const stop = () => controls.setPrepHold(null);
+  const stopIfReleased = (e) => {
+    if (e.pointerType !== 'touch' || !btn.hasPointerCapture?.(e.pointerId)) stop();
+  };
   btn.addEventListener('pointerdown', start);
   btn.addEventListener('pointerup', stop);
   btn.addEventListener('pointercancel', stop);
-  btn.addEventListener('pointerleave', stop);
+  btn.addEventListener('pointerleave', stopIfReleased);
   btn.addEventListener('click', (e) => {
     if (e.detail === 0) gameActions.prepInteract(station);
   });
@@ -1118,13 +1163,17 @@ if (holdBreathBtn) {
   const startBreath = (e) => {
     if (e.pointerType === 'touch') controls.noteTouch();
     e.preventDefault();
+    try { holdBreathBtn.setPointerCapture(e.pointerId); } catch { /* legacy: no capture */ }
     gameActions.holdBreath(true);
   };
   const stopBreath = () => gameActions.holdBreath(false);
+  const stopBreathIfReleased = (e) => {
+    if (e.pointerType !== 'touch' || !holdBreathBtn.hasPointerCapture?.(e.pointerId)) stopBreath();
+  };
   holdBreathBtn.addEventListener('pointerdown', startBreath);
   holdBreathBtn.addEventListener('pointerup', stopBreath);
   holdBreathBtn.addEventListener('pointercancel', stopBreath);
-  holdBreathBtn.addEventListener('pointerleave', stopBreath);
+  holdBreathBtn.addEventListener('pointerleave', stopBreathIfReleased);
 }
 
 // VHS Minigame Controls (Keyboard + Touch Buttons)

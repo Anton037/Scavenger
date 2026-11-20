@@ -1,4 +1,4 @@
-# FIVE NIGHTS AT TORGE'S (`v2.1` · 03:00 AM Schließdienst Overhaul)
+# FIVE NIGHTS AT TORGE'S (`v2.2` · 03:00 AM Schließdienst Overhaul)
 
 Psychologischer First-Person-Nachtschicht-Horror in **Torges geschlossenem Mitternachts-Imbiss** (*Chilla's Art „The Closing Shift“* trifft *FNaF Plus / FFPS*) — komplett ohne externe Pflicht-Binärdateien in **Three.js `0.187`** + **Vite `8.3`** umgesetzt:
 
@@ -39,13 +39,19 @@ Psychologischer First-Person-Nachtschicht-Horror in **Torges geschlossenem Mitte
 - `M` — Kassettenband stummschalten · `Esc` / `P` — Pause
 - **Direkte 3D-Interaktion:** Alle Schalterkästen, Dönerspieß, Fritteusenkorb, Packstation, Hauptsicherung, Abluftventil und Hinterluke lassen sich auch direkt im 3D-Raum anklicken/halten.
 
-### Smartphone / Tablet (Querformat / Landscape)
+### Smartphone / Tablet (Querformat / Landscape) — 100% Mobile-First
+- **Automatischer Vollbildmodus:** Beim Start der Schicht wird Vollbild + Querformat-Sperre angefordert (Browserleiste aus, keine versehentlichen Systemgesten — wird beim Rückkehr ins Menü automatisch beendet)
+- **Auto-Leistungsprofil:** Touchgeräte starten im ersten Lauf mit *Balanced*-Rendering für stabile FPS (in **Optionen → Grafik** erhöhbar)
+- **Halte-sichere Buttons:** ARBEITEN & ATEM ANHALTEN behalten den Griff, auch wenn der Finger leicht abrutscht (Pointer-Capture — kein Abbruch mehr mitten im Schneiden/Gasping)
+- **Daumengroße Ziele:** Alle Spielknöpfe ≥ 40–56 px (Stahlgruppen 56 px, LICHT-Chips 44 px, Aktionen/Monitorleiste 44 px, Kamera-/Pauseknöpfe 40 px)
+- **Vibration als Warnton:** Jumpscare, Sicherungsausfall, Anton-Videoanruf, Tom-Luke, Enten-Rascheln, Hauke-Anlauf & Türknall vibrieren (falls vom Gerät unterstützt)
 - **Wischen links/rechts** zum Umschauen · **Nach unten wischen** = Unter die Theke ducken · **Nach oben wischen** = Aufstehen
 - **Ein Bon-Arbeitsknopf hinten:** Gedrückt halten (oder `E`) — der Knopf springt automatisch zum aktuellen Schritt (Spieß → Fritteuse → Tüte)
-- **Flurlicht-Chips:** Das LICHT-Steuerfeld hängt jetzt direkt an jedem TOR-Knopf (kompakte Taste direkt daneben)
+- **Flurlicht-Chips:** Das LICHT-Steuerfeld hängt direkt an jedem TOR-Knopf (kompakte Taste direkt daneben)
 - **Band-Stummschaltung:** Stumm-Chip direkt im Kassetten-Transkript antippen (statt oben in der Leiste)
 - **Blick-Pfeile:** Optionale Halte-Pfeile zum Umschauen — Standard AUS, in den **Optionen** zuschaltbar (Wischen funktioniert immer)
 - **Kontext-Aktionsleiste** passt sich automatisch an Vorderansicht, `180°`-Rückwand, Unter-Theke-Versteck, CCTV-Monitor und VHS-Bänder an.
+- **Automatische Pause:** Tab/Hintergrund ausblenden pausiert die Schicht & senkt die Lautstärke — kein unfairer Tod mehr durch Hintergrundszeit.
 
 ---
 
