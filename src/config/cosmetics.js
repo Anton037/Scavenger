@@ -102,7 +102,7 @@ export const VHS_TAPES = [
   {
     id: 'tape1',
     code: 'BAND 01 · 03:14 AM',
-    title: 'TAPE 01 · FLUR-KONTROLLE',
+    title: 'BAND 01 · FLUR-KONTROLLE',
     sub: '12-Meter-Lieferflur · Akustischer Licht-Check am weißen Klebeband-X',
     unlockAfterNight: 1,
     rewardTips: 15,
@@ -112,7 +112,7 @@ export const VHS_TAPES = [
   {
     id: 'tape2',
     code: 'BAND 02 · 04:08 AM',
-    title: 'TAPE 02 · HINTERZIMMER-INVENTUR',
+    title: 'BAND 02 · HINTERZIMMER-INVENTUR',
     sub: 'Edelstahltisch · 4 Kassetten-Testtöne, Klemmbrett-Protokoll & Tisch-Stroboskop',
     unlockAfterNight: 2,
     rewardTips: 20,
@@ -122,12 +122,12 @@ export const VHS_TAPES = [
   {
     id: 'tape3',
     code: 'BAND 03 · 05:22 AM',
-    title: 'TAPE 03 · KÜHLHAUS-SCHLUSSRUNDE',
+    title: 'BAND 03 · KÜHLHAUS-SCHLUSSRUNDE',
     sub: '−18 °C Kühlzelle · 3 vereiste Relaiskästen hinter milchigen PVC-Streifen',
     unlockAfterNight: 3,
     rewardTips: 25,
     loreTitle: 'PROTOKOLL #03 — KÜHLZELLE NORD',
-    loreText: '„Alle drei Abtau-Relais vereisen vor 5 Uhr. Wenn draußen jemand direkt vor den Plastiklamellen stehen bleibt: Werkzeug loslassen, Lampe aus, Luft anhalten. Die Folie hält niemanden auf.“',
+    loreText: '„Alle drei Abtau-Relais vereisen vor 5 Uhr. Wenn draußen jemand direkt vor den Plastiklamellen stehen bleibt: Werkzeug loslassen, Lampe aus, Atem anhalten. Die Folie hält niemanden auf.“',
   },
 ];
 

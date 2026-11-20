@@ -513,6 +513,36 @@ button {
   line-height: 1.32;
   color: #e9ecf5;
 }
+/* Mute affordance lives inside the cassette transcript box (replaces the old top-bar button) */
+.call-box:not(.shift-alert) {
+  padding-right: 4.2rem;
+}
+.call-mute-btn {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  padding: 0.28rem 0.44rem;
+  border: 1px solid rgba(255, 207, 86, 0.5);
+  background: rgba(34, 26, 8, 0.9);
+  font-family: var(--mono);
+  color: var(--gold);
+  cursor: pointer;
+}
+.call-mute-btn:hover {
+  border-color: var(--gold);
+  background: rgba(66, 50, 14, 0.95);
+}
+.call-mute-btn .mute-glyph { font-size: 0.78rem; line-height: 1; }
+.call-mute-btn .mute-label {
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
 .shift-alert {
   border-color: rgba(114, 220, 255, 0.65);
   background: rgba(8, 16, 24, 0.95);
@@ -625,6 +655,28 @@ button {
 }
 .steel-btn.jammed .steel-led { background: #1c1f28 !important; box-shadow: none !important; }
 
+/* Merged Steel Shutter Group: one big TOR button with an attached narrow LICHT chip */
+.steel-group {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.3rem;
+  align-items: stretch;
+}
+.steel-btn.light-chip {
+  width: 40px;
+  min-width: 40px;
+  padding: 0 0.14rem;
+  gap: 0.12rem;
+}
+.steel-btn.light-chip b {
+  font-size: 0.52rem;
+  letter-spacing: 0.04em;
+}
+.steel-btn.light-chip kbd {
+  font-size: 0.5rem;
+  padding: 0 0.2rem;
+}
+
 /* Quick Look Arrows (subtle, great on mobile & desktop!) */
 .look-arrows {
   position: fixed;
@@ -635,7 +687,7 @@ button {
   gap: 1.4rem;
   z-index: 19;
 }
-.touch-input .look-arrows { display: flex; }
+.touch-input.look-arrows-on .look-arrows { display: flex; }
 .look-arrow {
   width: 44px;
   height: 36px;
@@ -1094,6 +1146,8 @@ button:disabled { opacity: 0.56; cursor: default; }
   .door-panel { gap: 0.36rem; padding: 0.36rem 0.3rem; }
   .steel-btn { width: 54px; height: 52px; }
   .steel-btn b { font-size: 0.64rem; }
+  .steel-btn.light-chip { width: 34px; min-width: 34px; }
+  .steel-btn.light-chip b { font-size: 0.44rem; }
   .steel-led { width: 10px; height: 10px; }
 
   .hud-top { top: max(8px, env(safe-area-inset-top)); }
@@ -1996,6 +2050,17 @@ dialog.modal-dialog[open] {
 .prep-pill.step-active .pill-led {
   background: var(--jade);
   box-shadow: 0 0 8px var(--jade);
+}
+
+/* Unified Bon Work Button: one wide hold-pill that auto-advances through all 3 prep steps */
+.prep-work-pill {
+  flex: 1 1 220px;
+  max-width: 360px;
+  justify-content: center;
+  min-height: 44px;
+}
+.prep-work-pill:disabled {
+  opacity: 0.55;
 }
 
 .back-strip {

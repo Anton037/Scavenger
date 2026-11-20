@@ -1,7 +1,7 @@
 export const NIGHT_CONFIGS = {
   1: {
     title: 'NACHT 1',
-    sub: 'Einarbeitung · 3 Pflicht-Bestellungen',
+    sub: 'Einarbeitung · 3 Pflicht-Bons',
     ai: { torge: 1, anton: 1, tom: 1, hauke: 0, duck: 0 },
     orderQuota: 3,
     hourlyBumps: {
@@ -17,7 +17,7 @@ export const NIGHT_CONFIGS = {
   },
   2: {
     title: 'NACHT 2',
-    sub: 'Hauptsicherung & Nachtschalter · 4 Bestellungen',
+    sub: 'Hauptsicherung & Nachtschalter · 4 Pflicht-Bons',
     ai: { torge: 2, anton: 3, tom: 2, hauke: 2, duck: 2 },
     orderQuota: 4,
     hourlyBumps: {
@@ -32,7 +32,7 @@ export const NIGHT_CONFIGS = {
   },
   3: {
     title: 'NACHT 3',
-    sub: 'Durchreiche & Abluftdruck · 5 Bestellungen',
+    sub: 'Durchreiche & Abluftdruck · 5 Pflicht-Bons',
     ai: { torge: 4, anton: 3, tom: 5, hauke: 3, duck: 4 },
     orderQuota: 5,
     hourlyBumps: {
@@ -47,7 +47,7 @@ export const NIGHT_CONFIGS = {
   },
   4: {
     title: 'NACHT 4',
-    sub: 'Regenschicht · 6 Bestellungen',
+    sub: 'Regenschicht · 6 Pflicht-Bons',
     ai: { torge: 6, anton: 5, tom: 6, hauke: 6, duck: 6 },
     orderQuota: 6,
     hourlyBumps: {
@@ -55,14 +55,14 @@ export const NIGHT_CONFIGS = {
       3: { anton: 1, tom: 1, hauke: 2 },
       4: { torge: 2, tom: 1, duck: 2 },
     },
-    passiveDrain: 0.034,
-    heatRate: 1.22,
-    firstBonAt: 8,
-    bonInterval: [18, 25],
+    passiveDrain: 0.030,
+    heatRate: 1.10,
+    firstBonAt: 9,
+    bonInterval: [19, 26],
   },
   5: {
     title: 'NACHT 5',
-    sub: 'Letzte Kassette · 7 Bestellungen',
+    sub: 'Letzte Kassette · 7 Pflicht-Bons',
     ai: { torge: 8, anton: 7, tom: 8, hauke: 7, duck: 8 },
     orderQuota: 7,
     hourlyBumps: {
@@ -77,7 +77,7 @@ export const NIGHT_CONFIGS = {
   },
   6: {
     title: 'NACHT 6',
-    sub: 'Unbezahlte Nachschicht · 8 Bestellungen',
+    sub: 'Unbezahlte Nachschicht · 8 Pflicht-Bons',
     ai: { torge: 11, anton: 10, tom: 12, hauke: 14, duck: 12 },
     orderQuota: 8,
     hourlyBumps: {
@@ -115,7 +115,7 @@ export const SHIFT_MODIFIERS = [
     id: 'rush_hour',
     name: 'Nachtbus-Andrang',
     short: 'QUOTE +2',
-    desc: 'Zwei zusätzliche Pflicht-Bestellungen mit engerer Taktung (+Trinkgeld).',
+    desc: 'Zwei zusätzliche Pflicht-Bons mit engerer Taktung (+Trinkgeld).',
     bonusPct: 20,
   },
   {
@@ -152,12 +152,12 @@ export const PHONE_CALLS = {
     { at: 18.0, dur: 7.4, text: '„Du musst bis Punkt 06:00 Uhr deine Pflicht-Bons abarbeiten: Spieß schneiden, Pommes senken, Spezi zapfen und eintüten.“' },
     { at: 26.4, dur: 7.4, text: '„Fehlen um sechs noch Tüten, schaltet die Stechuhr auf Überstunden — und Torge kommt durch die offene Durchreiche nach vorn.“' },
     { at: 34.8, dur: 7.2, text: '„In der Mitte gibt es keinen Rollladen. Leuchte mit der Taschenlampe [F] tief in den Schacht, sobald dort Augen reflektieren.“' },
-    { at: 43.0, dur: 6.8, text: '„Und falls Anton links reinkommt: Nicht stehen bleiben. Unter die Theke [C] und Luft anhalten [Space], bis er weg ist.“' },
+    { at: 43.0, dur: 6.8, text: '„Und falls Anton links reinkommt: Nicht stehen bleiben. Unter die Theke [C] und Atem anhalten [Space], bis er weg ist.“' },
   ],
   2: [
     { at: 2, dur: 6.8, text: '„Zweite Kassette. Der Sicherungskasten hinten links an der Rückwand macht seit gestern Probleme.“' },
     { at: 9.8, dur: 7.4, text: '„Hauke steht hinter dem Vorhang auf Kamera 1C. Wenn der Boden bebt: Sofort linken Rollladen [Q] runterlassen.“' },
-    { at: 18.2, dur: 7.4, text: '„Der Einschlag wirft jedes Mal den Hauptschalter raus. Dreh dich um 180 Grad [S] und zieh den Hebel im roten Notlicht wieder hoch.“' },
+    { at: 18.2, dur: 7.4, text: '„Der Einschlag wirft jedes Mal die Hauptsicherung raus. Dreh dich um 180 Grad [S] und zieh den Hebel im roten Notlicht wieder hoch.“' },
     { at: 26.6, dur: 7.5, text: '„Ach so — lass das Elektromesser nicht unnötig laufen. Tom hört den Lärm bis in die Gasse und kriecht an die hintere Klappe.“' },
     { at: 35.0, dur: 7.2, text: '„Noch was: Im Lager liegt noch das alte gelbe Enten-Kostüm. Wenn es plötzlich im Raum steht — mach bloß die Taschenlampe aus.“' },
   ],
@@ -212,7 +212,7 @@ export const MEME_LINES = {
 export const CUSTOM_PRESETS = [
   {
     id: 'rushhour_nightmare',
-    name: 'Rushhour-Alptraum',
+    name: 'Stoßzeit-Alptraum',
     desc: 'Dauerbetrieb an der Vorbereitungszeile bei aggressivem Lärm-Jäger.',
     ai: { torge: 14, anton: 10, tom: 16, hauke: 8, duck: 8 },
     modifiers: ['rush_hour'],
@@ -220,7 +220,7 @@ export const CUSTOM_PRESETS = [
   {
     id: 'blackout_shift',
     name: 'Stromausfall-Schicht',
-    desc: '75 % Startakku, ständige Sicherungs-Trips durch Hauke.',
+    desc: '75 % Startakku, ständiges Auslösen der Sicherung durch Hauke.',
     ai: { torge: 10, anton: 14, tom: 12, hauke: 18, duck: 6 },
     modifiers: ['rusty_gen'],
   },
@@ -256,7 +256,7 @@ export const CUSTOM_PRESETS = [
 
 export const ACHIEVEMENTS = [
   { id: 'first_bon', title: 'Probeschicht überstanden', desc: 'Überlebe Nacht 1 inklusive Pflicht-Quote.', icon: 'I' },
-  { id: 'stammkraft', title: 'Schlüsselgewalt', desc: 'Überlebe alle 5 regulären Nächte.', icon: 'V' },
+  { id: 'stammkraft', title: 'Festanstellung', desc: 'Überlebe alle 5 regulären Nächte.', icon: 'V' },
   { id: 'overtime', title: 'Nachschicht', desc: 'Überlebe die 6. Nacht vollständig.', icon: 'VI' },
   { id: 'legend_420', title: 'Mitternachts-Hölle', desc: 'Überlebe alle KI-Regler auf 20 in der Custom Night.', icon: 'XX' },
   { id: 'quake_pro', title: 'Stahlrahmen', desc: 'Blocke Boss Hauke 3× in einer Schicht und setze die Sicherung zurück.', icon: '⚡' },

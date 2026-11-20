@@ -131,18 +131,10 @@ export class Controls {
         }
       } else if (event.code === 'KeyC' || isBareCtrl) {
         event.preventDefault();
-        if (this.actions.underDesk) {
-          this.actions.underDesk();
-        } else {
-          this.actions.spezi?.();
-        }
+        this.actions.underDesk?.();
       } else if (event.code === 'KeyF') {
         event.preventDefault();
-        if (this.actions.flashlight) {
-          this.actions.flashlight();
-        } else {
-          this.actions.fuse?.();
-        }
+        this.actions.flashlight?.();
       } else if (event.code === 'KeyQ') {
         event.preventDefault();
         this.actions.leftDoor?.();
@@ -174,15 +166,6 @@ export class Controls {
       } else if (event.code === 'KeyV') {
         event.preventDefault();
         this.actions.vent?.();
-      } else if (event.code === 'KeyG') {
-        event.preventDefault();
-        this.actions.steamBurst?.();
-      } else if (event.code === 'KeyB') {
-        event.preventDefault();
-        this.actions.bell?.();
-      } else if (event.code === 'KeyT') {
-        event.preventDefault();
-        this.actions.stampBon?.();
       } else if (event.code === 'KeyM') {
         event.preventDefault();
         this.actions.mute?.();

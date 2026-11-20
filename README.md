@@ -1,4 +1,4 @@
-# FIVE NIGHTS AT TORGE'S (`v2.0` · 03:00 AM Schließdienst Overhaul)
+# FIVE NIGHTS AT TORGE'S (`v2.1` · 03:00 AM Schließdienst Overhaul)
 
 Psychologischer First-Person-Nachtschicht-Horror in **Torges geschlossenem Mitternachts-Imbiss** (*Chilla's Art „The Closing Shift“* trifft *FNaF Plus / FFPS*) — komplett ohne externe Pflicht-Binärdateien in **Three.js `0.187`** + **Vite `8.3`** umgesetzt:
 
@@ -41,6 +41,10 @@ Psychologischer First-Person-Nachtschicht-Horror in **Torges geschlossenem Mitte
 
 ### Smartphone / Tablet (Querformat / Landscape)
 - **Wischen links/rechts** zum Umschauen · **Nach unten wischen** = Unter die Theke ducken · **Nach oben wischen** = Aufstehen
+- **Ein Bon-Arbeitsknopf hinten:** Gedrückt halten (oder `E`) — der Knopf springt automatisch zum aktuellen Schritt (Spieß → Fritteuse → Tüte)
+- **Flurlicht-Chips:** Das LICHT-Steuerfeld hängt jetzt direkt an jedem TOR-Knopf (kompakte Taste direkt daneben)
+- **Band-Stummschaltung:** Stumm-Chip direkt im Kassetten-Transkript antippen (statt oben in der Leiste)
+- **Blick-Pfeile:** Optionale Halte-Pfeile zum Umschauen — Standard AUS, in den **Optionen** zuschaltbar (Wischen funktioniert immer)
 - **Kontext-Aktionsleiste** passt sich automatisch an Vorderansicht, `180°`-Rückwand, Unter-Theke-Versteck, CCTV-Monitor und VHS-Bänder an.
 
 ---

@@ -70,4 +70,5 @@ export const DEFAULT_SETTINGS = {
   mouseSens: 1.0, // 0.5 .. 2.0
   reducedMotion: false,
   audioSubtitles: false,
+  lookArrows: false, // touch look-hold arrows; drag-to-look always works regardless
 };

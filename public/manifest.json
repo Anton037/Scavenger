@@ -1,6 +1,7 @@
 {
   "name": "Five Nights at Torge's — 03:00 AM Schließdienst",
   "short_name": "FNA Torge's",
+  "lang": "de",
   "description": "Psychologischer 3-Uhr-Nachtschicht-Horror in Torges geschlossenem Döner-Imbiss mit PS1/VHS-Stalkern, 2-Stationen-Kabine, Taschenlampe, Unter-Theke-Versteck, Pflicht-Bons & spielbaren VHS-Bändern.",
   "start_url": "./",
   "display": "fullscreen",

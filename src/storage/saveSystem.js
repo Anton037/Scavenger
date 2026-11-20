@@ -14,6 +14,7 @@ export function loadSettings() {
       mouseSens: Math.max(0.5, Math.min(2.0, Number.isFinite(Number(parsed.mouseSens)) ? Number(parsed.mouseSens) : DEFAULT_SETTINGS.mouseSens)),
       reducedMotion: Boolean(parsed.reducedMotion),
       audioSubtitles: Boolean(parsed.audioSubtitles),
+      lookArrows: Boolean(parsed.lookArrows),
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -373,5 +374,5 @@ export function computeShiftRank(run) {
   if (score >= 38 || power >= 14) {
     return { grade: 'B', label: 'NACHTAUSHILFE', wage: `95,00 € Tarif${tipSuffix}` };
   }
-  return { grade: 'C', label: 'KNAPP ABGERECHNET', wage: `68,40 € (Abzüge)${tipSuffix}` };
+  return { grade: 'C', label: 'KNAPP ENTKOMMEN', wage: `68,40 € (Abzüge)${tipSuffix}` };
 }

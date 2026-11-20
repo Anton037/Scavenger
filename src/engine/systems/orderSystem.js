@@ -32,7 +32,8 @@ export function createOrderState(cfg, modifiers = [], rng = Math.random) {
 function scheduleNextOrder(run) {
   const ord = run.orders;
   if (run.overtime && ord.completed < ord.quota) {
-    ord.nextAt = run.time + 2.5;
+    // Slightly kinder overtime pacing (was 2.5s) so the Nachschicht stays scary but fair
+    ord.nextAt = run.time + 3.5;
     return;
   }
   const cfg = run.nightCfg;

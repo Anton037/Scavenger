@@ -278,6 +278,11 @@ const gameActions = {
 const hud = new Hud(gameActions.cam);
 hud.setAudioSubtitles(settings.audioSubtitles);
 
+function applyLookArrowsSetting() {
+  document.body?.classList?.toggle('look-arrows-on', Boolean(settings.lookArrows));
+}
+applyLookArrowsSetting();
+
 const controls = new Controls(canvas, {
   ...gameActions,
   isUnderDesk: () => run?.viewState === 'under_desk',
@@ -401,6 +406,12 @@ function syncSettingsUi() {
     subBtn.setAttribute('aria-pressed', String(Boolean(settings.audioSubtitles)));
     write(subBtn, settings.audioSubtitles ? 'AN' : 'AUS');
   }
+
+  const arrowsBtn = get('set-look-arrows');
+  if (arrowsBtn) {
+    arrowsBtn.setAttribute('aria-pressed', String(Boolean(settings.lookArrows)));
+    write(arrowsBtn, settings.lookArrows ? 'AN' : 'AUS');
+  }
 }
 
 function applyAllSettings(patch = {}) {
@@ -408,6 +419,7 @@ function applyAllSettings(patch = {}) {
   sound.setVolume(settings.volume);
   controls.setMouseSensitivity(settings.mouseSens);
   hud.setAudioSubtitles(settings.audioSubtitles);
+  applyLookArrowsSetting();
   view?.applySettings(settings);
   syncSettingsUi();
 }
@@ -619,7 +631,7 @@ async function ensureView() {
 }
 
 ensureView().catch((err) => {
-  console.warn('3D scene init warning:', err.message);
+  console.warn('Warnung bei der 3D-Szenen-Initialisierung:', err.message);
   const el = get('launch-error');
   if (el) {
     write(el, 'WebGL 2 konnte nicht initialisiert werden.');
@@ -973,6 +985,11 @@ get('set-audio-subs')?.addEventListener('click', () => {
   sound.open();
   sound.play({ kind: 'cam_blip' });
 });
+get('set-look-arrows')?.addEventListener('click', () => {
+  applyAllSettings({ lookArrows: !settings.lookArrows });
+  sound.open();
+  sound.play({ kind: 'cam_blip' });
+});
 
 // Menu & Modal Navigation
 get('btn-new-game')?.addEventListener('click', () => startNight(1));
@@ -1054,7 +1071,6 @@ for (const [id, action] of [
   ['btn-turn-front', gameActions.turnAround],
   ['btn-under-desk', () => gameActions.underDesk(true)],
   ['btn-stand-up', () => gameActions.underDesk(false)],
-  ['btn-prep-fryer', () => gameActions.prepInteract('fryer')],
   ['btn-reset-breaker', gameActions.resetBreaker],
   ['btn-vent-steam', gameActions.vent],
   ['btn-cam-counter', gameActions.camCounter],
@@ -1075,7 +1091,7 @@ for (const [id, action] of [
   });
 }
 
-// Hold-Interaction Buttons (Döner Slicer, Bagging/Spezi, and Under-Desk Hold Breath)
+// Hold-Interaction Buttons (unified Bon work step, and Under-Desk Hold Breath)
 function bindHoldPrepBtn(id, station) {
   const btn = get(id);
   if (!btn) return;
@@ -1094,8 +1110,8 @@ function bindHoldPrepBtn(id, station) {
     if (e.detail === 0) gameActions.prepInteract(station);
   });
 }
-bindHoldPrepBtn('btn-prep-doner', 'doner');
-bindHoldPrepBtn('btn-prep-bag', 'bag');
+// 'auto' advances through the current bon step (Döner → Fritteuse → Tüte) exactly like the E key
+bindHoldPrepBtn('btn-prep-work', 'auto');
 
 const holdBreathBtn = get('btn-hold-breath');
 if (holdBreathBtn) {

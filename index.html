@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#05060b">
-  <meta name="description" content="Five Nights at Torge's v2.0 — Psychologischer 3-Uhr-Nachtschicht-Horror in Torges geschlossenem Döner-Imbiss. 2-Stationen-Kabine, Taschenlampe, Unter-Theke-Versteck, Pflicht-Bons &amp; spielbare VHS-Bänder.">
+  <meta name="description" content="Five Nights at Torge's v2.1 — Psychologischer 3-Uhr-Nachtschicht-Horror in Torges geschlossenem Döner-Imbiss. 2-Stationen-Kabine, Taschenlampe, Unter-Theke-Versteck, Pflicht-Bons &amp; spielbare VHS-Bänder.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="FIVE NIGHTS AT TORGE'S v2.0 — 03:00 AM Schließdienst">
+  <meta property="og:title" content="FIVE NIGHTS AT TORGE'S v2.1 — 03:00 AM Schließdienst">
   <meta property="og:description" content="PS1/VHS-Low-Poly-Horror im geschlossenen Mitternachts-Imbiss: 5 Stalker, 180°-Vorbereitungsstation, Hauptsicherung, Unter-Theke-Atemkontrolle &amp; 3 spielbare VHS-Kassetten.">
   <meta property="og:image" content="https://anton037.github.io/Torges-Pizza/gate.png">
   <meta name="twitter:card" content="summary">
@@ -16,7 +16,7 @@
 </head>
 <body>
   <main id="app">
-    <canvas id="stage" aria-label="Five Nights at Torge's 3D Ansicht"></canvas>
+    <canvas id="stage" aria-label="Five Nights at Torge's 3D-Ansicht"></canvas>
 
     <!-- Landscape-Only Rotate Prompt -->
     <div id="rotate-overlay" class="rotate-overlay" role="alertdialog" aria-modal="true" aria-labelledby="rotate-title">
@@ -26,7 +26,7 @@
         </div>
         <p class="title-kicker">FIVE NIGHTS AT TORGE'S</p>
         <h2 id="rotate-title">GERÄT BITTE DREHEN</h2>
-        <p>Die Überwachungskabine läuft im <strong>Querformat (Landscape)</strong> — drehe dein Gerät um 90°, um die Nachtschicht anzutreten.</p>
+        <p>Die Überwachungskabine läuft im <strong>Querformat</strong> — drehe dein Gerät um 90°, um die Nachtschicht anzutreten.</p>
       </div>
     </div>
 
@@ -142,7 +142,7 @@
             </div>
           </div>
           <div class="archive-actions">
-            <button id="btn-archive-flash" class="btn-crt small" type="button" aria-pressed="false">IR-Licht / Eye-Shine</button>
+            <button id="btn-archive-flash" class="btn-crt small" type="button" aria-pressed="false">IR-Licht / Augenreflex</button>
             <button id="btn-archive-scare" class="btn-crt small primary" type="button">3D-Jumpscare testen</button>
           </div>
           <p class="turntable-hint">Rechts im 3D-Raum ziehen zum Drehen (360°).</p>
@@ -161,7 +161,7 @@
       <div class="vhs-top">
         <div class="vhs-osd-left">
           <span class="vhs-play-badge"><i class="rec-dot" aria-hidden="true"></i> PLAY ▶ SP</span>
-          <strong id="vhs-title">TAPE 01 · FLUR-KONTROLLE</strong>
+          <strong id="vhs-title">BAND 01 · FLUR-KONTROLLE</strong>
           <small id="vhs-sub"></small>
         </div>
         <div class="vhs-osd-right">
@@ -338,6 +338,14 @@
             </div>
             <button id="set-audio-subs" class="btn-crt small" type="button" aria-pressed="false">AUS</button>
           </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <b>Blick-Pfeile (Touch)</b>
+              <small>Blendet zwei Halte-Pfeile zum Umschauen ein — Wischen &amp; Ziehen funktionieren immer</small>
+            </div>
+            <button id="set-look-arrows" class="btn-crt small" type="button" aria-pressed="false">AUS</button>
+          </div>
         </div>
       </div>
     </dialog>
@@ -448,7 +456,6 @@
       <div class="hud-top">
         <div class="hud-top-left">
           <button id="btn-pause" class="btn-crt small" type="button" aria-label="Pause" title="Pause (Esc)">❚❚</button>
-          <button id="btn-mute-call" class="btn-crt small" type="button" hidden>Band stumm <span class="kbd-hint">(M)</span></button>
           <div id="quota-pill" class="quota-pill" aria-live="polite">
             <span class="quota-dot" aria-hidden="true"></span>
             <span id="quota-label">BONS: 0/3</span>
@@ -476,6 +483,9 @@
       <div id="call-box" class="call-box" hidden aria-live="polite">
         <span class="call-tag">📼 KASSETTEN-BAND</span>
         <p id="call-text"></p>
+        <button id="btn-mute-call" class="call-mute-btn" type="button" title="Band stummschalten (M)" aria-label="Kassetten-Band stummschalten">
+          <span class="mute-glyph" aria-hidden="true">🔇</span><span class="mute-label">STUMM</span>
+        </button>
       </div>
       <div id="shift-alert" class="call-box shift-alert" hidden aria-live="polite">
         <span id="shift-alert-title" class="call-tag"></span>
@@ -487,32 +497,36 @@
       <!-- Contextual Booth Controls (Hidden when CCTV Monitor is UP or Power Outage) -->
       <div id="office-controls" class="office-controls">
 
-        <!-- 1. FRONT STATION CONTROLS (Shutters + Flashlight + 180° Turn + Duck Under Desk) -->
+        <!-- 1. FRONT STATION CONTROLS (Steel Shutter Groups + Flashlight + 180° Turn + Duck Under Desk) -->
         <div id="front-controls" class="station-layer">
           <div class="door-panel left">
-            <button id="btn-left-door" class="steel-btn door-btn" type="button" aria-pressed="false" aria-label="Linker Rollladen" title="Linker Rollladen (Q)">
-              <span class="steel-led" aria-hidden="true"></span>
-              <b>TOR</b>
-              <kbd>Q</kbd>
-            </button>
-            <button id="btn-left-light" class="steel-btn light-btn" type="button" aria-pressed="false" aria-label="Linkes Flurlicht" title="Linkes Flurlicht (W)">
-              <span class="steel-led" aria-hidden="true"></span>
-              <b>LICHT</b>
-              <kbd>W</kbd>
-            </button>
+            <div class="steel-group" role="group" aria-label="Links: Rollladen und Flurlicht">
+              <button id="btn-left-door" class="steel-btn door-btn" type="button" aria-pressed="false" aria-label="Linker Rollladen" title="Linker Rollladen (Q)">
+                <span class="steel-led" aria-hidden="true"></span>
+                <b>TOR</b>
+                <kbd>Q</kbd>
+              </button>
+              <button id="btn-left-light" class="steel-btn light-btn light-chip" type="button" aria-pressed="false" aria-label="Linkes Flurlicht" title="Linkes Flurlicht (W)">
+                <span class="steel-led" aria-hidden="true"></span>
+                <b>LICHT</b>
+                <kbd>W</kbd>
+              </button>
+            </div>
           </div>
 
           <div class="door-panel right">
-            <button id="btn-right-door" class="steel-btn door-btn" type="button" aria-pressed="false" aria-label="Rechter Rollladen" title="Rechter Rollladen (E)">
-              <span class="steel-led" aria-hidden="true"></span>
-              <b>TOR</b>
-              <kbd>E</kbd>
-            </button>
-            <button id="btn-right-light" class="steel-btn light-btn" type="button" aria-pressed="false" aria-label="Rechtes Flurlicht" title="Rechtes Flurlicht (R)">
-              <span class="steel-led" aria-hidden="true"></span>
-              <b>LICHT</b>
-              <kbd>R</kbd>
-            </button>
+            <div class="steel-group" role="group" aria-label="Rechts: Rollladen und Flurlicht">
+              <button id="btn-right-door" class="steel-btn door-btn" type="button" aria-pressed="false" aria-label="Rechter Rollladen" title="Rechter Rollladen (E)">
+                <span class="steel-led" aria-hidden="true"></span>
+                <b>TOR</b>
+                <kbd>E</kbd>
+              </button>
+              <button id="btn-right-light" class="steel-btn light-btn light-chip" type="button" aria-pressed="false" aria-label="Rechtes Flurlicht" title="Rechtes Flurlicht (R)">
+                <span class="steel-led" aria-hidden="true"></span>
+                <b>LICHT</b>
+                <kbd>R</kbd>
+              </button>
+            </div>
           </div>
 
           <div id="front-actions" class="desk-actions" aria-label="Vordere Wachkabine">
@@ -543,22 +557,11 @@
         <!-- 2. BACK STATION CONTROLS (3-Step Prep + Physical Breaker + Exhaust Valve + Back Hatch Light) -->
         <div id="back-controls" class="station-layer" hidden>
           <div id="back-actions" class="desk-actions back-strip" aria-label="Hintere Vorbereitungsstation">
-            <button id="btn-prep-doner" class="desk-pill prep-pill" type="button" title="1. Dönerspieß schneiden (Halten / E)">
+            <button id="btn-prep-work" class="desk-pill prep-pill prep-work-pill" type="button" title="Aktuellen Bon-Arbeitsschritt ausführen (gedrückt halten / E)">
               <span class="pill-led" aria-hidden="true"></span>
-              <span id="prep-doner-label">1. SPIESS</span>
-              <kbd>E</kbd>
-              <i id="prep-doner-bar" class="bon-timer-bar" aria-hidden="true"></i>
-            </button>
-            <button id="btn-prep-fryer" class="desk-pill prep-pill" type="button" title="2. Pommes-Korb senken / heben (E)">
-              <span class="pill-led" aria-hidden="true"></span>
-              <span id="prep-fryer-label">2. FRITTEUSE</span>
-              <kbd>E</kbd>
-            </button>
-            <button id="btn-prep-bag" class="desk-pill prep-pill" type="button" title="3. Spezi zapfen &amp; eintüten (Halten / E)">
-              <span class="pill-led" aria-hidden="true"></span>
-              <span id="prep-bag-label">3. EINPACKEN</span>
-              <kbd>E</kbd>
-              <i id="prep-bag-bar" class="bon-timer-bar" aria-hidden="true"></i>
+              <span id="prep-work-label">KEIN BON OFFEN</span>
+              <kbd>E halten</kbd>
+              <i id="prep-work-bar" class="bon-timer-bar" aria-hidden="true"></i>
             </button>
             <button id="btn-reset-breaker" class="desk-pill danger-pill" type="button" title="Hauptsicherungs-Hebel hochziehen (R)" hidden>
               <span class="pill-led active" aria-hidden="true"></span>

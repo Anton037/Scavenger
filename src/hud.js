@@ -15,6 +15,7 @@ import {
   loadWallet,
   PREP_BAG_SECONDS,
   PREP_DONER_SECONDS,
+  PREP_FRYER_SECONDS,
   purchaseCosmetic,
   RETRY_HINTS,
   STEAM_BURST_MIN_HEAT,
@@ -58,9 +59,7 @@ export class Hud {
       'btn-left-door', 'btn-left-light', 'btn-right-door', 'btn-right-light',
       'btn-flashlight', 'flashlight-label', 'btn-turn-back', 'turn-back-label',
       'btn-under-desk', 'under-desk-label',
-      'btn-prep-doner', 'prep-doner-label', 'prep-doner-bar',
-      'btn-prep-fryer', 'prep-fryer-label',
-      'btn-prep-bag', 'prep-bag-label', 'prep-bag-bar',
+      'btn-prep-work', 'prep-work-label', 'prep-work-bar',
       'btn-reset-breaker', 'btn-vent-steam', 'vent-btn-label',
       'btn-back-flashlight', 'back-flash-label', 'btn-turn-front',
       'breath-label', 'breath-fill', 'btn-hold-breath', 'hold-breath-label', 'btn-stand-up',
@@ -297,7 +296,7 @@ export class Hud {
         <div class="record-chip"><small>Stempel</small><strong>${unlocked.size} / ${ACHIEVEMENTS.length}</strong></div>
         <div class="record-chip"><small>Schichten</small><strong>${rec.nightsWon}</strong></div>
         <div class="record-chip"><small>Trinkgeld gesamt</small><strong>${formatEuros(wallet.lifetime)}</strong></div>
-        <div class="record-chip"><small>Best-Reststrom</small><strong>${bestList || 'Noch offen'}</strong></div>
+        <div class="record-chip"><small>Rekord-Reststrom</small><strong>${bestList || 'Noch offen'}</strong></div>
       `;
     }
 
@@ -478,7 +477,7 @@ export class Hud {
       write(
         ui['quota-label'],
         run.overtime
-          ? `ÜBERSTUNDEN · NOCH ${Math.max(1, quota - completed)} BON`
+          ? `ÜBERSTUNDEN · NOCH ${Math.max(1, quota - completed)} ${quota - completed === 1 ? 'BON' : 'BONS'} ÜBRIG`
           : `PFLICHT-BONS: ${completed}/${quota}${quotaMet ? ' ✓' : ''}`,
       );
     }
@@ -585,48 +584,38 @@ export class Hud {
           write(ui['under-desk-label'], officeBreached ? '⚠ UNTER THEKE!' : 'UNTER THEKE');
         }
       } else if (st === 'back') {
-        // 3-Step Tactile Prep Buttons
-        const donerBtn = ui['btn-prep-doner'];
-        if (donerBtn) {
-          const isStep = Boolean(activeBon && activeBon.step === 'doner');
-          const done = Boolean(activeBon && activeBon.step !== 'doner');
-          donerBtn.disabled = !isStep;
-          donerBtn.classList.toggle('step-active', isStep);
-          const pctD = isStep ? Math.round(((activeBon.donerProgress || 0) / PREP_DONER_SECONDS) * 100) : (done ? 100 : 0);
-          write(ui['prep-doner-label'], done ? '1. SPIESS ✓' : isStep ? `1. SCHNEIDEN (${pctD}%)` : '1. SPIESS');
-          if (ui['prep-doner-bar']) ui['prep-doner-bar'].style.width = `${pctD}%`;
-        }
-
-        const fryerBtn = ui['btn-prep-fryer'];
-        if (fryerBtn) {
-          const isStep = Boolean(activeBon && activeBon.step === 'fryer');
-          const done = Boolean(activeBon && activeBon.step === 'bag');
-          const fState = activeBon?.fryerState || 'idle';
-          fryerBtn.disabled = !isStep || fState === 'frying';
-          fryerBtn.classList.toggle('step-active', isStep && fState !== 'frying');
-          fryerBtn.classList.toggle('urgent', isStep && fState === 'ready');
-          write(
-            ui['prep-fryer-label'],
-            done
-              ? '2. POMMES ✓'
-              : !isStep
-                ? '2. FRITTEUSE'
-                : fState === 'idle'
-                  ? '2. KORB SENKEN'
-                  : fState === 'frying'
-                    ? `FRITTIERT (${Math.ceil(activeBon.fryerTimer)}s)`
-                    : '2. KORB HEBEN!',
-          );
-        }
-
-        const bagBtn = ui['btn-prep-bag'];
-        if (bagBtn) {
-          const isStep = Boolean(activeBon && activeBon.step === 'bag');
-          bagBtn.disabled = !isStep;
-          bagBtn.classList.toggle('step-active', isStep);
-          const pctB = isStep ? Math.round(((activeBon.bagProgress || 0) / PREP_BAG_SECONDS) * 100) : 0;
-          write(ui['prep-bag-label'], isStep ? `3. EINPACKEN (${pctB}%)` : '3. EINPACKEN');
-          if (ui['prep-bag-bar']) ui['prep-bag-bar'].style.width = `${pctB}%`;
+        // Unified 3-Step Tactile Prep Button: one hold button auto-advances through the current bon step
+        const prepBtn = ui['btn-prep-work'];
+        if (prepBtn) {
+          const step = activeBon?.step;
+          prepBtn.disabled = !activeBon;
+          prepBtn.classList.toggle('step-active', Boolean(activeBon));
+          prepBtn.classList.toggle('urgent', Boolean(activeBon && step === 'fryer' && activeBon.fryerState === 'ready'));
+          const label = ui['prep-work-label'];
+          const bar = ui['prep-work-bar'];
+          if (!activeBon) {
+            write(label, 'KEIN BON OFFEN');
+            if (bar) bar.style.width = '0%';
+          } else if (step === 'doner') {
+            const pctD = Math.round(((activeBon.donerProgress || 0) / PREP_DONER_SECONDS) * 100);
+            write(label, `1. SPIESS SCHNEIDEN (${pctD}%)`);
+            if (bar) bar.style.width = `${pctD}%`;
+          } else if (step === 'fryer') {
+            const fState = activeBon.fryerState || 'idle';
+            write(
+              label,
+              fState === 'idle'
+                ? '2. KORB SENKEN'
+                : fState === 'frying'
+                  ? `2. FRITTIERT (${Math.ceil(activeBon.fryerTimer)}s)`
+                  : '2. KORB HEBEN!',
+            );
+            if (bar) bar.style.width = fState === 'frying' ? `${Math.max(4, 100 - (activeBon.fryerTimer / PREP_FRYER_SECONDS) * 100).toFixed(1)}%` : '0%';
+          } else {
+            const pctB = Math.round(((activeBon.bagProgress || 0) / PREP_BAG_SECONDS) * 100);
+            write(label, `3. EINPACKEN (${pctB}%)`);
+            if (bar) bar.style.width = `${pctB}%`;
+          }
         }
 
         if (ui['btn-reset-breaker']) {
@@ -644,7 +633,7 @@ export class Hud {
         if (ui['btn-back-flashlight']) {
           ui['btn-back-flashlight'].setAttribute('aria-pressed', String(Boolean(run.flashlightOn)));
           ui['btn-back-flashlight'].disabled = flashCap <= 1;
-          write(ui['back-flash-label'], `LUKE · ${flashCap}%`);
+          write(ui['back-flash-label'], `LAMPE · ${flashCap}%`);
         }
       } else {
         // Under-Desk Survival View
@@ -657,7 +646,7 @@ export class Hud {
         if (ui['btn-hold-breath']) {
           ui['btn-hold-breath'].setAttribute('aria-pressed', String(Boolean(run.holdingBreath)));
           ui['btn-hold-breath'].classList.toggle('active-boost', Boolean(run.holdingBreath));
-          write(ui['hold-breath-label'], run.holdingBreath ? 'HÄLT LUFT AN...' : 'ATEM ANHALTEN');
+          write(ui['hold-breath-label'], run.holdingBreath ? 'HÄLT ATEM AN...' : 'ATEM ANHALTEN');
         }
       }
     }
@@ -770,11 +759,11 @@ export class Hud {
     const showAlert = !out && !inJumpscare && this.paintShiftAlert(run);
     if (ui['shift-alert']) ui['shift-alert'].hidden = !showAlert;
 
+    const showCall = Boolean(run.callText) && !run.callMuted && !out && !inJumpscare && !showAlert;
     if (ui['btn-mute-call']) {
-      ui['btn-mute-call'].hidden = !run.callActive || run.callMuted || out || inJumpscare;
+      ui['btn-mute-call'].hidden = !showCall;
     }
     if (ui['call-box']) {
-      const showCall = Boolean(run.callText) && !run.callMuted && !out && !inJumpscare && !showAlert;
       ui['call-box'].hidden = !showCall;
       if (showCall) write(ui['call-text'], run.callText);
     }
