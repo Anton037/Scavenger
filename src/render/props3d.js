@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { speziCanMesh } from './characters3d.js';
+import { crownMesh, speziCanMesh } from './characters3d.js';
 import {
   band,
   brassMaterial,
@@ -15,148 +15,256 @@ import {
   solid,
   tapered,
   vinylMaterial,
-  wedge,
 } from './primitives.js';
 import { makeCanvasTexture, receiptPaperTexture, steamGaugeDialTexture } from './textures.js';
 
 export const speziModel = speziCanMesh;
 
-export function miniDuckModel() {
-  const g = new THREE.Group();
-  const yellow = vinylMaterial(0xffd633, 0.28, 0.08);
-  const orange = vinylMaterial(0xff6b22, 0.35, 0.08);
-  const whiteHat = vinylMaterial(0xf8f6f0, 0.42, 0.04);
-  const black = material(0x0d0e14, 0.15, 0.1);
-  piece(g, orb, yellow, 0, 0.068, 0, 0.088, 0.068, 0.105, { shadow: false });
-  piece(g, orb, yellow, 0, 0.142, 0.048, 0.064, 0.062, 0.064, { shadow: false });
-  piece(g, roundedBox(0.055, 0.024, 0.05, 0.008, 2), orange, 0, 0.132, 0.108, 1, 1, 1, { shadow: false });
-  piece(g, orb, black, -0.028, 0.155, 0.098, 0.011, 0.011, 0.011, { shadow: false });
-  piece(g, orb, black, 0.028, 0.155, 0.098, 0.011, 0.011, 0.011, { shadow: false });
-  // Tiny Imbiss Chef Toque on the desk duck!
-  piece(g, round, whiteHat, 0, 0.205, 0.045, 0.038, 0.042, 0.038, { shadow: false });
-  piece(g, orb, whiteHat, 0, 0.232, 0.045, 0.048, 0.028, 0.048, { shadow: false });
-  return g;
-}
-
 export function officePhoneModel() {
   const root = new THREE.Group();
-  const body = vinylMaterial(0x1f2434, 0.38, 0.28);
-  const accent = vinylMaterial(0x323b54, 0.42, 0.32);
+  const body = vinylMaterial(0x1b1e26, 0.52, 0.22);
+  const accent = vinylMaterial(0x2d3342, 0.55, 0.24);
   const ledMat = new THREE.MeshBasicMaterial({ color: 0x38141a });
-  piece(root, roundedBox(0.30, 0.10, 0.24, 0.028, 2), body, 0, 0.05, 0, 1, 1, 1, { shadow: true });
-  piece(root, solid, accent, 0, 0.108, -0.045, 0.25, 0.035, 0.10, { shadow: false });
+  // Retro cassette answering machine + corded phone
+  piece(root, roundedBox(0.32, 0.095, 0.24, 0.02, 1), body, 0, 0.048, 0, 1, 1, 1, { shadow: true });
+  piece(root, solid, accent, 0.05, 0.098, 0.02, 0.14, 0.012, 0.10, { shadow: false });
+  // Visible mini cassette reels
+  const reelL = piece(root, round, material(0xd8d0c0, 0.5), 0.02, 0.105, 0.02, 0.018, 0.008, 0.018, { shadow: false });
+  const reelR = piece(root, round, material(0xd8d0c0, 0.5), 0.08, 0.105, 0.02, 0.018, 0.008, 0.018, { shadow: false });
   const handset = new THREE.Group();
-  handset.position.set(0, 0.145, -0.045);
-  piece(handset, round, body, 0, 0, 0, 0.028, 0.33, 0.028, { shadow: false }).rotation.z = Math.PI / 2;
-  piece(handset, roundedBox(0.085, 0.065, 0.085, 0.02, 2), body, -0.145, -0.012, 0, 1, 1, 1, { shadow: false });
-  piece(handset, roundedBox(0.085, 0.065, 0.085, 0.02, 2), body, 0.145, -0.012, 0, 1, 1, 1, { shadow: false });
+  handset.position.set(-0.09, 0.115, 0);
+  piece(handset, round, body, 0, 0, 0, 0.024, 0.22, 0.024, { shadow: false }).rotation.x = Math.PI / 2;
   root.add(handset);
-  piece(root, solid, accent, 0, 0.104, 0.055, 0.14, 0.012, 0.095, { shadow: false });
-  const led = piece(root, orb, ledMat, 0.10, 0.112, 0.075, 0.016, 0.016, 0.016);
-  return { root, led, ledMat };
+  const led = piece(root, orb, ledMat, 0.12, 0.104, 0.085, 0.014, 0.014, 0.014);
+  return { root, led, ledMat, reelL, reelR };
 }
 
 /**
- * Authentic FNaF-1 Clickable 3D Doorframe Switch Box (Physical DOOR + LIGHT buttons!).
+ * Clickable 3D Doorframe Steel Shutter & Light Switch Box.
  */
 export function doorButtonBoxModel(side = 'left') {
   const root = new THREE.Group();
   const s = side === 'left' ? -1 : 1;
-  const housing = endoMaterial(0x1b202e);
-  const rim = brassMaterial(PALETTE.brass);
+  const housing = endoMaterial(0x181c26);
+  const rim = brassMaterial(0x886c38);
 
-  piece(root, roundedBox(0.11, 0.62, 0.26, 0.025, 2), housing, 0, 0, 0, 1, 1, 1, { shadow: true });
-  piece(root, solid, rim, -s * 0.04, 0.28, 0, 0.04, 0.025, 0.24, { shadow: false });
-  piece(root, solid, rim, -s * 0.04, -0.28, 0, 0.04, 0.025, 0.24, { shadow: false });
+  piece(root, roundedBox(0.11, 0.58, 0.24, 0.02, 1), housing, 0, 0, 0, 1, 1, 1, { shadow: true });
+  piece(root, solid, rim, -s * 0.04, 0.26, 0, 0.04, 0.02, 0.22, { shadow: false });
+  piece(root, solid, rim, -s * 0.04, -0.26, 0, 0.04, 0.02, 0.22, { shadow: false });
 
-  const doorMat = emissive(0xff3b56);
-  const lightMat = emissive(0x5282a8);
+  const doorMat = emissive(0xc83242);
+  const lightMat = emissive(0x466885);
 
-  const btnGeo = roundedBox(0.075, 0.18, 0.16, 0.02, 2);
-  const doorBtn = piece(root, btnGeo, doorMat, -s * 0.045, 0.125, 0, 1, 1, 1, { shadow: false });
+  const btnGeo = roundedBox(0.07, 0.17, 0.15, 0.015, 1);
+  const doorBtn = piece(root, btnGeo, doorMat, -s * 0.045, 0.115, 0, 1, 1, 1, { shadow: false });
   doorBtn.userData.propKind = side === 'left' ? 'left_door_btn' : 'right_door_btn';
 
-  const lightBtn = piece(root, btnGeo, lightMat, -s * 0.045, -0.125, 0, 1, 1, 1, { shadow: false });
+  const lightBtn = piece(root, btnGeo, lightMat, -s * 0.045, -0.115, 0, 1, 1, 1, { shadow: false });
   lightBtn.userData.propKind = side === 'left' ? 'left_light_btn' : 'right_light_btn';
 
   return { root, doorBtn, lightBtn, doorMat, lightMat };
 }
 
 /**
- * Retro Arcade Machine ("FLAPPY ENTE '87") for CAM 1B Gastraum!
+ * Center Service Pass-Through Stainless Exhaust Hood & Hanging Aluminum Ticket Rail.
  */
-export function arcadeCabinetModel(screenTex) {
+export function centerPassThroughHoodModel(steelMat) {
   const g = new THREE.Group();
-  const cabBody = vinylMaterial(0x281b3d, 0.45, 0.15);
-  const sideTrim = vinylMaterial(0xd92848, 0.38, 0.12);
-  const darkBezel = material(0x0b0d14, 0.7, 0.1);
-  const marqueeMat = emissive(0xffcf56);
-  const screenMat = new THREE.MeshBasicMaterial({ map: screenTex });
-
-  piece(g, roundedBox(0.86, 1.85, 0.76, 0.06, 2), cabBody, 0, 0.92, 0, 1, 1, 1, { shadow: true });
-  piece(g, solid, sideTrim, -0.435, 0.92, 0.02, 0.03, 1.80, 0.72, { shadow: false });
-  piece(g, solid, sideTrim, 0.435, 0.92, 0.02, 0.03, 1.80, 0.72, { shadow: false });
-  piece(g, solid, marqueeMat, 0, 1.72, 0.34, 0.76, 0.18, 0.08, { shadow: false });
-  piece(g, solid, darkBezel, 0, 1.28, 0.32, 0.72, 0.56, 0.10, { shadow: false }).rotation.x = -0.22;
-  piece(g, solid, screenMat, 0, 1.28, 0.375, 0.60, 0.46, 0.02, { shadow: false }).rotation.x = -0.22;
-  piece(g, solid, cabBody, 0, 0.94, 0.42, 0.82, 0.10, 0.28, { shadow: false }).rotation.x = 0.18;
-  piece(g, orb, emissive(0xff3550), -0.18, 1.02, 0.44, 0.032, 0.032, 0.032, { shadow: false });
-  piece(g, orb, emissive(0x38f2af), 0.12, 1.00, 0.46, 0.026, 0.016, 0.026, { shadow: false });
-  piece(g, orb, emissive(0x38d6ff), 0.22, 1.00, 0.46, 0.026, 0.016, 0.026, { shadow: false });
+  const darkBaffle = endoMaterial(0x222834);
+  const paper = material(0xe4dcc8, 0.85, 0.02);
+  piece(g, solid, steelMat, 0, 2.72, -3.02, 2.35, 0.52, 0.58, { shadow: true });
+  piece(g, solid, darkBaffle, 0, 2.45, -2.95, 2.15, 0.04, 0.42, { shadow: false });
+  // Hanging ticket slide rail across the top of the open pass-through
+  piece(g, solid, steelMat, 0, 2.16, -2.92, 2.18, 0.045, 0.03, { shadow: false });
+  for (const tx of [-0.68, -0.18, 0.44]) {
+    piece(g, solid, paper, tx, 2.06, -2.91, 0.11, 0.16, 0.006, { shadow: false }).rotation.z = tx * 0.08;
+  }
   return g;
 }
 
 /**
- * Tealerland-inspired 3D Steam Manometer + Clickable Red Exhaust Handwheel + Rising Steam Puffs!
+ * Back Station 1: Vertical Döner Spit + Electric Slicer (propKind: 'prep_doner').
+ */
+export function donerSpitModel() {
+  const root = new THREE.Group();
+  root.userData.propKind = 'prep_doner';
+  const steel = endoMaterial(0x7d8a9e);
+  const darkSteel = endoMaterial(0x222834);
+  const meat1 = vinylMaterial(0x6e3218, 0.62, 0.04);
+  const meat2 = vinylMaterial(0x4f2210, 0.68, 0.04);
+  const coil = emissive(0xd8521c);
+
+  piece(root, roundedBox(0.64, 0.10, 0.54, 0.02, 1), darkSteel, 0, 0.05, 0, 1, 1, 1, { shadow: true });
+  piece(root, roundedBox(0.58, 1.18, 0.10, 0.02, 1), steel, 0, 0.68, -0.22, 1, 1, 1, { shadow: true });
+  for (let i = 0; i < 3; i++) {
+    piece(root, solid, coil, 0, 0.34 + i * 0.30, -0.16, 0.40, 0.14, 0.02);
+  }
+  const spit = new THREE.Group();
+  spit.position.set(0, 0.10, 0.03);
+  piece(spit, round, steel, 0, 0.58, 0, 0.026, 1.18, 0.026, { shadow: false });
+  piece(spit, tapered, meat1, 0, 0.54, 0, 0.24, 0.72, 0.24, { shadow: true });
+  for (let i = 0; i < 4; i++) {
+    piece(spit, round, i % 2 === 0 ? meat2 : meat1, 0, 0.26 + i * 0.15, 0, 0.22 - i * 0.015, 0.05, 0.22 - i * 0.015, { shadow: false });
+  }
+  root.add(spit);
+
+  // Handheld electric rotary Döner knife resting beside spit
+  const slicer = new THREE.Group();
+  slicer.position.set(0.26, 0.16, 0.18);
+  piece(slicer, round, darkSteel, 0, 0, 0, 0.028, 0.18, 0.028, { shadow: false }).rotation.z = 0.4;
+  piece(slicer, round, steel, -0.06, 0.06, 0, 0.065, 0.012, 0.065, { shadow: false });
+  root.add(slicer);
+
+  const statusLedMat = emissive(0x283430);
+  piece(root, solid, statusLedMat, 0, 1.29, -0.18, 0.38, 0.035, 0.03);
+  return { root, spit, slicer, statusLedMat };
+}
+
+/**
+ * Back Station 2: Bubbling Twin Deep-Fryer Vat + Articulated Wire Basket (propKind: 'prep_fryer').
+ */
+export function prepFryerStationModel() {
+  const root = new THREE.Group();
+  root.userData.propKind = 'prep_fryer';
+  const steel = endoMaterial(0x7c8898);
+  const darkVat = material(0x16181e, 0.75, 0.3);
+  const oilMat = new THREE.MeshStandardMaterial({ color: 0x8a5a14, roughness: 0.12, metalness: 0.25 });
+  const friesMat = vinylMaterial(0xdba432, 0.55, 0.02);
+  const handleMat = vinylMaterial(0x151820, 0.7);
+  const ledMat = emissive(0x26342e);
+
+  piece(root, roundedBox(0.68, 0.36, 0.54, 0.02, 1), steel, 0, 0.18, 0, 1, 1, 1, { shadow: true });
+  piece(root, solid, steel, 0, 0.50, -0.22, 0.66, 0.28, 0.08, { shadow: false });
+  piece(root, solid, darkVat, -0.15, 0.365, 0.02, 0.26, 0.02, 0.36, { shadow: false });
+  piece(root, solid, darkVat, 0.15, 0.365, 0.02, 0.26, 0.02, 0.36, { shadow: false });
+  const oil = piece(root, solid, oilMat, 0.15, 0.355, 0.02, 0.24, 0.02, 0.34, { shadow: false });
+
+  const basketGroup = new THREE.Group();
+  basketGroup.position.set(0.15, 0.44, 0.02);
+  piece(basketGroup, roundedBox(0.21, 0.10, 0.28, 0.01, 1), steel, 0, 0, 0, 1, 1, 1, { shadow: false });
+  const fries = piece(basketGroup, solid, friesMat, 0, 0.02, 0, 0.18, 0.05, 0.24, { shadow: false });
+  fries.visible = false;
+  piece(basketGroup, solid, handleMat, 0, 0.06, 0.24, 0.035, 0.025, 0.22, { shadow: false }).rotation.x = -0.22;
+  root.add(basketGroup);
+
+  piece(root, solid, ledMat, 0, 0.58, -0.17, 0.42, 0.035, 0.02);
+  return { root, basketGroup, fries, oil, ledMat };
+}
+
+/**
+ * Back Station 3: Chilled Spezi Dispenser + Bagging Tray & Order Ticket (propKind: 'prep_bag').
+ */
+export function prepBaggingStationModel() {
+  const root = new THREE.Group();
+  root.userData.propKind = 'prep_bag';
+
+  const steel = endoMaterial(0x788496);
+  const darkTower = vinylMaterial(0x1b202a, 0.48, 0.25);
+  const kraftPaper = vinylMaterial(0xa67c4e, 0.86, 0.02);
+  const speziBadge = emissive(0xd87c24);
+  const ledMat = emissive(0x24342e);
+  const ticketMat = new THREE.MeshStandardMaterial({
+    map: receiptPaperTexture(),
+    roughness: 0.8,
+    side: THREE.DoubleSide,
+  });
+
+  // Chilled Spezi dispenser tower on left side of tray
+  piece(root, roundedBox(0.30, 0.52, 0.32, 0.02, 1), darkTower, -0.22, 0.26, -0.06, 1, 1, 1, { shadow: true });
+  piece(root, solid, speziBadge, -0.22, 0.40, 0.105, 0.22, 0.12, 0.015, { shadow: false });
+  piece(root, round, steel, -0.22, 0.24, 0.12, 0.018, 0.06, 0.018, { shadow: false });
+  const cup = speziCanMesh();
+  cup.position.set(-0.22, 0.02, 0.12);
+  root.add(cup);
+
+  // Stainless bagging tray + brown kraft takeout bag
+  piece(root, solid, steel, 0.16, 0.02, 0.04, 0.42, 0.03, 0.34, { shadow: false });
+  const bagMesh = piece(root, roundedBox(0.20, 0.28, 0.14, 0.015, 1), kraftPaper, 0.16, 0.17, 0.04, 1, 1, 1, { shadow: true });
+  bagMesh.visible = false;
+
+  // Hanging thermal ticket for active order
+  const ticketGroup = new THREE.Group();
+  ticketGroup.position.set(0.16, 0.56, -0.06);
+  piece(ticketGroup, solid, ticketMat, 0, -0.11, 0, 0.16, 0.22, 0.005, { shadow: false });
+  ticketGroup.visible = false;
+  root.add(ticketGroup);
+
+  piece(root, solid, ledMat, 0.16, 0.05, 0.20, 0.32, 0.025, 0.02);
+  return { root, bagMesh, ticketGroup, ledMat };
+}
+
+/**
+ * Physical Heavy Main Breaker Box on the Back Wall (propKind: 'breaker_box').
+ */
+export function breakerBoxModel() {
+  const root = new THREE.Group();
+  root.userData.propKind = 'breaker_box';
+
+  const greySteel = endoMaterial(0x3a424e);
+  const darkSlot = material(0x0c0e14, 0.9, 0.1);
+  const hazardYellow = vinylMaterial(0xc89628, 0.5);
+  const redHandle = vinylMaterial(0xc82432, 0.35, 0.2);
+  const ledMat = emissive(0x38d698);
+
+  piece(root, roundedBox(0.46, 0.64, 0.16, 0.02, 1), greySteel, 0, 0, 0, 1, 1, 1, { shadow: true });
+  piece(root, solid, hazardYellow, -0.08, 0.16, 0.084, 0.16, 0.12, 0.008, { shadow: false });
+  piece(root, solid, darkSlot, 0.12, -0.02, 0.082, 0.08, 0.28, 0.015, { shadow: false });
+  const led = piece(root, orb, ledMat, -0.08, -0.16, 0.088, 0.024, 0.024, 0.018);
+
+  // Heavy articulated pull-up / snap-down lever!
+  const leverPivot = new THREE.Group();
+  leverPivot.position.set(0.12, -0.02, 0.085);
+  piece(leverPivot, round, greySteel, 0, 0.08, 0.04, 0.014, 0.18, 0.014, { shadow: false }).rotation.x = 0.35;
+  piece(leverPivot, roundedBox(0.11, 0.04, 0.05, 0.01, 1), redHandle, 0, 0.16, 0.08, 1, 1, 1, { shadow: true });
+  root.add(leverPivot);
+
+  return { root, leverPivot, led, ledMat };
+}
+
+/**
+ * Industrial Exhaust Valve Assembly (propKind: 'exhaust_valve').
  */
 export function steamValveAssemblyModel() {
   const root = new THREE.Group();
-  root.userData.propKind = 'valve';
+  root.userData.propKind = 'exhaust_valve';
 
   const brass = brassMaterial(PALETTE.brass);
   const copper = brassMaterial(PALETTE.copper);
-  const darkIron = endoMaterial(0x1b2130);
-  const redValve = vinylMaterial(0xd9283e, 0.28, 0.35);
+  const redValve = vinylMaterial(0xb82434, 0.36, 0.28);
   const dialFaceMat = new THREE.MeshBasicMaterial({ map: steamGaugeDialTexture() });
-  const needleMat = emissive(0xff2038);
+  const needleMat = emissive(0xff2838);
   const ledMat = new THREE.MeshBasicMaterial({ color: 0x1e4a38 });
   const steamMat = new THREE.MeshBasicMaterial({
-    color: 0xf4eee2,
+    color: 0xe6e0d4,
     transparent: true,
     opacity: 0.0,
     depthWrite: false,
   });
 
-  piece(root, roundedBox(0.24, 0.05, 0.22, 0.015, 2), darkIron, 0, 0.025, 0, 1, 1, 1, { shadow: false });
-  piece(root, round, copper, -0.04, 0.22, -0.03, 0.035, 0.40, 0.035, { shadow: true });
-  piece(root, round, brass, -0.04, 0.40, -0.03, 0.055, 0.04, 0.055, { shadow: false });
-
-  piece(root, round, brass, -0.04, 0.49, -0.02, 0.115, 0.055, 0.115, { shadow: true }).rotation.x = Math.PI / 2;
-  piece(root, round, dialFaceMat, -0.04, 0.49, 0.01, 0.098, 0.01, 0.098, { shadow: false }).rotation.x = Math.PI / 2;
+  piece(root, round, copper, 0, 0.22, -0.03, 0.035, 0.48, 0.035, { shadow: true });
+  piece(root, round, brass, 0, 0.48, -0.01, 0.105, 0.045, 0.105, { shadow: true }).rotation.x = Math.PI / 2;
+  piece(root, round, dialFaceMat, 0, 0.48, 0.015, 0.09, 0.01, 0.09, { shadow: false }).rotation.x = Math.PI / 2;
 
   const needlePivot = new THREE.Group();
-  needlePivot.position.set(-0.04, 0.49, 0.022);
-  piece(needlePivot, solid, needleMat, 0, 0.032, 0, 0.012, 0.068, 0.008);
-  piece(needlePivot, orb, darkIron, 0, 0, 0.004, 0.016, 0.016, 0.01, { shadow: false });
+  needlePivot.position.set(0, 0.48, 0.026);
+  piece(needlePivot, solid, needleMat, 0, 0.028, 0, 0.010, 0.06, 0.008);
   root.add(needlePivot);
 
-  const led = piece(root, orb, ledMat, -0.04, 0.625, -0.01, 0.026, 0.032, 0.026);
+  const led = piece(root, orb, ledMat, 0, 0.60, 0, 0.022, 0.026, 0.022);
 
-  piece(root, round, brass, 0.03, 0.22, 0.04, 0.032, 0.12, 0.032, { shadow: false }).rotation.x = Math.PI / 2;
   const wheel = new THREE.Group();
-  wheel.position.set(0.03, 0.22, 0.11);
-  const rim = band(wheel, redValve, 0, 0, 0, 0.105);
+  wheel.position.set(0, 0.20, 0.09);
+  const rim = band(wheel, redValve, 0, 0, 0, 0.10);
   rim.rotation.x = 0;
   for (let i = 0; i < 4; i++) {
-    const spoke = piece(wheel, solid, redValve, 0, 0, 0, 0.018, 0.20, 0.018, { shadow: false });
+    const spoke = piece(wheel, solid, redValve, 0, 0, 0, 0.016, 0.19, 0.016, { shadow: false });
     spoke.rotation.z = (i * Math.PI) / 4;
   }
-  piece(wheel, orb, brass, 0, 0, 0.012, 0.028, 0.028, 0.024, { shadow: false });
   root.add(wheel);
 
   const puffs = [];
   for (let i = 0; i < 5; i++) {
-    const puff = piece(root, orb, steamMat.clone(), -0.04, 0.44 + i * 0.1, -0.05, 0.06, 0.05, 0.06, { shadow: false, receive: false });
+    const puff = piece(root, orb, steamMat.clone(), 0, 0.44 + i * 0.1, -0.04, 0.055, 0.045, 0.055, { shadow: false, receive: false });
     puff.visible = false;
     puffs.push(puff);
   }
@@ -165,39 +273,137 @@ export function steamValveAssemblyModel() {
 }
 
 /**
- * 3D Thermal Receipt / Nacht-Bon Printer on right side of desk!
+ * 5 Unlockable Desk Cosmetic Collectibles (Pure Cosmetics — Zero Gameplay Buffs!).
  */
-export function bonPrinterModel() {
+export function buildDeskCosmeticsGroup() {
   const root = new THREE.Group();
-  root.userData.propKind = 'printer';
+  const brass = brassMaterial(0xc89a38);
+  const darkMetal = endoMaterial(0x1c202a);
 
-  const body = vinylMaterial(0x1f2536, 0.36, 0.35);
-  const slotMat = material(0x0a0c12, 0.85, 0.1);
-  const stampBtnMat = brassMaterial(0xffbf52);
-  const lcdMat = new THREE.MeshBasicMaterial({ color: 0x164236 });
-  const ledMat = new THREE.MeshBasicMaterial({ color: 0x204034 });
-  const paperMat = new THREE.MeshStandardMaterial({
-    map: receiptPaperTexture(),
-    roughness: 0.72,
-    metalness: 0.02,
-    side: THREE.DoubleSide,
-  });
+  // 1. Goldener Mini-Dönerspieß
+  const goldSpit = new THREE.Group();
+  goldSpit.position.set(0.36, 0.92, -1.94);
+  piece(goldSpit, round, darkMetal, 0, 0.015, 0, 0.065, 0.03, 0.065, { shadow: false });
+  const miniSpitCone = piece(goldSpit, tapered, brass, 0, 0.12, 0, 0.052, 0.16, 0.052, { shadow: true });
+  piece(goldSpit, round, brass, 0, 0.12, 0, 0.008, 0.22, 0.008, { shadow: false });
+  root.add(goldSpit);
 
-  piece(root, roundedBox(0.28, 0.15, 0.25, 0.03, 2), body, 0, 0.075, 0, 1, 1, 1, { shadow: true });
-  piece(root, roundedBox(0.25, 0.05, 0.16, 0.015, 2), body, 0, 0.155, -0.03, 1, 1, 1, { shadow: false });
-  piece(root, solid, slotMat, 0, 0.181, -0.02, 0.19, 0.008, 0.025, { shadow: false });
-  const lcd = piece(root, solid, lcdMat, -0.025, 0.115, 0.128, 0.15, 0.042, 0.008);
-  const stampBtn = piece(root, solid, stampBtnMat, 0.088, 0.115, 0.130, 0.048, 0.042, 0.018, { shadow: false });
-  const led = piece(root, orb, ledMat, 0.095, 0.162, 0.06, 0.018, 0.018, 0.018);
+  // 2. Neon-Spezi-Leuchtschild
+  const neonSpezi = new THREE.Group();
+  neonSpezi.position.set(-1.26, 0.92, -1.98);
+  neonSpezi.rotation.y = 0.26;
+  piece(neonSpezi, solid, darkMetal, 0, 0.02, 0, 0.24, 0.04, 0.08, { shadow: false });
+  piece(neonSpezi, solid, emissive(0xff8424), 0, 0.13, 0, 0.22, 0.16, 0.018, { shadow: false });
+  piece(neonSpezi, solid, emissive(0xb82888), 0, 0.08, 0.012, 0.20, 0.03, 0.01, { shadow: false });
+  root.add(neonSpezi);
 
-  const paperGroup = new THREE.Group();
-  paperGroup.position.set(0, 0.18, -0.02);
-  const paperMesh = piece(paperGroup, solid, paperMat, 0, 0.12, 0, 0.16, 0.24, 0.005, { shadow: false });
-  paperMesh.rotation.x = -0.14;
-  paperGroup.visible = false;
-  root.add(paperGroup);
+  // 3. Wackel-Krone
+  const bobbleCrown = new THREE.Group();
+  bobbleCrown.position.set(0.62, 0.92, -1.92);
+  piece(bobbleCrown, round, darkMetal, 0, 0.015, 0, 0.055, 0.03, 0.055, { shadow: false });
+  piece(bobbleCrown, round, brass, 0, 0.05, 0, 0.012, 0.06, 0.012, { shadow: false });
+  const crownTop = crownMesh(0.42);
+  crownTop.position.set(0, 0.09, 0);
+  bobbleCrown.add(crownTop);
+  root.add(bobbleCrown);
 
-  return { root, paperGroup, lcd, lcdMat, led, ledMat, stampBtn };
+  // 4. 1998 Hi8-Camcorder
+  const camcorder = new THREE.Group();
+  camcorder.position.set(0.92, 0.92, -1.96);
+  camcorder.rotation.y = -0.38;
+  piece(camcorder, roundedBox(0.11, 0.11, 0.22, 0.018, 1), darkMetal, 0, 0.06, 0, 1, 1, 1, { shadow: true });
+  piece(camcorder, round, darkMetal, 0, 0.065, 0.13, 0.036, 0.05, 0.036, { shadow: false }).rotation.x = Math.PI / 2;
+  piece(camcorder, solid, emissive(0x285848), -0.085, 0.065, -0.02, 0.065, 0.05, 0.008, { shadow: false });
+  const camLed = piece(camcorder, orb, emissive(0xff2838), 0.035, 0.105, 0.11, 0.008, 0.008, 0.008);
+  root.add(camcorder);
+
+  // 5. Gerahmtes Schicht-Polaroid
+  const polaroid = new THREE.Group();
+  polaroid.position.set(0.16, 0.92, -2.02);
+  polaroid.rotation.y = -0.18;
+  polaroid.rotation.x = -0.22;
+  piece(polaroid, solid, vinylMaterial(0x3a2618, 0.8), 0, 0.09, 0, 0.15, 0.18, 0.016, { shadow: true });
+  piece(polaroid, solid, material(0xded6c4, 0.7), 0, 0.09, 0.01, 0.12, 0.15, 0.005, { shadow: false });
+  piece(polaroid, solid, material(0x1c2228, 0.8), 0, 0.105, 0.014, 0.10, 0.10, 0.004, { shadow: false });
+  root.add(polaroid);
+
+  return {
+    root,
+    items: {
+      gold_spit: goldSpit,
+      neon_spezi: neonSpezi,
+      bobble_crown: bobbleCrown,
+      vhs_camcorder: camcorder,
+      polaroid_frame: polaroid,
+    },
+    miniSpitCone,
+    crownTop,
+    camLed,
+  };
+}
+
+export function deskFanModel() {
+  const root = new THREE.Group();
+  const darkMetal = endoMaterial(0x1b2130);
+  const cageMat = endoMaterial(0x4c5870);
+  const bladeMat = endoMaterial(0x283042);
+  piece(root, round, darkMetal, 0, 0.03, 0, 0.18, 0.05, 0.18, { shadow: true });
+  piece(root, round, darkMetal, 0, 0.17, -0.02, 0.038, 0.26, 0.038, { shadow: false });
+  piece(root, round, darkMetal, 0, 0.33, -0.05, 0.09, 0.14, 0.09, { shadow: false }).rotation.x = Math.PI / 2;
+
+  const ringOuter = band(root, cageMat, 0, 0.33, 0.05, 0.22);
+  ringOuter.rotation.x = 0;
+  for (let i = 0; i < 4; i++) {
+    const spoke = piece(root, solid, cageMat, 0, 0.33, 0.065, 0.010, 0.42, 0.010, { shadow: false });
+    spoke.rotation.z = (i * Math.PI) / 4;
+  }
+
+  const blades = new THREE.Group();
+  blades.position.set(0, 0.33, 0.04);
+  for (let i = 0; i < 4; i++) {
+    const b = piece(blades, solid, bladeMat, 0, 0, 0, 0.085, 0.34, 0.014, { shadow: false });
+    b.rotation.z = (i * Math.PI) / 4;
+    b.rotation.y = 0.22;
+  }
+  root.add(blades);
+  return { root, blades };
+}
+
+export function crateMesh(colorHex = 0x26486e) {
+  const g = new THREE.Group();
+  const crateMat = vinylMaterial(colorHex, 0.72, 0.04);
+  const bottleTop = material(0xb89642, 0.35, 0.7);
+  piece(g, roundedBox(0.46, 0.36, 0.36, 0.02, 1), crateMat, 0, 0.18, 0, 1, 1, 1, { shadow: true });
+  for (const bx of [-0.13, 0, 0.13]) {
+    for (const bz of [-0.08, 0.08]) {
+      piece(g, round, bottleTop, bx, 0.37, bz, 0.022, 0.03, 0.022, { shadow: false });
+    }
+  }
+  return g;
+}
+
+export function wetFloorConeModel() {
+  const g = new THREE.Group();
+  const yellow = vinylMaterial(0xc9a224, 0.55, 0.04);
+  const red = vinylMaterial(0x9e242c, 0.6);
+  const a = piece(g, solid, yellow, 0, 0.32, -0.08, 0.28, 0.64, 0.025, { shadow: true });
+  a.rotation.x = 0.22;
+  const b = piece(g, solid, yellow, 0, 0.32, 0.08, 0.28, 0.64, 0.025, { shadow: true });
+  b.rotation.x = -0.22;
+  piece(g, solid, red, 0, 0.38, 0.082, 0.14, 0.14, 0.01, { shadow: false }).rotation.x = -0.22;
+  return g;
+}
+
+export function mopBucketModel() {
+  const g = new THREE.Group();
+  const bucketMat = vinylMaterial(0x285678, 0.62, 0.08);
+  const wood = vinylMaterial(0x6e4c2e, 0.8);
+  const dirtyWater = material(0x1c2426, 0.15, 0.2);
+  piece(g, tapered, bucketMat, 0, 0.20, 0, 0.20, 0.38, 0.20, { shadow: true });
+  piece(g, round, dirtyWater, 0, 0.34, 0, 0.18, 0.02, 0.18, { shadow: false });
+  const handle = piece(g, round, wood, 0.06, 0.72, 0, 0.016, 1.35, 0.016, { shadow: false });
+  handle.rotation.z = -0.16;
+  return g;
 }
 
 export function hallSteamCloudModel() {
@@ -229,139 +435,29 @@ export function hallSteamCloudModel() {
   return { group, puffs };
 }
 
-export function donerSpitModel() {
-  const root = new THREE.Group();
-  const steel = endoMaterial(0x8e9eb8);
-  const darkSteel = endoMaterial(0x283042);
-  const meat1 = vinylMaterial(0x8a4222, 0.48, 0.06);
-  const meat2 = vinylMaterial(0x632d16, 0.54, 0.05);
-  const tomato = vinylMaterial(0xd92832, 0.3, 0.05);
-  const coil = emissive(0xff6b2b);
-
-  piece(root, roundedBox(0.68, 0.12, 0.58, 0.025, 2), darkSteel, 0, 0.06, 0, 1, 1, 1, { shadow: true });
-  piece(root, roundedBox(0.62, 1.28, 0.12, 0.03, 2), steel, 0, 0.74, -0.24, 1, 1, 1, { shadow: true });
-  for (let i = 0; i < 3; i++) {
-    piece(root, solid, coil, 0, 0.38 + i * 0.32, -0.17, 0.44, 0.16, 0.03);
-  }
-  const spit = new THREE.Group();
-  spit.position.set(0, 0.12, 0.04);
-  piece(spit, round, steel, 0, 0.64, 0, 0.032, 1.30, 0.032, { shadow: false });
-  piece(spit, round, steel, 0, 0.14, 0, 0.26, 0.03, 0.26, { shadow: false });
-  piece(spit, tapered, meat1, 0, 0.58, 0, 0.27, 0.78, 0.27, { shadow: true });
-  for (let i = 0; i < 5; i++) {
-    piece(spit, round, i % 2 === 0 ? meat2 : meat1, 0, 0.28 + i * 0.15, 0, 0.25 - i * 0.015, 0.055, 0.25 - i * 0.015, { shadow: false });
-  }
-  // Grilled tomato topper on the Döner spit!
-  piece(spit, orb, tomato, 0, 1.01, 0, 0.075, 0.048, 0.075, { shadow: false });
-  root.add(spit);
-  return { root, spit };
-}
-
-export function deskFanModel() {
-  const root = new THREE.Group();
-  const darkMetal = endoMaterial(0x1b2130);
-  const cageMat = endoMaterial(0x52607c);
-  const bladeMat = endoMaterial(0x2c354b);
-  piece(root, round, darkMetal, 0, 0.03, 0, 0.20, 0.06, 0.20, { shadow: true });
-  piece(root, solid, emissive(0x38f2af), 0.06, 0.065, 0.11, 0.028, 0.014, 0.028);
-  piece(root, round, darkMetal, 0, 0.18, -0.02, 0.042, 0.28, 0.042, { shadow: false });
-  piece(root, round, darkMetal, 0, 0.35, -0.05, 0.10, 0.16, 0.10, { shadow: false }).rotation.x = Math.PI / 2;
-
-  const ringOuter = band(root, cageMat, 0, 0.35, 0.06, 0.24);
-  ringOuter.rotation.x = 0;
-  const ringInner = band(root, cageMat, 0, 0.35, 0.08, 0.13);
-  ringInner.rotation.x = 0;
-  for (let i = 0; i < 4; i++) {
-    const spoke = piece(root, solid, cageMat, 0, 0.35, 0.075, 0.011, 0.46, 0.011, { shadow: false });
-    spoke.rotation.z = (i * Math.PI) / 4;
-  }
-
-  const blades = new THREE.Group();
-  blades.position.set(0, 0.35, 0.045);
-  for (let i = 0; i < 4; i++) {
-    const b = piece(blades, solid, bladeMat, 0, 0, 0, 0.095, 0.38, 0.016, { shadow: false });
-    b.rotation.z = (i * Math.PI) / 4;
-    b.rotation.y = 0.22;
-  }
-  piece(blades, orb, brassMaterial(PALETTE.brass), 0, 0, 0.02, 0.055, 0.055, 0.04, { shadow: false });
-  root.add(blades);
-  return { root, blades };
-}
-
-export function crateMesh(isGold = false) {
-  const g = new THREE.Group();
-  const wood = isGold ? brassMaterial(PALETTE.brass) : vinylMaterial(0x8a562e, 0.68, 0.06);
-  const trim = endoMaterial(0x283044);
-  piece(g, roundedBox(0.60, 0.60, 0.60, 0.03, 2), wood, 0, 0.31, 0, 1, 1, 1);
-  piece(g, solid, trim, 0, 0.31, 0, 0.64, 0.08, 0.64, { shadow: false });
-  piece(g, solid, trim, 0, 0.58, 0, 0.63, 0.06, 0.63, { shadow: false });
-  piece(g, solid, trim, 0, 0.04, 0, 0.63, 0.06, 0.63, { shadow: false });
-  return g;
-}
-
-/**
- * Festive Diner Bunting Flags (Wimpelkette) + Warm Fairy Bulbs along a draped cord!
- * Replaces the old upside-down floating cones.
- */
-export function partyGarland(parent, x1, x2, y, z) {
-  const g = new THREE.Group();
-  const wire = material(0x181518, 0.85, 0.1);
-  const colors = [0xd9283e, 0xffbf52, 0x26b888, 0xf6eedc, 0x9b4dff, 0xff7262];
-  const warmBulb = emissive(0xffdc96);
-  const count = Math.max(7, Math.floor(Math.abs(x2 - x1) * 2.6));
-
-  for (let i = 0; i < count; i++) {
-    const t = i / (count - 1);
-    const px = x1 + (x2 - x1) * t;
-    const sag = Math.sin(t * Math.PI) * 0.24;
-    const py = y - sag;
-
-    if (i < count - 1) {
-      const tNext = (i + 1) / (count - 1);
-      const nx = x1 + (x2 - x1) * tNext;
-      const ny = y - Math.sin(tNext * Math.PI) * 0.24;
-      const segLen = Math.hypot(nx - px, ny - py);
-      const seg = piece(g, solid, wire, (px + nx) * 0.5, (py + ny) * 0.5, z, segLen, 0.018, 0.018, { shadow: false });
-      seg.rotation.z = Math.atan2(ny - py, nx - px);
-    }
-
-    // Crisp flat triangular pennant flag pointing DOWN!
-    const mat = vinylMaterial(colors[i % colors.length], 0.42, 0.12);
-    const pennant = piece(g, wedge, mat, px, py - 0.11, z, 0.19, 0.22, 0.025, { shadow: false });
-    pennant.rotation.z = Math.PI;
-
-    if (i % 2 === 1) {
-      piece(g, orb, warmBulb, px, py + 0.025, z + 0.03, 0.036, 0.044, 0.036, { shadow: false });
-    }
-  }
-  parent.add(g);
-  return g;
-}
-
-export function dustParticlesModel(count = 55) {
+export function dustParticlesModel(count = 45) {
   const positions = new Float32Array(count * 3);
   const rng = randomFrom(1987);
   for (let i = 0; i < count; i++) {
-    positions[i * 3] = (rng() - 0.5) * 4.2;
-    positions[i * 3 + 1] = 0.65 + rng() * 2.35;
-    positions[i * 3 + 2] = -2.75 + rng() * 2.15;
+    positions[i * 3] = (rng() - 0.5) * 4.4;
+    positions[i * 3 + 1] = 0.55 + rng() * 2.35;
+    positions[i * 3 + 2] = -2.85 + rng() * 5.2;
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   const dotTex = makeCanvasTexture(32, 32, (ctx, s) => {
     const g = ctx.createRadialGradient(s * 0.5, s * 0.5, 1, s * 0.5, s * 0.5, s * 0.5);
-    g.addColorStop(0, 'rgba(255, 238, 195, 0.95)');
-    g.addColorStop(0.45, 'rgba(255, 224, 165, 0.42)');
-    g.addColorStop(1, 'rgba(255, 224, 165, 0)');
+    g.addColorStop(0, 'rgba(225, 232, 235, 0.85)');
+    g.addColorStop(1, 'rgba(225, 232, 235, 0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, s, s);
   });
   const mat = new THREE.PointsMaterial({
-    color: 0xffe4b5,
+    color: 0xd8e2e6,
     map: dotTex,
-    size: 0.055,
+    size: 0.045,
     transparent: true,
-    opacity: 0.42,
+    opacity: 0.32,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });

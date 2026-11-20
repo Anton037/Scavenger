@@ -1,786 +1,783 @@
 import * as THREE from 'three';
 import {
-  band,
+  antonOutfitTexture,
+  antonPhoneGlowTexture,
+  characterFaceTexture,
+  duckSuitClothTexture,
+  haukeRingerTeeTexture,
+  tomSurfTeeTexture,
+  torgeJacketTexture,
+} from './characterTextures.js';
+import {
   brassMaterial,
-  capsule,
-  emissive,
-  endoJoint,
+  buildSculptedHand,
   endoMaterial,
-  hoop,
-  mascotEyeRig,
   material,
   octa,
   orb,
-  PALETTE,
   piece,
   round,
   roundedBox,
+  sculptedHeadGeometry,
+  sculptedJawGeometry,
+  sculptedLimbGeometry,
+  sculptedTorsoGeometry,
   solid,
   TAU,
+  uncannyEyeRig,
   vinylMaterial,
 } from './primitives.js';
-import {
-  antonPhoneTexture,
-  antonShirtTexture,
-  speziWrapTexture,
-  tomBibTexture,
-  tomShirtTexture,
-  torgeApronTexture,
-} from './textures.js';
+import { speziWrapTexture } from './textures.js';
 
-let _speziTex = null;
-let _apronTex = null;
-let _antonShirtTex = null;
-let _antonPhoneTex = null;
-let _tomShirtTex = null;
-let _tomBibTex = null;
+let _texCache = null;
 
-function ensureOutfitTextures() {
-  if (!_speziTex) {
-    _speziTex = speziWrapTexture();
-    _apronTex = torgeApronTexture();
-    _antonShirtTex = antonShirtTexture();
-    _antonPhoneTex = antonPhoneTexture();
-    _tomShirtTex = tomShirtTexture();
-    _tomBibTex = tomBibTexture();
+export function invalidateCharacterTextures() {
+  _texCache = null;
+}
+
+function getCharTextures() {
+  if (!_texCache) {
+    _texCache = {
+      spezi: speziWrapTexture(),
+      faceTorge: characterFaceTexture('torge'),
+      faceAnton: characterFaceTexture('anton'),
+      faceTom: characterFaceTexture('tom'),
+      faceHauke: characterFaceTexture('hauke'),
+      faceDuck: characterFaceTexture('duck'),
+      torgeJacket: torgeJacketTexture(),
+      antonOutfit: antonOutfitTexture(),
+      antonPhone: antonPhoneGlowTexture(),
+      tomShirt: tomSurfTeeTexture(),
+      haukeShirt: haukeRingerTeeTexture(),
+      duckSuit: duckSuitClothTexture(),
+    };
   }
+  return _texCache;
 }
 
 export function speziCanMesh() {
-  ensureOutfitTextures();
+  const tex = getCharTextures();
   const g = new THREE.Group();
   const wrapMat = new THREE.MeshStandardMaterial({
-    map: _speziTex,
-    roughness: 0.28,
-    metalness: 0.35,
+    map: tex.spezi,
+    roughness: 0.36,
+    metalness: 0.42,
   });
-  const alu = material(0xcad4e6, 0.2, 0.88);
-  const darkTab = material(0x1b2030, 0.3, 0.7);
-  piece(g, round, wrapMat, 0, 0.105, 0, 0.056, 0.19, 0.056, { shadow: true });
-  piece(g, round, alu, 0, 0.204, 0, 0.052, 0.014, 0.052, { shadow: false });
-  piece(g, round, alu, 0, 0.008, 0, 0.052, 0.012, 0.052, { shadow: false });
-  piece(g, solid, darkTab, 0.008, 0.213, 0, 0.022, 0.005, 0.014, { shadow: false });
+  const alu = material(0xb8c2d2, 0.28, 0.82);
+  const darkTab = material(0x181c26, 0.35, 0.65);
+  piece(g, round, wrapMat, 0, 0.095, 0, 0.048, 0.17, 0.048, { shadow: true });
+  piece(g, round, alu, 0, 0.184, 0, 0.045, 0.012, 0.045, { shadow: false });
+  piece(g, round, alu, 0, 0.008, 0, 0.045, 0.010, 0.045, { shadow: false });
+  piece(g, solid, darkTab, 0.006, 0.192, 0, 0.018, 0.004, 0.012, { shadow: false });
   return g;
 }
 
+/**
+ * Crooked, tarnished brass crown (no glowing toy gems!).
+ */
 export function crownMesh(scale = 1) {
   const crown = new THREE.Group();
-  const gold = brassMaterial(PALETTE.brass);
-  const ruby = emissive(PALETTE.vermilion);
-  const emerald = emissive(PALETTE.jade);
-  const rim = emissive(0xffe48f);
-  const velvet = vinylMaterial(0x9e1c36, 0.48, 0.08);
-  piece(crown, round, gold, 0, 0, 0, 0.21 * scale, 0.08 * scale, 0.21 * scale, { shadow: false });
-  piece(crown, orb, velvet, 0, 0.038 * scale, 0, 0.165 * scale, 0.09 * scale, 0.165 * scale, { shadow: false });
+  const tarnishedBrass = new THREE.MeshStandardMaterial({
+    color: 0x947032,
+    roughness: 0.52,
+    metalness: 0.76,
+    flatShading: true,
+  });
+  const darkVelvet = vinylMaterial(0x3a1218, 0.82, 0.02);
+  piece(crown, round, tarnishedBrass, 0, 0, 0, 0.135 * scale, 0.055 * scale, 0.135 * scale, { shadow: false });
+  piece(crown, orb, darkVelvet, 0, 0.022 * scale, 0, 0.11 * scale, 0.055 * scale, 0.11 * scale, { shadow: false });
   for (let i = 0; i < 5; i++) {
     const a = (i * TAU) / 5;
-    piece(
+    const spikeH = (i === 2 ? 0.055 : 0.082) * scale; // one slightly bent/shorter point
+    const pt = piece(
       crown,
       octa,
-      rim,
-      Math.cos(a) * 0.17 * scale,
-      0.098 * scale,
-      Math.sin(a) * 0.17 * scale,
-      0.055 * scale,
-      0.115 * scale,
-      0.055 * scale,
+      tarnishedBrass,
+      Math.cos(a) * 0.118 * scale,
+      0.058 * scale,
+      Math.sin(a) * 0.118 * scale,
+      0.034 * scale,
+      spikeH,
+      0.034 * scale,
       { shadow: false },
     );
+    if (i === 2) pt.rotation.z = 0.24;
   }
-  piece(crown, octa, ruby, 0, 0.042 * scale, 0.205 * scale, 0.042 * scale, 0.052 * scale, 0.03 * scale, { shadow: false });
-  piece(crown, octa, emerald, -0.15 * scale, 0.042 * scale, 0.14 * scale, 0.032 * scale, 0.04 * scale, 0.025 * scale, { shadow: false });
-  piece(crown, octa, emerald, 0.15 * scale, 0.042 * scale, 0.14 * scale, 0.032 * scale, 0.04 * scale, 0.025 * scale, { shadow: false });
   return crown;
 }
 
-function buildAnimatronicHand(parent, finish, side = 1, scale = 1) {
-  const hand = new THREE.Group();
-  const palmGeo = roundedBox(0.11 * scale, 0.10 * scale, 0.07 * scale, 0.025 * scale, 2);
-  piece(hand, palmGeo, finish, 0, 0, 0, 1, 1, 1, { shadow: false });
-  const endo = endoMaterial(0x283044);
-  for (const fx of [-0.032, 0, 0.032]) {
-    piece(hand, capsule, finish, fx * scale, -0.062 * scale, 0.015 * scale, 0.026 * scale, 0.058 * scale, 0.026 * scale, { shadow: false });
-    piece(hand, orb, endo, fx * scale, -0.036 * scale, 0.015 * scale, 0.014 * scale, 0.014 * scale, 0.014 * scale, { shadow: false });
-  }
-  // Thumb
-  const thumb = piece(hand, capsule, finish, -side * 0.058 * scale, -0.02 * scale, 0.025 * scale, 0.026 * scale, 0.052 * scale, 0.026 * scale, { shadow: false });
-  thumb.rotation.z = side * 0.55;
-  parent.add(hand);
-  return hand;
-}
-
-const _headbandArcGeo = new THREE.TorusGeometry(0.238, 0.024, 8, 22, Math.PI);
-
-export function chefTorgeModel() {
-  ensureOutfitTextures();
+/**
+ * Shared builder for our 17-joint faceted PS1/VHS low-poly human rig:
+ * pelvis -> torso -> chest -> neck -> head -> (jaw, eyes)
+ * chest -> leftUpperArm -> leftForearm -> leftHand
+ * chest -> rightUpperArm -> rightForearm -> rightHand
+ * pelvis -> leftThigh -> leftCalf -> leftFoot
+ * pelvis -> rightThigh -> rightCalf -> rightFoot
+ */
+function buildHumanRig({
+  totalScale = 1.0,
+  pelvisY = 0.92,
+  hipSpacing = 0.115,
+  thighLen = 0.42,
+  calfLen = 0.41,
+  thighR = 0.076,
+  calfR = 0.058,
+  torsoCfg = {},
+  shoulderX = 0.23,
+  shoulderY = 0.47,
+  upperArmLen = 0.29,
+  forearmLen = 0.26,
+  armR = 0.058,
+  neckLen = 0.085,
+  headCfg = {},
+  jawCfg = {},
+  eyeCfg = {},
+  faceMat,
+  skinMat,
+  torsoMat,
+  sleeveMat,
+  forearmMat,
+  pantsMat,
+  shoeMat,
+  soleMat,
+}) {
   const root = new THREE.Group();
-  const skin = vinylMaterial(0xdfb694, 0.48, 0.03);
-  const darkCurlyHair = vinylMaterial(0x1f161e, 0.68, 0.04);
-  const forestCap = vinylMaterial(0x134c38, 0.45, 0.08);
-  const chefJacket = vinylMaterial(0xc82333, 0.38, 0.10);
-  const whiteTrim = vinylMaterial(0xf7f4ec, 0.42, 0.05);
-  const apronMat = new THREE.MeshStandardMaterial({ map: _apronTex, roughness: 0.55, metalness: 0.04 });
-  const darkPants = vinylMaterial(0x181c2c, 0.55, 0.1);
-  const brass = brassMaterial(PALETTE.brass);
-  const copper = brassMaterial(PALETTE.copper);
-  const castIron = endoMaterial(0x1c202b);
-  const chrome = endoMaterial(0xcbd6ea);
-  const socketMat = material(0x05060b, 0.94, 0);
-  const teethMat = vinylMaterial(0xf8f5eb, 0.22, 0.06);
-  const cheekMat = vinylMaterial(0xff384c, 0.2, 0.08);
-  const clownNoseMat = vinylMaterial(0xff3328, 0.16, 0.08);
-
   const core = new THREE.Group();
-  core.scale.set(1.08, 1.08, 1.08);
+  core.scale.setScalar(totalScale);
   root.add(core);
 
-  // Segmented Mascot-Animatronic Legs + Red/White High-Top Sneakers
-  const shoeGeo = roundedBox(0.17, 0.11, 0.28, 0.035, 2);
-  const legs = [-1, 1].map((side) => {
-    const leg = new THREE.Group();
-    leg.position.set(side * 0.16, 0.68, 0);
-    endoJoint(leg, 0, 0, 0, 0.062);
-    piece(leg, capsule, darkPants, 0, -0.16, 0, 0.16, 0.22, 0.16, { shadow: true });
-    endoJoint(leg, 0, -0.32, 0.01, 0.058);
-    piece(leg, capsule, darkPants, 0, -0.47, 0, 0.15, 0.20, 0.15, { shadow: true });
-    piece(leg, shoeGeo, chefJacket, 0, -0.61, 0.045, 1, 1, 1, { shadow: true });
-    piece(leg, solid, whiteTrim, 0, -0.655, 0.05, 0.18, 0.032, 0.295, { shadow: false });
-    piece(leg, orb, whiteTrim, 0, -0.60, 0.155, 0.082, 0.048, 0.065, { shadow: false });
-    core.add(leg);
-    return leg;
-  });
+  const pelvis = new THREE.Group();
+  pelvis.position.set(0, pelvisY, 0);
+  core.add(pelvis);
 
-  // Sculpted Chef Coat Torso + Printed "CHEF TORGE · MIT SCHARF!" Apron
-  const pelvisGeo = roundedBox(0.50, 0.18, 0.34, 0.05, 2);
-  piece(core, pelvisGeo, darkPants, 0, 0.73, 0, 1, 1, 1, { shadow: false });
-  endoJoint(core, 0, 0.83, 0, 0.085);
+  const pelvisMeshGeo = roundedBox(hipSpacing * 2.35, 0.15, (torsoCfg.depth || 0.24) * 0.92, 0.04, 1);
+  piece(pelvis, pelvisMeshGeo, pantsMat, 0, 0, 0, 1, 1, 1, { shadow: true });
 
-  const torsoGeo = roundedBox(0.58, 0.58, 0.38, 0.11, 3);
-  piece(core, torsoGeo, chefJacket, 0, 1.13, 0, 1, 1, 1, { shadow: true });
-  // Printed Chef Apron front plate
-  piece(core, solid, apronMat, 0, 1.07, 0.194, 0.36, 0.50, 0.018, { shadow: false });
-  // Brass double-breasted buttons
-  for (const by of [0.96, 1.10, 1.24]) {
-    piece(core, orb, brass, -0.21, by, 0.19, 0.02, 0.02, 0.014, { shadow: false });
-    piece(core, orb, brass, 0.21, by, 0.19, 0.02, 0.02, 0.014, { shadow: false });
-  }
-  // Gold chain + Döner-Diamond Medallion
-  const chain = band(core, brass, 0, 1.38, 0.05, 0.19);
-  chain.rotation.x = -Math.PI / 2 + 0.26;
-  piece(core, octa, emissive(0xffe082), 0, 1.29, 0.22, 0.048, 0.058, 0.03, { shadow: false });
+  const thighGeo = sculptedLimbGeometry({ topR: thighR, midR: thighR * 0.90, botR: thighR * 0.76, length: thighLen, crease: 0.008 });
+  const calfGeo = sculptedLimbGeometry({ topR: calfR, midR: calfR * 0.88, botR: calfR * 0.72, length: calfLen, crease: 0.006 });
+  const shoeGeo = roundedBox(calfR * 2.15, 0.085, 0.26, 0.025, 1);
 
-  // Ribbed Animatronic Neck
-  endoJoint(core, 0, 1.46, 0.01, 0.08);
+  const buildLeg = (side) => {
+    const thigh = new THREE.Group();
+    thigh.position.set(side * hipSpacing, -0.04, 0);
+    const tm = new THREE.Mesh(thighGeo, pantsMat);
+    tm.castShadow = true;
+    tm.receiveShadow = true;
+    thigh.add(tm);
 
-  // Sculpted Mascot Head + Articulated Hinged Lower Jaw!
-  const head = new THREE.Group();
-  head.position.set(0, 1.70, 0.02);
-  core.add(head);
+    const calf = new THREE.Group();
+    calf.position.set(0, -thighLen, 0);
+    const cm = new THREE.Mesh(calfGeo, pantsMat);
+    cm.castShadow = true;
+    cm.receiveShadow = true;
+    calf.add(cm);
 
-  const craniumGeo = roundedBox(0.46, 0.38, 0.42, 0.12, 3);
-  piece(head, craniumGeo, skin, 0, 0.04, 0, 1, 1, 1, { shadow: true });
-  // Mascot Ears with brass bolts
-  for (const side of [-1, 1]) {
-    piece(head, orb, skin, side * 0.245, 0.03, -0.01, 0.048, 0.075, 0.042, { shadow: false });
-    piece(head, orb, brass, side * 0.265, 0.03, 0.01, 0.014, 0.014, 0.014, { shadow: false });
-    // Glossy Toy-Freddy style rosy cheeks!
-    piece(head, orb, cheekMat, side * 0.165, -0.04, 0.195, 0.048, 0.038, 0.022, { shadow: false });
-  }
-  // Honkable Glossy Mascot Red Nose!
-  piece(head, orb, clownNoseMat, 0, -0.01, 0.235, 0.052, 0.046, 0.052, { shadow: false });
-
-  // Curly dark hair puffs + Forest-Green Snapback + Jeweled Golden Crown!
-  for (let i = -3; i <= 3; i++) {
-    piece(head, orb, darkCurlyHair, i * 0.066, 0.175, 0.185 - Math.abs(i) * 0.018, 0.068, 0.062, 0.068, { shadow: false });
-  }
-  piece(head, roundedBox(0.49, 0.22, 0.45, 0.09, 2), darkCurlyHair, 0, 0.13, -0.03, 1, 1, 1, { shadow: false });
-  piece(head, roundedBox(0.48, 0.16, 0.46, 0.08, 2), forestCap, 0, 0.245, -0.01, 1, 1, 1, { shadow: false });
-  const brim = piece(head, roundedBox(0.42, 0.036, 0.24, 0.015, 2), forestCap, 0, 0.20, 0.26, 1, 1, 1, { shadow: false });
-  brim.rotation.x = 0.08;
-  const crown = crownMesh(0.92);
-  crown.position.set(0.02, 0.335, 0.01);
-  crown.rotation.z = -0.08;
-  head.add(crown);
-
-  // Mascot-Animatronic Eye Rigs + Thick Expressive Eyebrows
-  const eyes = new THREE.Group();
-  head.add(eyes);
-  const eyeRigs = [-1, 1].map((side) => {
-    const rig = mascotEyeRig(eyes, side * 0.105, 0.055, 0.192, {
-      radius: 0.058,
-      irisHex: 0x2ba8ff,
-      pinHex: 0x88f4ff,
-      lidHex: 0xd9b89c,
-      lidDrop: 0.22,
-      lidTilt: side * -0.08,
-    });
-    const brow = piece(head, roundedBox(0.12, 0.034, 0.04, 0.012, 2), darkCurlyHair, side * 0.105, 0.132, 0.215, 1, 1, 1, { shadow: false });
-    brow.rotation.z = side * -0.14;
-    return rig;
-  });
-
-  // Dark Animatronic Mouth Cavity + Gleaming Upper Teeth Row on Cranium
-  piece(head, roundedBox(0.25, 0.095, 0.05, 0.02, 2), socketMat, 0, -0.115, 0.196, 1, 1, 1, { shadow: false });
-  for (let i = -2; i <= 2; i++) {
-    piece(head, solid, teethMat, i * 0.040, -0.090, 0.214, 0.032, 0.034, 0.018, { shadow: false });
-  }
-
-  // Articulated Hinged Lower Jaw!
-  const jaw = new THREE.Group();
-  jaw.position.set(0, -0.175, 0.02);
-  piece(jaw, roundedBox(0.38, 0.105, 0.35, 0.042, 2), skin, 0, -0.042, 0.01, 1, 1, 1, { shadow: true });
-  piece(jaw, solid, socketMat, 0, 0.012, 0.09, 0.26, 0.036, 0.21, { shadow: false });
-  for (let i = -2; i <= 2; i++) {
-    piece(jaw, solid, teethMat, i * 0.040, 0.022, 0.186, 0.030, 0.030, 0.018, { shadow: false });
-  }
-  head.add(jaw);
-
-  // Segmented Animatronic Arms (NO balloon spheres!)
-  const arms = [-1, 1].map((side) => {
-    const arm = new THREE.Group();
-    arm.position.set(side * 0.355, 1.33, 0);
-    endoJoint(arm, 0, 0, 0, 0.062, false);
-    piece(arm, capsule, chefJacket, side * 0.02, -0.15, 0.01, 0.15, 0.22, 0.15, { shadow: true });
-    endoJoint(arm, side * 0.03, -0.30, 0.03, 0.052);
-    piece(arm, capsule, whiteTrim, side * 0.035, -0.43, 0.09, 0.13, 0.19, 0.13, { shadow: true }).rotation.x = -0.35;
-    const hand = buildAnimatronicHand(arm, skin, side, 0.95);
-    hand.position.set(side * 0.04, -0.54, 0.16);
-    core.add(arm);
-    return arm;
-  });
-
-  // Left Hand Prop: Classic FNaF Retro Chrome Stage Microphone!
-  const mic = new THREE.Group();
-  mic.position.set(-0.04, -0.53, 0.21);
-  mic.rotation.x = Math.PI * 0.38;
-  piece(mic, round, castIron, 0, 0, 0, 0.024, 0.20, 0.024, { shadow: false });
-  piece(mic, orb, chrome, 0, 0.125, 0, 0.052, 0.058, 0.052, { shadow: false });
-  band(mic, brass, 0, 0.125, 0, 0.054);
-  arms[0].add(mic);
-
-  // Right Hand Prop: Sizzling Cast-Iron Skillet with Fried Egg & Döner Strips!
-  const pan = new THREE.Group();
-  pan.position.set(0.04, -0.52, 0.20);
-  piece(pan, round, copper, 0, 0.03, 0.12, 0.028, 0.30, 0.028, { shadow: false }).rotation.x = Math.PI / 2.15;
-  piece(pan, round, castIron, 0, 0.06, 0.36, 0.21, 0.055, 0.21, { shadow: true });
-  piece(pan, round, brass, 0, 0.065, 0.36, 0.216, 0.02, 0.216, { shadow: false });
-  // Sunny-side-up fried egg + browned Döner strips inside skillet!
-  piece(pan, round, whiteTrim, -0.02, 0.09, 0.35, 0.11, 0.012, 0.095, { shadow: false });
-  piece(pan, orb, emissive(0xffae19), -0.02, 0.10, 0.35, 0.045, 0.025, 0.045, { shadow: false });
-  piece(pan, solid, vinylMaterial(0x6e3219, 0.5), 0.08, 0.092, 0.39, 0.08, 0.022, 0.032, { shadow: false }).rotation.y = 0.4;
-  piece(pan, solid, vinylMaterial(0x572612, 0.5), 0.06, 0.092, 0.30, 0.075, 0.022, 0.03, { shadow: false }).rotation.y = -0.5;
-  arms[1].add(pan);
-
-  return { root, core, head, eyes, eyeRigs, jaw, arms, legs, crown, pan };
-}
-
-export function lostAntonModel() {
-  ensureOutfitTextures();
-  const root = new THREE.Group();
-  const skin = vinylMaterial(0xdeb492, 0.48, 0.03);
-  const hairMat = vinylMaterial(0x6b4c32, 0.62, 0.04);
-  const hoodieMat = vinylMaterial(0x1b1f2e, 0.56, 0.08);
-  const shirtMat = new THREE.MeshStandardMaterial({ map: _antonShirtTex, roughness: 0.58, metalness: 0.05 });
-  const cargoPants = vinylMaterial(0x232838, 0.58, 0.08);
-  const sneakerWhite = vinylMaterial(0xeaf0fa, 0.42, 0.06);
-  const limeMat = emissive(PALETTE.neonLime);
-  const cyanGlow = emissive(0x38d6ff);
-  const headphoneMat = endoMaterial(0x242c40);
-  const socketMat = material(0x05060b, 0.94, 0);
-  const teethMat = vinylMaterial(0xf4f2e8, 0.25, 0.05);
-  const darkRingMat = vinylMaterial(0x3a2846, 0.65, 0.02);
-  const phoneBody = endoMaterial(0x111520);
-  const phoneScreenMat = new THREE.MeshBasicMaterial({ map: _antonPhoneTex });
-
-  const core = new THREE.Group();
-  core.scale.set(1.02, 1.10, 1.02);
-  root.add(core);
-
-  // Lanky Cargo Pants + Lime-Sole Skate Sneakers
-  const shoeGeo = roundedBox(0.15, 0.095, 0.27, 0.03, 2);
-  const legs = [-1, 1].map((side) => {
-    const leg = new THREE.Group();
-    leg.position.set(side * 0.145, 0.78, 0);
-    endoJoint(leg, 0, 0, 0, 0.055);
-    piece(leg, capsule, cargoPants, 0, -0.19, 0, 0.14, 0.28, 0.14, { shadow: true });
-    // Cargo side pocket
-    piece(leg, solid, hoodieMat, side * 0.075, -0.18, 0.01, 0.03, 0.11, 0.09, { shadow: false });
-    endoJoint(leg, 0, -0.39, 0.01, 0.052);
-    piece(leg, capsule, cargoPants, 0, -0.56, 0, 0.13, 0.26, 0.13, { shadow: true });
-    piece(leg, shoeGeo, hoodieMat, 0, -0.72, 0.05, 1, 1, 1, { shadow: true });
-    piece(leg, solid, sneakerWhite, 0, -0.755, 0.05, 0.158, 0.026, 0.28, { shadow: false });
-    piece(leg, solid, limeMat, 0, -0.735, 0.16, 0.11, 0.012, 0.04, { shadow: false });
-    core.add(leg);
-    return leg;
-  });
-
-  // Slouched Streetwear Zip-Hoodie + "404 WO AUSGANG?!" Graphic Tee
-  piece(core, roundedBox(0.44, 0.16, 0.30, 0.04, 2), cargoPants, 0, 0.83, 0, 1, 1, 1, { shadow: false });
-  endoJoint(core, 0, 0.93, 0, 0.072);
-  const torso = piece(core, roundedBox(0.50, 0.60, 0.33, 0.10, 3), hoodieMat, 0, 1.24, 0.01, 1, 1, 1, { shadow: true });
-  torso.rotation.x = 0.06;
-  piece(core, solid, shirtMat, 0, 1.23, 0.172, 0.30, 0.48, 0.016, { shadow: false }).rotation.x = 0.06;
-  // Bunched hood collar + neon drawstrings
-  piece(core, hoop, hoodieMat, 0, 1.52, -0.02, 0.17, 0.17, 0.22, { shadow: false }).rotation.x = Math.PI / 2 - 0.15;
-  piece(core, capsule, sneakerWhite, -0.07, 1.38, 0.18, 0.016, 0.16, 0.016, { shadow: false });
-  piece(core, capsule, sneakerWhite, 0.07, 1.36, 0.18, 0.016, 0.19, 0.016, { shadow: false });
-
-  endoJoint(core, 0, 1.57, 0.02, 0.068);
-
-  // Confused Tilted Head + Crooked Gamer Headphones + Hinged Jaw!
-  const head = new THREE.Group();
-  head.position.set(0, 1.78, 0.04);
-  head.rotation.z = 0.13;
-  core.add(head);
-
-  piece(head, roundedBox(0.41, 0.38, 0.38, 0.11, 3), skin, 0, 0.03, 0, 1, 1, 1, { shadow: true });
-  piece(head, orb, skin, 0, -0.01, 0.20, 0.035, 0.042, 0.042, { shadow: false });
-
-  // Tousled chestnut 3D hair locks
-  piece(head, roundedBox(0.44, 0.17, 0.40, 0.08, 2), hairMat, 0, 0.17, -0.02, 1, 1, 1, { shadow: false });
-  piece(head, roundedBox(0.28, 0.09, 0.18, 0.04, 2), hairMat, -0.05, 0.21, 0.13, 1, 1, 1, { shadow: false }).rotation.z = 0.18;
-  piece(head, roundedBox(0.20, 0.08, 0.16, 0.03, 2), hairMat, 0.10, 0.19, 0.14, 1, 1, 1, { shadow: false }).rotation.z = -0.22;
-
-  // Crooked Wireless Gamer Headphones with Cyan LED rings (overhead XY half-torus arc!)
-  const hpGroup = new THREE.Group();
-  hpGroup.rotation.z = -0.07;
-  piece(hpGroup, _headbandArcGeo, headphoneMat, 0, 0.035, -0.01, 1, 1, 1, { shadow: false });
-  for (const side of [-1, 1]) {
-    const zOff = side === 1 ? -0.03 : 0.01;
-    piece(hpGroup, round, headphoneMat, side * 0.232, 0.025, zOff, 0.068, 0.055, 0.068, { shadow: false }).rotation.z = Math.PI / 2;
-    piece(hpGroup, hoop, cyanGlow, side * 0.256, 0.025, zOff, 0.052, 0.052, 0.052, { shadow: false }).rotation.y = Math.PI / 2;
-  }
-  head.add(hpGroup);
-
-  // Tired Dark Eye-Bags + Wide Bewildered Mascot Eyes + Asymmetrical Worried Brows
-  const eyes = new THREE.Group();
-  head.add(eyes);
-  const eyeRigs = [-1, 1].map((side) => {
-    piece(head, orb, darkRingMat, side * 0.092, 0.032, 0.178, 0.062, 0.056, 0.024, { shadow: false });
-    const rig = mascotEyeRig(eyes, side * 0.092, 0.045, 0.182, {
-      radius: 0.054,
-      irisHex: 0xff2948,
-      pinHex: 0xff3b56,
-      lidHex: 0xcab09c,
-      lidDrop: side === -1 ? 0.12 : 0.28,
-      lidTilt: side * 0.16,
-    });
-    const brow = piece(head, roundedBox(0.105, 0.026, 0.035, 0.01, 2), hairMat, side * 0.095, 0.122 + (side === 1 ? 0.018 : 0), 0.198, 1, 1, 1, { shadow: false });
-    brow.rotation.z = side * 0.22;
-    return rig;
-  });
-
-  // Articulated Hinged Lower Jaw with Goofy Gapped Teeth + Dark Mouth Interior
-  piece(head, roundedBox(0.20, 0.085, 0.045, 0.018, 2), socketMat, 0, -0.108, 0.178, 1, 1, 1, { shadow: false });
-  for (const tx of [-0.050, -0.017, 0.022, 0.054]) {
-    piece(head, solid, teethMat, tx, -0.086, 0.194, 0.025, 0.030, 0.018, { shadow: false });
-  }
-  const jaw = new THREE.Group();
-  jaw.position.set(0, -0.165, 0.02);
-  piece(jaw, roundedBox(0.32, 0.095, 0.31, 0.038, 2), skin, 0, -0.038, 0.01, 1, 1, 1, { shadow: true });
-  piece(jaw, solid, socketMat, 0, 0.012, 0.075, 0.21, 0.034, 0.19, { shadow: false });
-  for (const tx of [-0.044, 0.0, 0.044]) {
-    piece(jaw, solid, teethMat, tx, 0.022, 0.166, 0.025, 0.028, 0.018, { shadow: false });
-  }
-  head.add(jaw);
-
-  // Long Lanky Hoodie Arms + Glowing GPS Smartphone!
-  const arms = [-1, 1].map((side) => {
-    const arm = new THREE.Group();
-    arm.position.set(side * 0.30, 1.46, 0.01);
-    endoJoint(arm, 0, 0, 0, 0.052, false);
-    piece(arm, capsule, hoodieMat, side * 0.02, -0.17, 0.01, 0.125, 0.26, 0.125, { shadow: true });
-    endoJoint(arm, side * 0.035, -0.35, 0.03, 0.046);
-    piece(arm, capsule, hoodieMat, side * 0.045, -0.50, 0.08, 0.115, 0.24, 0.115, { shadow: true }).rotation.x = -0.25;
-    const hand = buildAnimatronicHand(arm, skin, side, 0.88);
-    hand.position.set(side * 0.055, -0.65, 0.14);
-    core.add(arm);
-    return arm;
-  });
-
-  const phone = new THREE.Group();
-  phone.position.set(0.05, -0.66, 0.21);
-  phone.rotation.x = -0.45;
-  phone.rotation.y = -0.2;
-  piece(phone, roundedBox(0.13, 0.23, 0.024, 0.018, 2), phoneBody, 0, 0, 0, 1, 1, 1, { shadow: false });
-  const phoneScreen = piece(phone, solid, phoneScreenMat, 0, 0, 0.014, 0.112, 0.205, 0.006, { shadow: false });
-  arms[1].add(phone);
-
-  return { root, core, head, eyes, eyeRigs, jaw, arms, legs, phone, phoneScreen };
-}
-
-export function bossHaukeModel() {
-  const root = new THREE.Group();
-  const skin = vinylMaterial(0xe0b796, 0.48, 0.03);
-  const hairMat = vinylMaterial(0x42291c, 0.6, 0.05);
-  const trackJacket = vinylMaterial(0x14523b, 0.44, 0.10);
-  const whiteTank = vinylMaterial(0xf2f5fc, 0.48, 0.04);
-  const greyJoggers = vinylMaterial(0x525a6c, 0.58, 0.06);
-  const brass = brassMaterial(PALETTE.brass);
-  const ironBoot = endoMaterial(0x1f2534);
-  const browMat = vinylMaterial(0x261710, 0.55, 0.08);
-  const socketMat = material(0x05060b, 0.94, 0);
-  const teethMat = vinylMaterial(0xf7f3e6, 0.22, 0.08);
-  const foilMat = endoMaterial(0xd8e0ee);
-
-  const core = new THREE.Group();
-  root.add(core);
-
-  // Heavy Seismic Stomp Boots + Track-Stripe Joggers
-  const bootGeo = roundedBox(0.28, 0.17, 0.40, 0.045, 2);
-  const legs = [-1, 1].map((side) => {
-    const leg = new THREE.Group();
-    leg.position.set(side * 0.29, 0.62, 0);
-    endoJoint(leg, 0, 0, 0, 0.085);
-    piece(leg, capsule, greyJoggers, 0, -0.20, 0, 0.26, 0.28, 0.26, { shadow: true });
-    // White Adidas-style track stripe
-    piece(leg, solid, whiteTank, side * 0.132, -0.20, 0, 0.018, 0.32, 0.05, { shadow: false });
-    piece(leg, bootGeo, ironBoot, 0, -0.52, 0.07, 1, 1, 1, { shadow: true });
-    piece(leg, solid, brass, 0, -0.58, 0.08, 0.30, 0.045, 0.42, { shadow: false });
-    piece(leg, solid, brass, 0, -0.46, 0.24, 0.20, 0.07, 0.06, { shadow: false });
-    core.add(leg);
-    return leg;
-  });
-
-  // Broad Barrel-Chested Bouncer Torso (spans y=0.68..1.46 — ZERO clipping into head/chin at y=1.78!)
-  piece(core, roundedBox(0.84, 0.24, 0.58, 0.07, 2), greyJoggers, 0, 0.68, 0.02, 1, 1, 1, { shadow: true });
-  // Brass Championship/Richter Belt + Glowing "8.4" Buckle!
-  piece(core, roundedBox(0.88, 0.09, 0.62, 0.03, 2), ironBoot, 0, 0.78, 0.02, 1, 1, 1, { shadow: false });
-  piece(core, roundedBox(0.26, 0.15, 0.08, 0.025, 2), brass, 0, 0.78, 0.34, 1, 1, 1, { shadow: false });
-  piece(core, octa, emissive(0xffaa30), 0, 0.78, 0.385, 0.05, 0.05, 0.02, { shadow: false });
-
-  // Sculpted Wide Chest & Open Track Jacket (max y = 1.47!)
-  const belly = piece(core, roundedBox(0.98, 0.68, 0.66, 0.16, 3), whiteTank, 0, 1.13, 0.03, 1, 1, 1, { shadow: true });
-  piece(core, roundedBox(0.32, 0.70, 0.70, 0.11, 3), trackJacket, -0.37, 1.13, 0.02, 1, 1, 1, { shadow: true });
-  piece(core, roundedBox(0.32, 0.70, 0.70, 0.11, 3), trackJacket, 0.37, 1.13, 0.02, 1, 1, 1, { shadow: true });
-  piece(core, roundedBox(1.00, 0.70, 0.26, 0.10, 2), trackJacket, 0, 1.13, -0.20, 1, 1, 1, { shadow: false });
-  // Gold Cuban Link Chain on chest
-  const chain = band(core, brass, 0, 1.42, 0.08, 0.27);
-  chain.rotation.x = -Math.PI / 2 + 0.34;
-
-  // Visible Muscular Animatronic Neck Joint (clean gap before jaw!)
-  endoJoint(core, 0, 1.53, 0.06, 0.105);
-
-  // Squared-Off Boss Head + Elvis Pompadour Quiff + Heavy Hinged Jaw!
-  const head = new THREE.Group();
-  head.position.set(0, 1.80, 0.08);
-  core.add(head);
-
-  piece(head, roundedBox(0.56, 0.42, 0.48, 0.13, 3), skin, 0, 0.05, 0, 1, 1, 1, { shadow: true });
-  for (const side of [-1, 1]) {
-    piece(head, orb, skin, side * 0.295, 0.03, 0, 0.055, 0.082, 0.048, { shadow: false });
-  }
-  piece(head, orb, skin, 0, 0.0, 0.255, 0.058, 0.052, 0.06, { shadow: false });
-
-  // Boss Pompadour Quiff
-  piece(head, roundedBox(0.58, 0.18, 0.48, 0.08, 2), hairMat, 0, 0.24, -0.02, 1, 1, 1, { shadow: false });
-  const quiff = piece(head, roundedBox(0.38, 0.15, 0.26, 0.06, 2), hairMat, 0, 0.31, 0.16, 1, 1, 1, { shadow: false });
-  quiff.rotation.x = -0.24;
-
-  // Blazing Amber Mascot-Animatronic Eyes + Thick Furious V-Eyebrows!
-  const eyes = new THREE.Group();
-  head.add(eyes);
-  const eyeRigs = [-1, 1].map((side) => {
-    const rig = mascotEyeRig(eyes, side * 0.135, 0.065, 0.228, {
-      radius: 0.064,
-      irisHex: 0xff9f1c,
-      pinHex: 0xffbe42,
-      lidHex: 0xd8b89c,
-      lidDrop: 0.34,
-      lidTilt: side * -0.26,
-    });
-    const brow = piece(head, roundedBox(0.18, 0.05, 0.055, 0.015, 2), browMat, side * 0.135, 0.155, 0.255, 1, 1, 1, { shadow: false });
-    brow.rotation.z = side * -0.30;
-    return rig;
-  });
-
-  // Dark Mouth Cavity + Upper Teeth + Gold Canine!
-  piece(head, roundedBox(0.34, 0.11, 0.055, 0.022, 2), socketMat, 0, -0.132, 0.228, 1, 1, 1, { shadow: false });
-  for (let i = -3; i <= 3; i++) {
-    piece(head, solid, i === 2 ? brass : teethMat, i * 0.044, -0.102, 0.248, 0.034, 0.038, 0.020, { shadow: false });
-  }
-
-  // Heavy Hinged Chomping Lower Jaw (100% visible above chest!)
-  const jaw = new THREE.Group();
-  jaw.position.set(0, -0.205, 0.02);
-  piece(jaw, roundedBox(0.48, 0.125, 0.42, 0.048, 2), skin, 0, -0.045, 0.02, 1, 1, 1, { shadow: true });
-  piece(jaw, solid, socketMat, 0, 0.015, 0.105, 0.34, 0.042, 0.26, { shadow: false });
-  for (let i = -3; i <= 3; i++) {
-    piece(jaw, solid, teethMat, i * 0.044, 0.028, 0.222, 0.034, 0.036, 0.020, { shadow: false });
-  }
-  head.add(jaw);
-
-  // Powerhouse Bouncer Arms + Foil-Wrapped XXL-Dürüm!
-  const arms = [-1, 1].map((side) => {
-    const arm = new THREE.Group();
-    arm.position.set(side * 0.62, 1.34, 0.04);
-    endoJoint(arm, 0, 0, 0, 0.085, false);
-    piece(arm, capsule, trackJacket, side * 0.04, -0.18, 0.02, 0.26, 0.26, 0.26, { shadow: true });
-    endoJoint(arm, side * 0.06, -0.38, 0.06, 0.072);
-    piece(arm, capsule, skin, side * 0.07, -0.54, 0.14, 0.22, 0.24, 0.22, { shadow: true }).rotation.x = -0.32;
-    const hand = buildAnimatronicHand(arm, skin, side, 1.32);
-    hand.position.set(side * 0.08, -0.70, 0.24);
-    if (side === -1) {
-      // Brass knuckle ring on left fist
-      piece(arm, solid, brass, -0.08, -0.74, 0.29, 0.14, 0.028, 0.035, { shadow: false });
+    const foot = new THREE.Group();
+    foot.position.set(0, -calfLen, 0);
+    piece(foot, shoeGeo, shoeMat, 0, -0.035, 0.048, 1, 1, 1, { shadow: true });
+    if (soleMat) {
+      piece(foot, solid, soleMat, 0, -0.075, 0.048, calfR * 2.22, 0.020, 0.27, { shadow: false });
     }
-    core.add(arm);
-    return arm;
-  });
+    calf.add(foot);
+    thigh.add(calf);
+    pelvis.add(thigh);
+    return { thigh, calf, foot };
+  };
 
-  // Half-eaten foil-wrapped XXL-Dürüm in Hauke's right fist!
-  const durum = new THREE.Group();
-  durum.position.set(0.08, -0.70, 0.32);
-  durum.rotation.z = 0.45;
-  durum.rotation.x = 0.35;
-  piece(durum, round, foilMat, 0, -0.04, 0, 0.062, 0.24, 0.062, { shadow: false });
-  piece(durum, round, vinylMaterial(0xe8cfa0, 0.65), 0, 0.11, 0, 0.058, 0.09, 0.058, { shadow: false });
-  piece(durum, orb, vinylMaterial(0x6e3219, 0.5), 0, 0.16, 0, 0.05, 0.032, 0.05, { shadow: false });
-  arms[1].add(durum);
+  const leftLeg = buildLeg(-1);
+  const rightLeg = buildLeg(1);
 
-  return { root, core, head, eyes, eyeRigs, jaw, arms, legs, belly };
-}
+  // Torso & Chest
+  const torso = new THREE.Group();
+  torso.position.set(0, 0.05, 0);
+  pelvis.add(torso);
 
-export function schnorrerTomModel() {
-  ensureOutfitTextures();
-  const root = new THREE.Group();
-  const skin = vinylMaterial(0xdeb695, 0.48, 0.03);
-  const darkHair = vinylMaterial(0x32221a, 0.65, 0.04);
-  const khakiCap = vinylMaterial(PALETTE.khaki, 0.48, 0.06);
-  const coralVisor = vinylMaterial(0xff7262, 0.46, 0.06);
-  const surfMat = new THREE.MeshStandardMaterial({ map: _tomShirtTex, roughness: 0.5, metalness: 0.04 });
-  const bibMat = new THREE.MeshStandardMaterial({ map: _tomBibTex, roughness: 0.55, metalness: 0.02 });
-  const darkPants = vinylMaterial(0x1d2334, 0.55, 0.08);
-  const tealShoe = vinylMaterial(0x1f9e96, 0.45, 0.08);
-  const whiteTrim = vinylMaterial(0xf5f2ea, 0.4, 0.05);
-  const bagMat = vinylMaterial(0xb86635, 0.52, 0.14);
-  const bottleMat = vinylMaterial(0x1f9d55, 0.15, 0.35);
-  const brass = brassMaterial(PALETTE.brass);
-  const socketMat = material(0x05060b, 0.94, 0);
-  const teethMat = vinylMaterial(0xfaf8f0, 0.2, 0.06);
+  const tHeight = torsoCfg.height || 0.54;
+  const torsoGeo = sculptedTorsoGeometry(torsoCfg);
+  const torsoMesh = new THREE.Mesh(torsoGeo, torsoMat);
+  torsoMesh.castShadow = true;
+  torsoMesh.receiveShadow = true;
+  torso.add(torsoMesh);
 
-  const core = new THREE.Group();
-  root.add(core);
+  const chest = new THREE.Group();
+  chest.position.set(0, shoulderY, torsoCfg.hunch || 0);
+  torso.add(chest);
 
-  // Skater Chinos + Teal/White Vans Sneakers
-  const shoeGeo = roundedBox(0.155, 0.095, 0.26, 0.03, 2);
-  const legs = [-1, 1].map((side) => {
-    const leg = new THREE.Group();
-    leg.position.set(side * 0.15, 0.66, 0);
-    endoJoint(leg, 0, 0, 0, 0.055);
-    piece(leg, capsule, darkPants, 0, -0.15, 0, 0.15, 0.21, 0.15, { shadow: true });
-    endoJoint(leg, 0, -0.31, 0.01, 0.05);
-    piece(leg, capsule, darkPants, 0, -0.45, 0, 0.14, 0.19, 0.14, { shadow: true });
-    piece(leg, shoeGeo, tealShoe, 0, -0.59, 0.045, 1, 1, 1, { shadow: true });
-    piece(leg, solid, whiteTrim, 0, -0.625, 0.045, 0.162, 0.028, 0.27, { shadow: false });
-    core.add(leg);
-    return leg;
-  });
+  const upperArmGeo = sculptedLimbGeometry({ topR: armR, midR: armR * 0.88, botR: armR * 0.76, length: upperArmLen, crease: 0.006 });
+  const forearmGeo = sculptedLimbGeometry({ topR: armR * 0.76, midR: armR * 0.68, botR: armR * 0.56, length: forearmLen, crease: 0.003 });
 
-  // Sneaky Forward-Leaning Surf-Miami Torso + Chica-Homage "GRATIS SPEZI?!" Bib!
-  piece(core, roundedBox(0.46, 0.17, 0.32, 0.045, 2), darkPants, 0, 0.71, 0.01, 1, 1, 1, { shadow: false });
-  endoJoint(core, 0, 0.81, 0.02, 0.075);
-  const torso = piece(core, roundedBox(0.52, 0.56, 0.35, 0.10, 3), surfMat, 0, 1.10, 0.04, 1, 1, 1, { shadow: true });
-  torso.rotation.x = 0.10;
-  const bib = piece(core, solid, bibMat, 0, 1.15, 0.228, 0.33, 0.34, 0.014, { shadow: false });
-  bib.rotation.x = 0.10;
+  const buildArm = (side) => {
+    const upperArm = new THREE.Group();
+    upperArm.position.set(side * shoulderX, 0, 0);
+    const uMesh = new THREE.Mesh(upperArmGeo, sleeveMat || torsoMat);
+    uMesh.castShadow = true;
+    upperArm.add(uMesh);
 
-  // Bulging Pfand-Rucksack stuffed with Spezi Cans & Green Pfand Bottle!
-  const pack = new THREE.Group();
-  pack.position.set(0, 1.10, -0.22);
-  pack.rotation.x = 0.08;
-  piece(pack, roundedBox(0.46, 0.48, 0.28, 0.09, 2), bagMat, 0, 0, 0, 1, 1, 1, { shadow: true });
-  piece(pack, solid, brass, -0.12, 0.08, 0.15, 0.04, 0.42, 0.04, { shadow: false });
-  piece(pack, solid, brass, 0.12, 0.08, 0.15, 0.04, 0.42, 0.04, { shadow: false });
-  const can1 = speziCanMesh();
-  can1.position.set(0.11, 0.22, -0.02);
-  can1.rotation.z = -0.32;
-  can1.scale.setScalar(0.85);
-  pack.add(can1);
-  // Green glass Pfand bottle poking out!
-  const bottle = new THREE.Group();
-  bottle.position.set(-0.10, 0.24, 0.01);
-  bottle.rotation.z = 0.26;
-  piece(bottle, round, bottleMat, 0, 0, 0, 0.042, 0.16, 0.042, { shadow: false });
-  piece(bottle, round, bottleMat, 0, 0.11, 0, 0.018, 0.10, 0.018, { shadow: false });
-  piece(bottle, round, brass, 0, 0.165, 0, 0.021, 0.015, 0.021, { shadow: false });
-  pack.add(bottle);
-  core.add(pack);
+    const forearm = new THREE.Group();
+    forearm.position.set(0, -upperArmLen, 0);
+    const fMesh = new THREE.Mesh(forearmGeo, forearmMat || skinMat);
+    fMesh.castShadow = true;
+    forearm.add(fMesh);
 
-  endoJoint(core, 0, 1.42, 0.07, 0.07);
+    const hand = buildSculptedHand(forearm, skinMat, side, (armR / 0.058));
+    hand.position.set(0, -forearmLen, 0);
 
-  // Mischievous Mascot Head + Backwards Snapback Cap + Buck-Toothed Hinged Jaw!
+    upperArm.add(forearm);
+    chest.add(upperArm);
+    return { upperArm, forearm, hand };
+  };
+
+  const leftArm = buildArm(-1);
+  const rightArm = buildArm(1);
+
+  // Neck -> Head -> Hinged Jaw & Uncanny Recessed Eyes
+  const neck = new THREE.Group();
+  neck.position.set(0, tHeight - shoulderY + 0.02, 0.01);
+  const neckGeo = sculptedLimbGeometry({ topR: 0.054, midR: 0.058, botR: 0.064, length: neckLen, crease: 0 });
+  const neckMesh = new THREE.Mesh(neckGeo, skinMat);
+  neckMesh.position.y = neckLen;
+  neck.add(neckMesh);
+  chest.add(neck);
+
   const head = new THREE.Group();
-  head.position.set(0, 1.63, 0.09);
-  core.add(head);
+  head.position.set(0, neckLen + (headCfg.height || 0.25) * 0.42, 0.01);
+  neck.add(head);
 
-  piece(head, roundedBox(0.44, 0.37, 0.40, 0.11, 3), skin, 0, 0.03, 0, 1, 1, 1, { shadow: true });
+  const headGeo = sculptedHeadGeometry(headCfg);
+  const headMesh = new THREE.Mesh(headGeo, faceMat);
+  headMesh.castShadow = true;
+  headMesh.receiveShadow = true;
+  head.add(headMesh);
+
+  // Sculpted Low-Poly Ears
   for (const side of [-1, 1]) {
-    piece(head, orb, skin, side * 0.23, 0.02, 0, 0.042, 0.068, 0.038, { shadow: false });
+    piece(head, orb, skinMat, side * (headCfg.width || 0.22) * 0.51, 0.01, -0.01, 0.018, 0.036, 0.022, { shadow: false });
   }
-  piece(head, orb, skin, 0, -0.01, 0.215, 0.04, 0.038, 0.045, { shadow: false });
 
-  // Backwards Snapback Cap with front snap-hole + messy brown hair tuft!
-  piece(head, roundedBox(0.46, 0.16, 0.43, 0.08, 2), khakiCap, 0, 0.20, -0.01, 1, 1, 1, { shadow: false });
-  piece(head, roundedBox(0.36, 0.034, 0.22, 0.015, 2), coralVisor, 0, 0.145, -0.28, 1, 1, 1, { shadow: false }).rotation.x = -0.08;
-  piece(head, solid, coralVisor, 0, 0.145, 0.212, 0.13, 0.024, 0.02, { shadow: false });
-  piece(head, orb, darkHair, 0, 0.165, 0.21, 0.068, 0.052, 0.048, { shadow: false });
-
-  // Scheming Half-Lidded Emerald Mascot Eyes!
-  const eyes = new THREE.Group();
-  head.add(eyes);
-  const eyeRigs = [-1, 1].map((side) => {
-    const rig = mascotEyeRig(eyes, side * 0.098, 0.042, 0.188, {
-      radius: 0.055,
-      irisHex: 0x1fd68a,
-      pinHex: 0x38f2af,
-      lidHex: 0xd6ba9e,
-      lidDrop: 0.46,
-      lidTilt: side * -0.14,
-    });
-    const brow = piece(head, roundedBox(0.11, 0.028, 0.038, 0.01, 2), darkHair, side * 0.098, 0.118, 0.206, 1, 1, 1, { shadow: false });
-    brow.rotation.z = side === -1 ? 0.18 : -0.22;
-    return rig;
-  });
-
-  // Dark Mouth Cavity + Prominent Goofy Buck Teeth + Hinged Lower Jaw
-  piece(head, roundedBox(0.22, 0.09, 0.048, 0.018, 2), socketMat, 0, -0.112, 0.188, 1, 1, 1, { shadow: false });
-  piece(head, solid, teethMat, -0.023, -0.092, 0.208, 0.038, 0.046, 0.018, { shadow: false });
-  piece(head, solid, teethMat, 0.023, -0.092, 0.208, 0.038, 0.046, 0.018, { shadow: false });
-
-  const jaw = new THREE.Group();
-  jaw.position.set(0, -0.165, 0.02);
-  piece(jaw, roundedBox(0.35, 0.098, 0.33, 0.040, 2), skin, 0, -0.038, 0.01, 1, 1, 1, { shadow: true });
-  piece(jaw, solid, socketMat, 0, 0.012, 0.08, 0.23, 0.035, 0.20, { shadow: false });
+  // Dark Inner Mouth Hollow + Upper Teeth Row
+  const socketDark = material(0x050408, 0.96, 0);
+  const teethMat = material(0xcfc6b4, 0.42, 0.04, true);
+  const mw = (jawCfg.width || 0.16) * 0.58;
+  piece(head, solid, socketDark, 0, -(headCfg.height || 0.25) * 0.30, (headCfg.depth || 0.24) * 0.38, mw, 0.036, 0.04, { shadow: false });
   for (let i = -2; i <= 2; i++) {
-    piece(jaw, solid, teethMat, i * 0.036, 0.022, 0.175, 0.027, 0.028, 0.018, { shadow: false });
-  }
-  head.add(jaw);
-
-  // Greedy Reaching Arms + Stolen Cold Spezi Can!
-  const arms = [-1, 1].map((side) => {
-    const arm = new THREE.Group();
-    arm.position.set(side * 0.32, 1.30, 0.05);
-    endoJoint(arm, 0, 0, 0, 0.055, false);
-    piece(arm, capsule, surfMat, side * 0.02, -0.13, 0.02, 0.14, 0.18, 0.14, { shadow: true });
-    endoJoint(arm, side * 0.035, -0.27, 0.05, 0.048);
-    piece(arm, capsule, skin, side * 0.045, -0.39, 0.12, 0.115, 0.19, 0.115, { shadow: true }).rotation.x = -0.42;
-    const hand = buildAnimatronicHand(arm, skin, side, 0.92);
-    hand.position.set(side * 0.05, -0.50, 0.20);
-    core.add(arm);
-    return arm;
-  });
-
-  const handSpezi = speziCanMesh();
-  handSpezi.position.set(-0.05, -0.52, 0.26);
-  handSpezi.rotation.x = 0.25;
-  arms[0].add(handSpezi);
-
-  return { root, core, head, eyes, eyeRigs, jaw, arms, legs };
-}
-
-export function goldenDuckModel() {
-  const root = new THREE.Group();
-  const goldSuit = new THREE.MeshStandardMaterial({ color: 0xe6b422, roughness: 0.32, metalness: 0.55 });
-  const beak = vinylMaterial(0xe05818, 0.36, 0.10);
-  const topHatMat = vinylMaterial(0x14111c, 0.5, 0.15);
-  const purpleRibbon = vinylMaterial(0x8e3dff, 0.35, 0.15);
-  const bowtieMat = vinylMaterial(0xd91e36, 0.35, 0.12);
-  const socket = material(0x030306, 0.96, 0);
-  const pinpoint = emissive(0xffffff);
-  const endo = endoMaterial(0x161924);
-
-  // Slumped Golden-Freddy sitting pose!
-  const core = new THREE.Group();
-  core.scale.set(1.55, 1.55, 1.55);
-  root.add(core);
-
-  // Plump gilded animatronic torso + red bowtie
-  piece(core, roundedBox(0.56, 0.50, 0.52, 0.18, 3), goldSuit, 0, 0.32, 0, 1, 1, 1, { shadow: true });
-  piece(core, solid, bowtieMat, -0.06, 0.50, 0.265, 0.09, 0.055, 0.03, { shadow: false }).rotation.z = 0.2;
-  piece(core, solid, bowtieMat, 0.06, 0.50, 0.265, 0.09, 0.055, 0.03, { shadow: false }).rotation.z = -0.2;
-  piece(core, orb, bowtieMat, 0, 0.50, 0.275, 0.025, 0.025, 0.02, { shadow: false });
-
-  // Limp splayed webbed feet in front
-  for (const side of [-1, 1]) {
-    endoJoint(core, side * 0.18, 0.12, 0.18, 0.048);
-    const foot = piece(core, roundedBox(0.18, 0.06, 0.24, 0.02, 2), beak, side * 0.22, 0.05, 0.32, 1, 1, 1, { shadow: true });
-    foot.rotation.y = side * -0.32;
-    foot.rotation.x = -0.25;
+    piece(head, solid, teethMat, i * (mw * 0.18), -(headCfg.height || 0.25) * 0.26, (headCfg.depth || 0.24) * 0.41, 0.014, 0.014, 0.010, { shadow: false });
   }
 
-  // Limp slumped wings/arms
-  const arms = [-1, 1].map((side) => {
-    const wing = new THREE.Group();
-    wing.position.set(side * 0.31, 0.42, 0.02);
-    endoJoint(wing, 0, 0, 0, 0.048, false);
-    const blade = piece(wing, roundedBox(0.12, 0.32, 0.22, 0.05, 2), goldSuit, side * 0.04, -0.16, 0.04, 1, 1, 1, { shadow: true });
-    blade.rotation.z = side * -0.22;
-    core.add(wing);
-    return wing;
-  });
-
-  endoJoint(core, 0, 0.60, 0.03, 0.065);
-
-  // Slumped Gilded Duck Head + Crooked Top Hat + Hinged Bill + Hollow Pinprick Sockets!
-  const head = new THREE.Group();
-  head.position.set(0, 0.82, 0.06);
-  head.rotation.z = -0.26;
-  head.rotation.x = 0.10;
-  core.add(head);
-
-  piece(head, roundedBox(0.46, 0.40, 0.44, 0.16, 3), goldSuit, 0, 0.02, 0, 1, 1, 1, { shadow: true });
-  // Upper bill
-  piece(head, roundedBox(0.28, 0.085, 0.22, 0.035, 2), beak, 0, -0.04, 0.27, 1, 1, 1, { shadow: true });
-  // Slack open lower bill (jaw) exposing dark endo rings!
+  // Hinged Lower Jaw
   const jaw = new THREE.Group();
-  jaw.position.set(0, -0.10, 0.16);
-  jaw.rotation.x = 0.24;
-  piece(jaw, roundedBox(0.24, 0.055, 0.20, 0.025, 2), beak, 0, -0.02, 0.09, 1, 1, 1, { shadow: false });
-  piece(jaw, solid, endo, 0, 0.015, 0.06, 0.16, 0.03, 0.14, { shadow: false });
+  jaw.position.set(0, -(headCfg.height || 0.25) * 0.34, 0.0);
+  const jawGeo = sculptedJawGeometry(jawCfg);
+  const jawMesh = new THREE.Mesh(jawGeo, faceMat);
+  jawMesh.position.set(0, -(jawCfg.height || 0.08) * 0.32, 0.015);
+  jawMesh.castShadow = true;
+  jaw.add(jawMesh);
+  for (let i = -2; i <= 2; i++) {
+    piece(jaw, solid, teethMat, i * (mw * 0.17), 0.005, (jawCfg.depth || 0.17) * 0.44, 0.013, 0.012, 0.010, { shadow: false });
+  }
   head.add(jaw);
 
-  // Crooked Purple-Ribbon Top Hat!
-  const hat = new THREE.Group();
-  hat.position.set(0.03, 0.23, -0.01);
-  hat.rotation.z = -0.12;
-  piece(hat, round, topHatMat, 0, 0, 0, 0.19, 0.025, 0.19, { shadow: false });
-  piece(hat, round, topHatMat, 0, 0.11, 0, 0.125, 0.20, 0.125, { shadow: true });
-  piece(hat, round, purpleRibbon, 0, 0.035, 0, 0.128, 0.038, 0.128, { shadow: false });
-  head.add(hat);
-
+  // Recessed Uncanny Eyes + IR Pinpoints
   const eyes = new THREE.Group();
   head.add(eyes);
-  for (const side of [-1, 1]) {
-    piece(head, orb, socket, side * 0.115, 0.055, 0.195, 0.068, 0.068, 0.045, { shadow: false });
-    piece(eyes, orb, pinpoint, side * 0.115, 0.055, 0.235, 0.018, 0.018, 0.014, { shadow: false });
-  }
+  const eyeX = (headCfg.width || 0.22) * 0.22;
+  const eyeY = (headCfg.height || 0.25) * 0.11;
+  const eyeZ = (headCfg.depth || 0.24) * 0.43;
+  const eyeRigs = [-1, 1].map((side) => uncannyEyeRig(eyes, side * eyeX, eyeY, eyeZ, eyeCfg));
 
-  return { root, core, head, eyes, jaw, arms };
+  return {
+    root,
+    core,
+    pelvis,
+    torso,
+    chest,
+    neck,
+    head,
+    jaw,
+    eyes,
+    eyeRigs,
+    leftUpperArm: leftArm.upperArm,
+    leftForearm: leftArm.forearm,
+    leftHand: leftArm.hand,
+    rightUpperArm: rightArm.upperArm,
+    rightForearm: rightArm.forearm,
+    rightHand: rightArm.hand,
+    leftThigh: leftLeg.thigh,
+    leftCalf: leftLeg.calf,
+    leftFoot: leftLeg.foot,
+    rightThigh: rightLeg.thigh,
+    rightCalf: rightLeg.calf,
+    rightFoot: rightLeg.foot,
+    arms: [leftArm.upperArm, rightArm.upperArm],
+    forearms: [leftArm.forearm, rightArm.forearm],
+    hands: [leftArm.hand, rightArm.hand],
+    legs: [leftLeg.thigh, rightLeg.thigh],
+    calves: [leftLeg.calf, rightLeg.calf],
+    feet: [leftLeg.foot, rightLeg.foot],
+  };
 }
 
 /**
- * Builds creepy spare animatronic mascot heads for CAM 5 (Parts & Service / Werkstatt) that can turn and stare!
+ * 1. CHEF TORGE — Stained dark-red double-breasted chef jacket, curly dark hair under
+ *    grease-stained forest-green cap + crooked tarnished brass crown, heavy cast-iron pan held low.
+ */
+export function chefTorgeModel() {
+  const tex = getCharTextures();
+  const faceMat = new THREE.MeshStandardMaterial({ map: tex.faceTorge, roughness: 0.72, metalness: 0.04, flatShading: true });
+  const skinMat = vinylMaterial(0xb58b6f, 0.74, 0.03);
+  const jacketMat = new THREE.MeshStandardMaterial({ map: tex.torgeJacket, roughness: 0.76, metalness: 0.05, flatShading: true });
+  const pantsMat = vinylMaterial(0x161922, 0.82, 0.04);
+  const shoeMat = vinylMaterial(0x141418, 0.65, 0.08);
+  const darkHair = vinylMaterial(0x171215, 0.88, 0.02);
+  const forestCap = vinylMaterial(0x133828, 0.76, 0.04);
+  const castIron = endoMaterial(0x171a22);
+
+  const rig = buildHumanRig({
+    totalScale: 1.02,
+    pelvisY: 0.90,
+    hipSpacing: 0.12,
+    torsoCfg: { waistW: 0.36, chestW: 0.44, shoulderW: 0.48, height: 0.56, depth: 0.26, hunch: 0.02 },
+    shoulderX: 0.25,
+    shoulderY: 0.48,
+    headCfg: { width: 0.22, height: 0.26, depth: 0.24, cheekWidth: 1.09, browRidge: 0.025, noseLen: 0.038 },
+    jawCfg: { width: 0.175, height: 0.085, depth: 0.18 },
+    eyeCfg: { radius: 0.023, irisHex: 0x1e262c, lidDrop: 0.28 },
+    faceMat,
+    skinMat,
+    torsoMat: jacketMat,
+    sleeveMat: jacketMat,
+    forearmMat: skinMat,
+    pantsMat,
+    shoeMat,
+    soleMat: material(0x28282c, 0.85, 0.05),
+  });
+
+  // Dark curly hair clusters + grease-stained forest-green cap + crooked tarnished brass crown
+  for (let i = -3; i <= 3; i++) {
+    piece(rig.head, orb, darkHair, i * 0.032, 0.088, 0.105 - Math.abs(i) * 0.01, 0.032, 0.028, 0.032, { shadow: false });
+  }
+  piece(rig.head, roundedBox(0.24, 0.11, 0.25, 0.04, 1), darkHair, 0, 0.085, -0.02, 1, 1, 1, { shadow: false });
+  piece(rig.head, roundedBox(0.245, 0.095, 0.255, 0.04, 1), forestCap, 0, 0.135, -0.005, 1, 1, 1, { shadow: true });
+  const brim = piece(rig.head, roundedBox(0.21, 0.018, 0.13, 0.008, 1), forestCap, 0, 0.105, 0.155, 1, 1, 1, { shadow: true });
+  brim.rotation.x = 0.14;
+
+  const crown = crownMesh(0.86);
+  crown.position.set(0.015, 0.195, 0.0);
+  crown.rotation.z = -0.11;
+  rig.head.add(crown);
+
+  // Heavy seasoned cast-iron frying pan held low at his right side
+  const pan = new THREE.Group();
+  pan.position.set(0, -0.06, 0.03);
+  piece(pan, round, castIron, 0, 0, 0.12, 0.016, 0.24, 0.016, { shadow: false }).rotation.x = Math.PI / 2;
+  piece(pan, round, castIron, 0, -0.01, 0.34, 0.145, 0.038, 0.145, { shadow: true });
+  rig.rightHand.add(pan);
+  rig.rightForearm.rotation.x = -0.28;
+  rig.jaw.rotation.x = 0.04;
+
+  return { ...rig, crown, pan };
+}
+
+/**
+ * 2. LOST ANTON — Tall, lanky, unnaturally hunched forward neck-tilt silhouette;
+ *    faded black tee with cracked lime graphic; sleepless hollow eyes lit from underneath
+ *    by his smartphone's cold blue-green PointLight!
+ */
+export function lostAntonModel() {
+  const tex = getCharTextures();
+  const faceMat = new THREE.MeshStandardMaterial({ map: tex.faceAnton, roughness: 0.70, metalness: 0.03, flatShading: true });
+  const skinMat = vinylMaterial(0xb49682, 0.74, 0.02);
+  const shirtMat = new THREE.MeshStandardMaterial({ map: tex.antonOutfit, roughness: 0.82, metalness: 0.02, flatShading: true });
+  const jeansMat = vinylMaterial(0x1c202a, 0.84, 0.04);
+  const sneakerMat = vinylMaterial(0x22262e, 0.72, 0.05);
+  const wetSoleMat = vinylMaterial(0xb8c0b4, 0.38, 0.08);
+  const hairMat = vinylMaterial(0x2e2118, 0.86, 0.02);
+  const phoneBody = endoMaterial(0x10141c);
+  const phoneScreenMat = new THREE.MeshBasicMaterial({ map: tex.antonPhone });
+
+  const rig = buildHumanRig({
+    totalScale: 1.07,
+    pelvisY: 0.95,
+    hipSpacing: 0.105,
+    thighLen: 0.45,
+    calfLen: 0.44,
+    thighR: 0.064,
+    calfR: 0.050,
+    torsoCfg: { waistW: 0.29, chestW: 0.36, shoulderW: 0.40, height: 0.56, depth: 0.21, hunch: 0.065 },
+    shoulderX: 0.21,
+    shoulderY: 0.49,
+    upperArmLen: 0.31,
+    forearmLen: 0.29,
+    armR: 0.048,
+    neckLen: 0.105,
+    headCfg: { width: 0.20, height: 0.25, depth: 0.22, cheekWidth: 1.06, browRidge: 0.022, noseLen: 0.034, socketDepth: 0.032 },
+    jawCfg: { width: 0.15, height: 0.08, depth: 0.16 },
+    eyeCfg: { radius: 0.023, irisHex: 0x161c22, bagHex: 0x1a1224, lidDrop: 0.18 },
+    faceMat,
+    skinMat,
+    torsoMat: shirtMat,
+    sleeveMat: shirtMat,
+    forearmMat: skinMat,
+    pantsMat: jeansMat,
+    shoeMat: sneakerMat,
+    soleMat: wetSoleMat,
+  });
+
+  // Unnatural forward neck hunch + head tilt
+  rig.torso.rotation.x = 0.08;
+  rig.neck.rotation.x = 0.22;
+  rig.head.rotation.z = 0.14;
+
+  // Messy damp hair locks over forehead
+  piece(rig.head, roundedBox(0.215, 0.10, 0.23, 0.04, 1), hairMat, 0, 0.105, -0.01, 1, 1, 1, { shadow: false });
+  piece(rig.head, solid, hairMat, -0.04, 0.095, 0.11, 0.09, 0.05, 0.03, { shadow: false }).rotation.z = 0.22;
+
+  // Smartphone in right hand + cold cyan-green PointLight casting eerie uplight onto chin & brow!
+  const phone = new THREE.Group();
+  phone.position.set(-0.02, -0.055, 0.045);
+  phone.rotation.x = -0.55;
+  phone.rotation.y = -0.25;
+  piece(phone, roundedBox(0.075, 0.145, 0.014, 0.008, 1), phoneBody, 0, 0, 0, 1, 1, 1, { shadow: false });
+  const phoneScreen = piece(phone, solid, phoneScreenMat, 0, 0, 0.009, 0.066, 0.132, 0.004, { shadow: false });
+
+  const phoneLight = new THREE.PointLight(0x4de8d2, 1.35, 1.65, 1.8);
+  phoneLight.position.set(0, 0.04, 0.08);
+  phone.add(phoneLight);
+  rig.rightHand.add(phone);
+
+  // Default arm raise holding phone below chin
+  rig.rightUpperArm.rotation.x = -0.62;
+  rig.rightUpperArm.rotation.z = -0.18;
+  rig.rightForearm.rotation.x = -1.15;
+
+  return { ...rig, phone, phoneScreen, phoneLight };
+}
+
+/**
+ * 3. SCHNORRER TOM — Scavenging forward crouch, backwards khaki cap, wrinkled faded pink
+ *    Surf-Miami tee (NO bib!), bulging worn backpack stuffed with crushed Pfand & Spezi cans.
+ */
+export function schnorrerTomModel() {
+  const tex = getCharTextures();
+  const faceMat = new THREE.MeshStandardMaterial({ map: tex.faceTom, roughness: 0.72, metalness: 0.03, flatShading: true });
+  const skinMat = vinylMaterial(0xba9276, 0.74, 0.02);
+  const surfMat = new THREE.MeshStandardMaterial({ map: tex.tomShirt, roughness: 0.80, metalness: 0.02, flatShading: true });
+  const pantsMat = vinylMaterial(0x1c212c, 0.82, 0.04);
+  const shoeMat = vinylMaterial(0x1f5c58, 0.72, 0.05);
+  const soleMat = vinylMaterial(0xc8c2b4, 0.6, 0.04);
+  const khakiCap = vinylMaterial(0xa49068, 0.78, 0.03);
+  const bagMat = vinylMaterial(0x523620, 0.84, 0.06);
+  const strapMat = vinylMaterial(0x281c14, 0.82, 0.08);
+  const bottleMat = material(0x1b6e3c, 0.22, 0.35);
+
+  const rig = buildHumanRig({
+    totalScale: 0.99,
+    pelvisY: 0.86,
+    hipSpacing: 0.115,
+    thighLen: 0.40,
+    calfLen: 0.40,
+    torsoCfg: { waistW: 0.32, chestW: 0.39, shoulderW: 0.43, height: 0.52, depth: 0.23, hunch: 0.05 },
+    shoulderX: 0.22,
+    shoulderY: 0.45,
+    headCfg: { width: 0.21, height: 0.245, depth: 0.23, cheekWidth: 1.07, browRidge: 0.020, noseLen: 0.036 },
+    jawCfg: { width: 0.16, height: 0.08, depth: 0.165 },
+    eyeCfg: { radius: 0.025, irisHex: 0x1a2822, lidDrop: 0.06 }, // wide unblinking stare!
+    faceMat,
+    skinMat,
+    torsoMat: surfMat,
+    sleeveMat: surfMat,
+    forearmMat: skinMat,
+    pantsMat,
+    shoeMat,
+    soleMat,
+  });
+
+  // Scavenging forward crouch posture
+  rig.torso.rotation.x = 0.16;
+  rig.neck.rotation.x = -0.08;
+  rig.leftThigh.rotation.x = -0.14;
+  rig.leftCalf.rotation.x = 0.24;
+  rig.rightThigh.rotation.x = -0.10;
+  rig.rightCalf.rotation.x = 0.18;
+
+  // Backwards khaki cap + hair tuft through front snap strap
+  piece(rig.head, roundedBox(0.225, 0.095, 0.24, 0.04, 1), khakiCap, 0, 0.115, -0.005, 1, 1, 1, { shadow: true });
+  piece(rig.head, roundedBox(0.17, 0.016, 0.12, 0.006, 1), khakiCap, 0, 0.088, -0.155, 1, 1, 1, { shadow: false }).rotation.x = -0.12;
+  piece(rig.head, orb, vinylMaterial(0x281b14, 0.88), 0, 0.092, 0.122, 0.032, 0.024, 0.022, { shadow: false });
+
+  // Bulging worn canvas backpack stuffed with crushed Pfand & Spezi cans sticking out!
+  const pack = new THREE.Group();
+  pack.position.set(0, 0.28, -0.17);
+  piece(pack, roundedBox(0.34, 0.42, 0.22, 0.06, 1), bagMat, 0, 0, 0, 1, 1, 1, { shadow: true });
+  piece(pack, solid, strapMat, -0.10, 0.04, 0.12, 0.032, 0.38, 0.04, { shadow: false });
+  piece(pack, solid, strapMat, 0.10, 0.04, 0.12, 0.032, 0.38, 0.04, { shadow: false });
+
+  const can1 = speziCanMesh();
+  can1.position.set(0.08, 0.18, -0.01);
+  can1.rotation.z = -0.36;
+  can1.scale.set(0.82, 0.68, 0.62); // dented/crushed can!
+  pack.add(can1);
+
+  const can2 = speziCanMesh();
+  can2.position.set(-0.02, 0.19, -0.04);
+  can2.rotation.x = 0.28;
+  can2.scale.set(0.75, 0.72, 0.60);
+  pack.add(can2);
+
+  const bottle = new THREE.Group();
+  bottle.position.set(-0.09, 0.20, 0.02);
+  bottle.rotation.z = 0.28;
+  piece(bottle, round, bottleMat, 0, 0, 0, 0.032, 0.13, 0.032, { shadow: false });
+  piece(bottle, round, bottleMat, 0, 0.09, 0, 0.014, 0.08, 0.014, { shadow: false });
+  pack.add(bottle);
+
+  rig.torso.add(pack);
+  return { ...rig, pack };
+}
+
+/**
+ * 4. BOSS HAUKE — Massive, broad-shouldered heavy silhouette in stretched white tee
+ *    with forest-green collar, grey joggers, heavy brow ridge, clenched teeth, dead-eyed scowl.
+ */
+export function bossHaukeModel() {
+  const tex = getCharTextures();
+  const faceMat = new THREE.MeshStandardMaterial({ map: tex.faceHauke, roughness: 0.72, metalness: 0.04, flatShading: true });
+  const skinMat = vinylMaterial(0xb0866a, 0.72, 0.03);
+  const shirtMat = new THREE.MeshStandardMaterial({ map: tex.haukeShirt, roughness: 0.80, metalness: 0.02, flatShading: true });
+  const joggersMat = vinylMaterial(0x4c525e, 0.84, 0.03);
+  const bootMat = vinylMaterial(0x181b22, 0.68, 0.12);
+  const hairMat = vinylMaterial(0x2b1c14, 0.86, 0.02);
+
+  const rig = buildHumanRig({
+    totalScale: 1.09,
+    pelvisY: 0.92,
+    hipSpacing: 0.145,
+    thighLen: 0.43,
+    calfLen: 0.42,
+    thighR: 0.098,
+    calfR: 0.076,
+    torsoCfg: { waistW: 0.46, chestW: 0.58, shoulderW: 0.64, height: 0.60, depth: 0.33, hunch: 0.03 },
+    shoulderX: 0.34,
+    shoulderY: 0.52,
+    upperArmLen: 0.31,
+    forearmLen: 0.29,
+    armR: 0.078,
+    neckLen: 0.08,
+    headCfg: { width: 0.245, height: 0.265, depth: 0.255, cheekWidth: 1.12, browRidge: 0.036, noseLen: 0.040, socketDepth: 0.030 },
+    jawCfg: { width: 0.205, height: 0.095, depth: 0.195 },
+    eyeCfg: { radius: 0.023, irisHex: 0x241a12, lidDrop: 0.38 },
+    faceMat,
+    skinMat,
+    torsoMat: shirtMat,
+    sleeveMat: shirtMat,
+    forearmMat: skinMat,
+    pantsMat: joggersMat,
+    shoeMat: bootMat,
+    soleMat: brassMaterial(0x3a3228),
+  });
+
+  // Short cropped dark hair + heavy angry brow ridge
+  piece(rig.head, roundedBox(0.255, 0.09, 0.26, 0.035, 1), hairMat, 0, 0.115, -0.01, 1, 1, 1, { shadow: false });
+  for (const side of [-1, 1]) {
+    const brow = piece(rig.head, solid, hairMat, side * 0.056, 0.058, 0.132, 0.075, 0.020, 0.028, { shadow: false });
+    brow.rotation.z = side * -0.26;
+  }
+
+  return rig;
+}
+
+/**
+ * 5. THE FILTHY DUCK SUIT (replaces the rubber bath toy) — Life-sized, grimy, matted yellow
+ *    Imbiss mascot costume with stitched seams, dark grease stains, crooked sagging mascot head,
+ *    hollow black mesh eye/beak openings, and faint human eyes glinting deep inside the suit!
+ */
+export function filthyDuckSuitModel() {
+  const tex = getCharTextures();
+  const suitMat = new THREE.MeshStandardMaterial({ map: tex.duckSuit, roughness: 0.90, metalness: 0.02, flatShading: true });
+  const headSuitMat = new THREE.MeshStandardMaterial({ map: tex.faceDuck, roughness: 0.88, metalness: 0.02, flatShading: true });
+  const dirtyBeakMat = vinylMaterial(0x9c4216, 0.72, 0.04);
+  const voidMeshMat = material(0x030305, 0.98, 0.0);
+  const bootMat = vinylMaterial(0x161412, 0.82, 0.06);
+
+  const rig = buildHumanRig({
+    totalScale: 1.04,
+    pelvisY: 0.88,
+    hipSpacing: 0.135,
+    thighLen: 0.40,
+    calfLen: 0.39,
+    thighR: 0.092,
+    calfR: 0.082,
+    torsoCfg: { waistW: 0.48, chestW: 0.52, shoulderW: 0.50, height: 0.58, depth: 0.36, hunch: 0.07 },
+    shoulderX: 0.27,
+    shoulderY: 0.49,
+    upperArmLen: 0.30,
+    forearmLen: 0.28,
+    armR: 0.072,
+    neckLen: 0.06,
+    headCfg: { width: 0.33, height: 0.32, depth: 0.33, cheekWidth: 1.14, browRidge: 0.01, noseLen: 0.0, socketDepth: 0.045 },
+    jawCfg: { width: 0.22, height: 0.055, depth: 0.24 },
+    eyeCfg: { radius: 0.016, irisHex: 0x16181c, scleraHex: 0xb8b2aa, lidDrop: 0.35 },
+    faceMat: headSuitMat,
+    skinMat: suitMat,
+    torsoMat: suitMat,
+    sleeveMat: suitMat,
+    forearmMat: suitMat,
+    pantsMat: suitMat,
+    shoeMat: bootMat,
+  });
+
+  // Oversized sagging mascot duck bill (upper bill + slack open lower bill)
+  piece(rig.head, roundedBox(0.21, 0.062, 0.19, 0.025, 1), dirtyBeakMat, 0, -0.035, 0.21, 1, 1, 1, { shadow: true });
+  piece(rig.head, solid, voidMeshMat, 0, -0.068, 0.15, 0.17, 0.05, 0.12, { shadow: false });
+  piece(rig.jaw, roundedBox(0.19, 0.042, 0.17, 0.02, 1), dirtyBeakMat, 0, -0.015, 0.16, 1, 1, 1, { shadow: false });
+
+  // Hollow black mesh mascot eye cutouts on the outer suit head
+  for (const side of [-1, 1]) {
+    piece(rig.head, orb, voidMeshMat, side * 0.078, 0.042, 0.145, 0.042, 0.048, 0.022, { shadow: false });
+  }
+
+  // Push the real human eyes + IR pinpoints deep INSIDE the dark mascot mesh so you see someone inside!
+  rig.eyes.position.set(0, 0.005, -0.032);
+  rig.jaw.rotation.x = 0.22;
+
+  // Heavy human-worn slumped posture
+  rig.torso.rotation.x = 0.14;
+  rig.head.rotation.z = -0.26;
+  rig.head.rotation.x = 0.12;
+  rig.leftUpperArm.rotation.z = 0.08;
+  rig.rightUpperArm.rotation.z = -0.10;
+  rig.leftForearm.rotation.x = -0.18;
+  rig.rightForearm.rotation.x = -0.12;
+
+  return rig;
+}
+
+export const goldenDuckModel = filthyDuckSuitModel;
+
+/**
+ * Spare worn mascot / mannequin head for CAM 5 backroom shelf.
  */
 export function spareMascotHeadMesh(variant = 0) {
+  const tex = getCharTextures();
   const g = new THREE.Group();
-  const shellHex = [0xd6b89e, 0xe6b422, 0x3b4459][variant % 3];
-  const shell = vinylMaterial(shellHex, 0.42, variant === 2 ? 0.72 : 0.12);
-  const socket = material(0x04050a, 0.95, 0);
-  const pinMat = emissive(variant === 1 ? 0xffffff : 0xff3550);
+  const mat = variant === 1
+    ? new THREE.MeshStandardMaterial({ map: tex.faceDuck, roughness: 0.88, flatShading: true })
+    : vinylMaterial(variant === 0 ? 0x8a7c6e : 0x303642, 0.78, 0.15);
+  const voidMat = material(0x030306, 0.96, 0);
+  const pinMat = new THREE.MeshBasicMaterial({ color: 0xeef6ff });
 
-  piece(g, roundedBox(0.34, 0.30, 0.32, 0.09, 2), shell, 0, 0.15, 0, 1, 1, 1, { shadow: true });
-  if (variant === 0) {
-    piece(g, orb, vinylMaterial(0xff3328, 0.2), 0, 0.14, 0.18, 0.038, 0.035, 0.038, { shadow: false });
-  } else if (variant === 1) {
-    piece(g, roundedBox(0.20, 0.065, 0.15, 0.02, 2), vinylMaterial(0xe05818, 0.4), 0, 0.10, 0.20, 1, 1, 1, { shadow: false });
-  }
+  const hGeo = sculptedHeadGeometry({ width: 0.24, height: 0.25, depth: 0.24 });
+  const m = new THREE.Mesh(hGeo, mat);
+  m.position.y = 0.13;
+  m.castShadow = true;
+  g.add(m);
+
   const pins = new THREE.Group();
   pins.visible = false;
   for (const side of [-1, 1]) {
-    piece(g, orb, socket, side * 0.082, 0.17, 0.148, 0.048, 0.048, 0.032, { shadow: false });
-    piece(pins, orb, pinMat, side * 0.082, 0.17, 0.176, 0.015, 0.015, 0.012, { shadow: false });
+    piece(g, orb, voidMat, side * 0.055, 0.15, 0.105, 0.028, 0.028, 0.018, { shadow: false });
+    piece(pins, octa, pinMat, side * 0.055, 0.15, 0.122, 0.009, 0.009, 0.006, { shadow: false });
   }
   g.add(pins);
   return { root: g, pins };
+}
+
+/**
+ * Resets a character rig to clean neutral standing joints, then applies creepy room/archive poses!
+ */
+export function applyStalkerPose(model, pose = 'neutral', t = 0) {
+  if (!model?.pelvis) return;
+  model.pelvis.position.set(0, model.pelvis.userData.baseY ?? model.pelvis.position.y, 0);
+  model.pelvis.userData.baseY = model.pelvis.position.y;
+  model.pelvis.rotation.set(0, 0, 0);
+  model.torso.rotation.set(0, 0, 0);
+  model.chest.rotation.set(0, 0, 0);
+  model.neck.rotation.set(0, 0, 0);
+  model.head.rotation.set(0, 0, 0);
+  model.jaw.rotation.set(0.04, 0, 0);
+  model.leftUpperArm.rotation.set(0, 0, 0.05);
+  model.rightUpperArm.rotation.set(0, 0, -0.05);
+  model.leftForearm.rotation.set(-0.12, 0, 0);
+  model.rightForearm.rotation.set(-0.12, 0, 0);
+  model.leftThigh.rotation.set(0, 0, 0);
+  model.rightThigh.rotation.set(0, 0, 0);
+  model.leftCalf.rotation.set(0, 0, 0);
+  model.rightCalf.rotation.set(0, 0, 0);
+
+  const breath = Math.sin(t * 1.6) * 0.012;
+
+  if (pose === 'doorway_peek') {
+    // Leaning halfway out from behind a doorway frame with left hand gripping the edge!
+    model.pelvis.rotation.z = -0.22;
+    model.torso.rotation.z = -0.18;
+    model.head.rotation.z = -0.16;
+    model.head.rotation.y = 0.24;
+    model.leftUpperArm.rotation.x = -0.85;
+    model.leftUpperArm.rotation.z = 0.42;
+    model.leftForearm.rotation.x = -0.65;
+  } else if (pose === 'corner_stare') {
+    // Standing nose-to-corner, snapping neck & head unnaturally back toward the CCTV lens!
+    model.torso.rotation.x = 0.08 + breath;
+    model.neck.rotation.y = 0.55;
+    model.head.rotation.y = 0.85;
+    model.head.rotation.z = 0.18;
+    model.jaw.rotation.x = 0.16;
+  } else if (pose === 'window_press') {
+    // Pressed close against rain-streaked glass, left palm raised against pane
+    model.torso.rotation.x = 0.16;
+    model.head.rotation.x = -0.10;
+    model.head.rotation.z = Math.sin(t * 2.1) * 0.05;
+    model.leftUpperArm.rotation.x = -1.25;
+    model.leftForearm.rotation.x = -0.85;
+    model.jaw.rotation.x = 0.14;
+  } else if (pose === 'crate_crouch') {
+    // Low scavenging crouch beside Pfand crates
+    model.pelvis.position.y -= 0.28;
+    model.torso.rotation.x = 0.46;
+    model.head.rotation.x = -0.38;
+    model.leftThigh.rotation.x = -0.78;
+    model.leftCalf.rotation.x = 1.42;
+    model.rightThigh.rotation.x = -0.68;
+    model.rightCalf.rotation.x = 1.28;
+    model.leftUpperArm.rotation.x = -0.55;
+    model.rightUpperArm.rotation.x = -0.65;
+  } else if (pose === 'slumped_suit') {
+    model.pelvis.position.y -= 0.06;
+    model.torso.rotation.x = 0.20 + breath * 0.4;
+    model.head.rotation.z = -0.30;
+    model.head.rotation.x = 0.18;
+    model.jaw.rotation.x = 0.26;
+    model.leftUpperArm.rotation.z = 0.12;
+    model.rightUpperArm.rotation.z = -0.14;
+    model.leftThigh.rotation.x = -0.12;
+    model.leftCalf.rotation.x = 0.22;
+  } else if (pose === 'phone_walk') {
+    const stride = Math.sin(t * 3.8);
+    model.torso.rotation.x = 0.16;
+    model.neck.rotation.x = 0.24;
+    model.leftThigh.rotation.x = stride * 0.36;
+    model.rightThigh.rotation.x = -stride * 0.36;
+    model.leftCalf.rotation.x = Math.max(0, -stride) * 0.45;
+    model.rightCalf.rotation.x = Math.max(0, stride) * 0.45;
+    model.rightUpperArm.rotation.x = -0.78;
+    model.rightForearm.rotation.x = -0.62; // sweeping phone downward!
+  } else if (pose === 'jumpscare_lunge') {
+    model.torso.rotation.x = 0.28;
+    model.head.rotation.z = Math.sin(t * 28) * 0.18;
+    model.jaw.rotation.x = 0.34 + Math.abs(Math.sin(t * 36)) * 0.32;
+    model.leftUpperArm.rotation.x = -1.35;
+    model.rightUpperArm.rotation.x = -1.35;
+    model.leftUpperArm.rotation.z = -0.32;
+    model.rightUpperArm.rotation.z = 0.32;
+    model.leftForearm.rotation.x = -0.45;
+    model.rightForearm.rotation.x = -0.45;
+  } else {
+    // Neutral subtle breathing
+    model.torso.rotation.x = 0.04 + breath;
+    if (model.phone) {
+      model.neck.rotation.x = 0.20;
+      model.head.rotation.z = 0.12;
+      model.rightUpperArm.rotation.x = -0.62;
+      model.rightForearm.rotation.x = -1.12;
+    }
+  }
 }

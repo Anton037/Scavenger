@@ -46,17 +46,24 @@ function createFakeDom() {
   return { win, doc, canvas };
 }
 
-test('Controls maps FNAF hotkeys (Q/W/E/R/Space/1-0/M/H) and A/D office panning', () => {
+test('Controls maps streamlined v2.0 2-Station hotkeys (S/Tab 180°, C Under-Desk, Space Monitor/Breath, F Flashlight, Q/E, X, 1-0)', () => {
   const { win, canvas } = createFakeDom();
   const log = [];
+  let underDeskState = false;
   const controls = new Controls(canvas, {
+    isUnderDesk: () => underDeskState,
+    turnAround: () => log.push('turn180'),
+    underDesk: () => {
+      underDeskState = !underDeskState;
+      log.push(`underDesk:${underDeskState}`);
+    },
+    holdBreath: (on) => log.push(`breath:${on}`),
+    flashlight: () => log.push('flashlight'),
     leftDoor: () => log.push('leftDoor'),
-    leftLight: () => log.push('leftLight'),
     rightDoor: () => log.push('rightDoor'),
-    rightLight: () => log.push('rightLight'),
     monitor: () => log.push('monitor'),
+    camCounter: () => log.push('camCounter'),
     mute: () => log.push('mute'),
-    honk: () => log.push('honk'),
     cam: (id) => log.push(`cam:${id}`),
   });
   controls.enable(true);
@@ -68,21 +75,56 @@ test('Controls maps FNAF hotkeys (Q/W/E/R/Space/1-0/M/H) and A/D office panning'
   };
 
   assert.equal(fireKey('KeyQ'), true);
-  assert.equal(fireKey('KeyW'), true);
   assert.equal(fireKey('KeyE'), true);
-  assert.equal(fireKey('KeyR'), true);
-  assert.equal(fireKey('Space'), true);
+  assert.equal(fireKey('KeyS'), true);
+  assert.equal(fireKey('KeyF'), true);
+  assert.equal(fireKey('Space'), true); // Not under desk -> flips monitor!
   assert.equal(fireKey('Digit3'), true);
-  assert.equal(fireKey('Digit0'), true);
+  assert.equal(fireKey('KeyX'), true);
+  assert.equal(fireKey('KeyC'), true); // Enters under_desk!
+  assert.equal(fireKey('Space'), true); // Under desk -> holds breath!
+  win.dispatch('keyup', { code: 'Space' });
   assert.equal(fireKey('KeyM'), true);
-  assert.equal(fireKey('KeyH'), true);
-  assert.deepEqual(log, ['leftDoor', 'leftLight', 'rightDoor', 'rightLight', 'monitor', 'cam:1C', 'cam:6', 'mute', 'honk']);
+
+  assert.deepEqual(log, [
+    'leftDoor',
+    'rightDoor',
+    'turn180',
+    'flashlight',
+    'monitor',
+    'cam:1C',
+    'camCounter',
+    'underDesk:true',
+    'breath:true',
+    'breath:false',
+    'mute',
+  ]);
 
   win.dispatch('keydown', { code: 'KeyA', preventDefault() {} });
   assert.ok(controls.read().lookDelta < 0);
   win.dispatch('keyup', { code: 'KeyA' });
   win.dispatch('keydown', { code: 'KeyD', preventDefault() {} });
   assert.ok(controls.read().lookDelta > 0);
+});
+
+test('Controls supports vertical touch swipe-down to duck under desk and swipe-up to stand', () => {
+  const { canvas } = createFakeDom();
+  let hidden = false;
+  const controls = new Controls(canvas, {
+    isUnderDesk: () => hidden,
+    underDesk: (val) => { hidden = typeof val === 'boolean' ? val : !hidden; },
+  });
+  controls.enable(true);
+
+  canvas.dispatch('pointerdown', { pointerId: 2, pointerType: 'touch', button: 0, clientX: 500, clientY: 200 });
+  canvas.dispatch('pointermove', { pointerId: 2, pointerType: 'touch', clientX: 505, clientY: 280 });
+  canvas.dispatch('pointerup', { pointerId: 2, pointerType: 'touch', clientX: 505, clientY: 280 });
+  assert.equal(hidden, true);
+
+  canvas.dispatch('pointerdown', { pointerId: 3, pointerType: 'touch', button: 0, clientX: 500, clientY: 320 });
+  canvas.dispatch('pointermove', { pointerId: 3, pointerType: 'touch', clientX: 502, clientY: 220 });
+  canvas.dispatch('pointerup', { pointerId: 3, pointerType: 'touch', clientX: 502, clientY: 220 });
+  assert.equal(hidden, false);
 });
 
 test('Controls blocks zooming, selection, and context menu outside editable inputs', () => {
@@ -106,13 +148,15 @@ test('Controls blocks zooming, selection, and context menu outside editable inpu
   assert.equal(ctxPrevented, true);
 });
 
-test('Controls toggles pause once per key press and preserves focused button activation', () => {
+test('Controls toggles pause once per key press and only treats completed stationary pointer gesture as canvasTap', () => {
   const { win, canvas } = createFakeDom();
   let pauseCount = 0;
   let monitorCount = 0;
+  const taps = [];
   const controls = new Controls(canvas, {
     pause: () => { pauseCount += 1; return true; },
     monitor: () => { monitorCount += 1; },
+    canvasTap: (x, y) => taps.push([x, y]),
   });
   controls.enable(true);
 
@@ -121,17 +165,9 @@ test('Controls toggles pause once per key press and preserves focused button act
   win.dispatch('keydown', { code: 'Escape', repeat: true, preventDefault });
   assert.equal(pauseCount, 1);
 
-  const button = { closest: (selector) => selector === 'button' ? button : null };
+  const button = { closest: (selector) => (selector === 'button' ? button : null) };
   win.dispatch('keydown', { code: 'Space', target: button, preventDefault });
-  win.dispatch('keydown', { code: 'KeyS', ctrlKey: true, preventDefault });
   assert.equal(monitorCount, 0);
-});
-
-test('Controls only treats a completed pointer gesture as a canvas tap', () => {
-  const { canvas } = createFakeDom();
-  const taps = [];
-  const controls = new Controls(canvas, { canvasTap: (x, y) => taps.push([x, y]) });
-  controls.enable(true);
 
   const pointer = { pointerId: 1, pointerType: 'touch', button: 0, clientX: 500, clientY: 300 };
   canvas.dispatch('pointerdown', pointer);

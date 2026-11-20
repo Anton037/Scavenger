@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#05060b">
-  <meta name="description" content="Five Nights at Torge's v2.0 — Überlebe die Nachtschicht in Chef Torges Mitternachts-Imbiss gegen Chef Torge, Lost Anton, Schnorrer Tom & Boss Hauke mit FNaF-1-Gameplay, Fritteusen-Dampf, Express-Bons & Spezi-Kick!">
+  <meta name="description" content="Five Nights at Torge's v2.0 — Psychologischer 3-Uhr-Nachtschicht-Horror in Torges geschlossenem Döner-Imbiss. 2-Stationen-Kabine, Taschenlampe, Unter-Theke-Versteck, Pflicht-Bons &amp; spielbare VHS-Bänder.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="FIVE NIGHTS AT TORGE'S v2.0 — Mitternachts-Imbiss">
-  <meta property="og:description" content="Artikulierte Mascot-Animatronics, FNaF-1-Sound-Cues & Flurlichter, 10 CCTV-Kameras, Fritteusen-Dampf, Express-Bons & Boss Haukes Erdbeben-Sprint!">
-  <meta property="og:image" content="https://anton037.github.io/Scavenger/gate.png">
+  <meta property="og:title" content="FIVE NIGHTS AT TORGE'S v2.0 — 03:00 AM Schließdienst">
+  <meta property="og:description" content="PS1/VHS-Low-Poly-Horror im geschlossenen Mitternachts-Imbiss: 5 Stalker, 180°-Vorbereitungsstation, Hauptsicherung, Unter-Theke-Atemkontrolle &amp; 3 spielbare VHS-Kassetten.">
+  <meta property="og:image" content="https://anton037.github.io/Torges-Pizza/gate.png">
   <meta name="twitter:card" content="summary">
   <title>FIVE NIGHTS AT TORGE'S</title>
   <link rel="icon" type="image/png" href="./gate.png">
@@ -19,37 +19,37 @@
     <canvas id="stage" aria-label="Five Nights at Torge's 3D Ansicht"></canvas>
 
     <!-- Landscape-Only Rotate Prompt -->
-    <div id="rotate-overlay" class="rotate-overlay" role="dialog" aria-modal="true" aria-labelledby="rotate-title">
+    <div id="rotate-overlay" class="rotate-overlay" role="alertdialog" aria-modal="true" aria-labelledby="rotate-title">
       <div class="rotate-card">
         <div class="rotate-phone" aria-hidden="true">
           <span class="rotate-screen"></span>
         </div>
         <p class="title-kicker">FIVE NIGHTS AT TORGE'S</p>
-        <h2 id="rotate-title">HANDY BITTE DREHEN</h2>
-        <p>Dieses Spiel läuft nur im <strong>Querformat (Landscape)</strong> — drehe dein Gerät um 90°, um deine Nachtschicht zu starten.</p>
+        <h2 id="rotate-title">GERÄT BITTE DREHEN</h2>
+        <p>Die Überwachungskabine läuft im <strong>Querformat (Landscape)</strong> — drehe dein Gerät um 90°, um die Nachtschicht anzutreten.</p>
       </div>
     </div>
 
-    <!-- Hallucination subliminal flash overlay -->
+    <!-- Subliminal VHS Glitch Flash -->
     <div id="hallucination" class="hallucination" hidden aria-hidden="true">
-      <span id="hallucination-text">ES BIN ICH</span>
+      <span id="hallucination-text">KEIN LICHT</span>
     </div>
 
     <!-- Achievement Stamp Toast -->
     <div id="achievement-toast" class="achievement-toast" role="status" aria-live="polite" hidden>
       <span id="achievement-toast-icon" class="toast-icon" aria-hidden="true">★</span>
       <div class="toast-body">
-        <span class="toast-kicker">STEMPELKARTE FREIGESCHALTET</span>
-        <strong id="achievement-toast-title">Erster Bon</strong>
+        <span class="toast-kicker">STEMPELKARTE AKTUALISIERT</span>
+        <strong id="achievement-toast-title">Probeschicht</strong>
       </div>
     </div>
 
-    <!-- TITLE SCREEN (Authentic FNAF 1 Layout + Upgraded Menu Tools) -->
+    <!-- TITLE SCREEN (3:00 AM Closed Imbiss Surveillance Layout) -->
     <section id="title-screen" class="screen title-screen" aria-labelledby="game-title">
       <div class="title-scanlines" aria-hidden="true"></div>
       <div class="title-col">
         <div class="title-header">
-          <p class="title-kicker">CHEF TORGES MITTERNACHTS-IMBISS · DAMPF &amp; ÜBERSTUNDEN</p>
+          <p class="title-kicker">TORGES NACHT-IMBISS · SCHLIESSDIENST · 03:00 UHR</p>
           <h1 id="game-title">FIVE<br>NIGHTS<br>AT<br>TORGE'S</h1>
           <div id="title-stars" class="title-stars" aria-label="Freigeschaltete Sterne"></div>
         </div>
@@ -62,7 +62,7 @@
             <span class="chev" aria-hidden="true">&gt;&gt;</span><span>Nacht 1 starten</span>
           </button>
           <button id="btn-night6" class="fnaf-menu-btn" type="button">
-            <span class="chev" aria-hidden="true">&gt;&gt;</span><span>6. Nacht</span><small>Überstunden</small>
+            <span class="chev" aria-hidden="true">&gt;&gt;</span><span>6. Nacht</span><small>Nachschicht</small>
           </button>
           <button id="btn-custom" class="fnaf-menu-btn" type="button">
             <span class="chev" aria-hidden="true">&gt;&gt;</span><span>Custom Night</span><small>KI 0–20</small>
@@ -70,46 +70,198 @@
         </nav>
 
         <div class="title-footer">
-          <p class="title-objective">Halte bis 6 Uhr durch. Höre auf Schritte &amp; Lachen, prüfe Flurlichter, kontrolliere Fritteusen-Dampf, Express-Bons &amp; Kameras.</p>
+          <p class="title-objective">Arbeite deine Pflicht-Bons an der Rückwand ab, leuchte die offene Durchreiche ab und halte bei Einbruch unter der Edelstahltheke den Atem an.</p>
           <div class="title-tools">
+            <button id="btn-kiosk" class="btn-crt small" type="button">Nacht-Kiosk <span id="title-wallet-badge" class="pill-count">0,00 €</span></button>
+            <button id="btn-extras" class="btn-crt small" type="button">VHS-Archiv <span id="title-tape-count" class="pill-count">0/3</span></button>
             <button id="btn-dossier" class="btn-crt small" type="button">Personalakte</button>
             <button id="btn-achievements" class="btn-crt small" type="button">Stempelkarte <span id="title-ach-count" class="pill-count">0/16</span></button>
-            <button id="btn-settings" class="btn-crt small" type="button">Einstellungen</button>
+            <button id="btn-settings" class="btn-crt small" type="button">Optionen</button>
             <button id="title-audio" class="btn-crt small" type="button" aria-pressed="true">Ton: AN</button>
           </div>
           <div class="title-meta-row">
             <span id="build-version" class="title-version">%SCAVENGER_BUILD_VERSION%</span>
-            <span class="title-hint">PC: Q/W &amp; E/R Türen/Licht · Space Kameras · V Ventil · T Bon · C Spezi · X IR-Blitz · G Dampf</span>
-            <span class="title-hint-touch">Touch: Wischen zum Schauen · Schalter links/rechts · Schreibtisch- &amp; Kamera-Tools unten</span>
+            <span class="title-hint">PC: Q/E Rollläden · F Taschenlampe · S 180°-Wende · C Unter Theke · Space CCTV / Atem</span>
+            <span class="title-hint-touch">Touch: Wischen zum Schauen · Runterwischen = Unter Theke · 3D-Geräte &amp; Leiste antippen</span>
           </div>
         </div>
         <p id="launch-error" class="launch-error" role="status" hidden></p>
       </div>
     </section>
 
-    <!-- PERSONALAKTE / SURVIVAL DOSSIER MODAL -->
-    <section id="dossier-screen" class="screen modal-screen" role="dialog" aria-modal="true" aria-labelledby="dossier-title" hidden>
+    <!-- NACHT-KIOSK MODAL (Pure Cosmetics Only — Zero Pay-to-Win) -->
+    <dialog id="kiosk-screen" class="modal-dialog" aria-labelledby="kiosk-title">
       <div class="crt-card wide-card">
         <div class="crt-head">
           <div>
-            <p class="title-kicker">MITTERNACHTS-IMBISS · NACHTSCHICHT-EINWEISUNG</p>
-            <h2 id="dossier-title">PERSONALAKTE &amp; TAKTIK</h2>
+            <p class="title-kicker">TRINKGELD-KASSE · NUR OPTIK (0 % SPIELVORTEIL)</p>
+            <h2 id="kiosk-title">NACHT-KIOSK</h2>
+          </div>
+          <div class="head-right-group">
+            <span id="kiosk-wallet" class="wallet-chip">Guthaben: 0,00 €</span>
+            <button id="kiosk-back" class="btn-crt" type="button">Schließen</button>
+          </div>
+        </div>
+        <p class="kiosk-sub">Verdiene Trinkgeld durch pünktliche Nacht-Bons und archivierte VHS-Bänder. Alle Artikel sind rein kosmetisch — der Schwierigkeitsgrad bleibt zu 100 % unverändert.</p>
+        <div id="kiosk-sections" class="kiosk-sections"></div>
+      </div>
+    </dialog>
+
+    <!-- VHS-ARCHIV & INTERACTIVE 3D EXTRAS TURNTABLE OVERLAY -->
+    <section id="extras-screen" class="screen extras-screen" aria-labelledby="extras-title" hidden>
+      <div class="extras-panel crt-card">
+        <div class="crt-head">
+          <div>
+            <p class="title-kicker">ÜBERWACHUNGSARCHIV · 3D-AKTEN &amp; BÄNDER</p>
+            <h2 id="extras-title">VHS-ARCHIV &amp; EXTRAS</h2>
+          </div>
+          <button id="extras-back" class="btn-crt small" type="button">Zurück</button>
+        </div>
+
+        <div class="seg-group extras-tabs" role="tablist" aria-label="Archiv-Kategorien">
+          <button id="tab-models" class="btn-crt small" type="button" role="tab" aria-selected="true">3D-Figuren</button>
+          <button id="tab-tapes" class="btn-crt small" type="button" role="tab" aria-selected="false">VHS-Bänder &amp; Akten</button>
+        </div>
+
+        <!-- Tab 1: Interactive 3D Character & Jumpscare Inspector -->
+        <div id="extras-models-pane" class="extras-pane">
+          <div id="extras-char-list" class="char-pill-row" role="group" aria-label="Figur wählen"></div>
+          <div class="archive-char-meta">
+            <strong id="archive-char-name">Chef Torge</strong>
+            <small id="archive-char-role">Inhaber · Spätschicht</small>
+            <p id="archive-char-lore"></p>
+          </div>
+          <div class="pose-group">
+            <span class="mini-label">Körperhaltung im Raum:</span>
+            <div id="extras-pose-list" class="char-pill-row" role="group" aria-label="Pose wählen">
+              <button class="btn-crt small pose-btn" type="button" data-pose="neutral" aria-pressed="true">Standard</button>
+              <button class="btn-crt small pose-btn" type="button" data-pose="doorway_peek" aria-pressed="false">Türspalt</button>
+              <button class="btn-crt small pose-btn" type="button" data-pose="corner_stare" aria-pressed="false">Ecke</button>
+              <button class="btn-crt small pose-btn" type="button" data-pose="window_press" aria-pressed="false">Scheibe</button>
+              <button class="btn-crt small pose-btn" type="button" data-pose="crate_crouch" aria-pressed="false">Hocke</button>
+            </div>
+          </div>
+          <div class="archive-actions">
+            <button id="btn-archive-flash" class="btn-crt small" type="button" aria-pressed="false">IR-Licht / Eye-Shine</button>
+            <button id="btn-archive-scare" class="btn-crt small primary" type="button">3D-Jumpscare testen</button>
+          </div>
+          <p class="turntable-hint">Rechts im 3D-Raum ziehen zum Drehen (360°).</p>
+        </div>
+
+        <!-- Tab 2: Playable VHS Tapes & Unlocked Workplace Protocols -->
+        <div id="extras-tapes-pane" class="extras-pane" hidden>
+          <div id="vhs-tape-list" class="tape-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLAYABLE 3D VHS POST-SHIFT MINIGAME OVERLAY -->
+    <section id="vhs-screen" class="screen vhs-screen" aria-label="VHS-Nachschicht-Aufnahme" hidden>
+      <div class="vhs-scanframe" aria-hidden="true"></div>
+      <div class="vhs-top">
+        <div class="vhs-osd-left">
+          <span class="vhs-play-badge"><i class="rec-dot" aria-hidden="true"></i> PLAY ▶ SP</span>
+          <strong id="vhs-title">TAPE 01 · FLUR-KONTROLLE</strong>
+          <small id="vhs-sub"></small>
+        </div>
+        <div class="vhs-osd-right">
+          <span id="vhs-timer" class="vhs-timecode">03:14:00</span>
+          <button id="vhs-skip" class="btn-crt small" type="button">Überspringen ▶</button>
+        </div>
+      </div>
+
+      <div id="vhs-status-strip" class="vhs-status-strip" aria-live="polite"></div>
+
+      <!-- Tape-Specific Tactile Action Bar -->
+      <div id="vhs-controls" class="vhs-controls">
+        <!-- Tape 01 Controls -->
+        <div id="vhs-ctrl-tape1" class="vhs-ctrl-row" hidden>
+          <button id="vhs-t1-flash" class="desk-pill flash-pill" type="button">
+            <span class="pill-led active" aria-hidden="true"></span>
+            <span id="vhs-t1-flash-label">LICHT-CHECK AM X</span>
+            <kbd>F / Space</kbd>
+          </button>
+        </div>
+
+        <!-- Tape 02 Controls -->
+        <div id="vhs-ctrl-tape2" class="vhs-ctrl-row" hidden>
+          <button id="vhs-t2-cassette" class="desk-pill" type="button">
+            <span class="pill-led" aria-hidden="true"></span>
+            <span id="vhs-t2-cassette-label">PRÜFTON STARTEN</span>
+            <kbd>E</kbd>
+          </button>
+          <button id="vhs-t2-clipboard" class="desk-pill bon-pill" type="button">
+            <span class="pill-led" aria-hidden="true"></span>
+            <span id="vhs-t2-clip-label">KLEMMBRETT HALTEN</span>
+            <kbd>S / C</kbd>
+          </button>
+          <button id="vhs-t2-taser" class="desk-pill danger-pill" type="button">
+            <span class="pill-led" aria-hidden="true"></span>
+            <span id="vhs-t2-taser-label">STROBO-TASER (3×)</span>
+            <kbd>F</kbd>
+          </button>
+        </div>
+
+        <!-- Tape 03 Controls -->
+        <div id="vhs-ctrl-tape3" class="vhs-ctrl-row" hidden>
+          <button id="vhs-t3-prev" class="desk-pill" type="button" aria-label="Vorheriges Relais">◀ <kbd>A</kbd></button>
+          <button id="vhs-t3-repair" class="desk-pill bon-pill" type="button">
+            <span class="pill-led" aria-hidden="true"></span>
+            <span id="vhs-t3-repair-label">RELAIS REPARIEREN</span>
+            <kbd>E halten</kbd>
+          </button>
+          <button id="vhs-t3-next" class="desk-pill" type="button" aria-label="Nächstes Relais">▶ <kbd>D</kbd></button>
+          <button id="vhs-t3-light" class="desk-pill flash-pill" type="button" aria-pressed="true">
+            <span class="pill-led active" aria-hidden="true"></span>
+            <span id="vhs-t3-light-label">LAMPE: AN</span>
+            <kbd>F</kbd>
+          </button>
+          <button id="vhs-t3-breath" class="desk-pill" type="button">
+            <span class="pill-led" aria-hidden="true"></span>
+            <span id="vhs-t3-breath-label">ATEM ANHALTEN</span>
+            <kbd>Space</kbd>
+          </button>
+        </div>
+      </div>
+
+      <!-- End of Tape Result / Lore Modal Card -->
+      <div id="vhs-result" class="vhs-result" hidden>
+        <div class="crt-card small-card">
+          <p id="vhs-result-kicker" class="title-kicker">BAND ARCHIVIERT</p>
+          <h2 id="vhs-result-title">PROTOKOLL GESICHERT</h2>
+          <p id="vhs-result-reward" class="vhs-reward-badge"></p>
+          <blockquote id="vhs-result-lore" class="vhs-lore-quote"></blockquote>
+          <div class="modal-actions">
+            <button id="vhs-result-retry" class="btn-crt" type="button" hidden>Band neu starten</button>
+            <button id="vhs-result-continue" class="btn-crt primary" type="button">Weiter ▶</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PERSONALAKTE / SURVIVAL DOSSIER MODAL -->
+    <dialog id="dossier-screen" class="modal-dialog" aria-labelledby="dossier-title">
+      <div class="crt-card wide-card">
+        <div class="crt-head">
+          <div>
+            <p class="title-kicker">SCHLIESSDIENST-EINWEISUNG · WACHKABINE</p>
+            <h2 id="dossier-title">PERSONALAKTE &amp; PROTOKOLLE</h2>
           </div>
           <button id="dossier-back" class="btn-crt" type="button">Schließen</button>
         </div>
         <div id="dossier-grid" class="dossier-grid"></div>
         <div class="dossier-tips">
-          <strong>FNaF-1-Gehör &amp; Imbiss-Taktik:</strong> Achte genau auf Schritte, Pfand-Klappern und Torges Lachen — und prüfe per Flurlicht (<strong>W / R</strong>) Tür &amp; Fenster! Am <strong>roten Ventil (V)</strong> kühlst du Hitzestau (Achtung: lautes Zischen dämpft Geräusche!), oder feuerst ab <strong>45 % Druck</strong> auf <strong>CAM 2B / 4B</strong> den kostenlosen <strong>Dampfstoß (G)</strong>. Stemple <strong>Express-Bons (T)</strong> schnell für <strong>+5 % Strom</strong>, locke Tom auf <strong>CAM 6 (B, 0 %)</strong> gratis weg und nutze maximal 2× pro Nacht deinen <strong>Spezi-Kick (C)</strong>!
+          <strong>2-Stationen-Kabine:</strong> Vorne sicherst du <strong>linken &amp; rechten Rollladen (Q / E)</strong> und blendest Torge in der türlosen <strong>Mittel-Durchreiche mit der Taschenlampe (F)</strong> zurück. Mit <strong>180°-Wende (S)</strong> drehst du dich zur <strong>Vorbereitungsstation (Döner, Fritteuse, Spezi-Tüte)</strong>, legst nach Haukes Einschlag die <strong>Hauptsicherung (R)</strong> um und prüfst die <strong>Hinterluke</strong>. Ist jemand im Raum: <strong>Unter die Theke (C)</strong> und <strong>Atem anhalten (Space)</strong>! <strong>Wichtig:</strong> Niemals das nasse gelbe Enten-Kostüm anleuchten!
         </div>
       </div>
-    </section>
+    </dialog>
 
     <!-- STEMPELKARTE / ACHIEVEMENTS & RECORDS MODAL -->
-    <section id="achievements-screen" class="screen modal-screen" role="dialog" aria-modal="true" aria-labelledby="ach-title" hidden>
+    <dialog id="achievements-screen" class="modal-dialog" aria-labelledby="ach-title">
       <div class="crt-card wide-card">
         <div class="crt-head">
           <div>
-            <p class="title-kicker">IMBISS-AUSZEICHNUNGEN &amp; SCHICHTREKORDE</p>
+            <p class="title-kicker">SCHICHTPROTOKOLLE &amp; AUSZEICHNUNGEN</p>
             <h2 id="ach-title">STEMPELKARTE</h2>
           </div>
           <button id="ach-back" class="btn-crt" type="button">Schließen</button>
@@ -117,10 +269,10 @@
         <div id="records-summary" class="records-summary"></div>
         <div id="ach-grid" class="ach-grid"></div>
       </div>
-    </section>
+    </dialog>
 
     <!-- SETTINGS MODAL -->
-    <section id="settings-screen" class="screen modal-screen" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+    <dialog id="settings-screen" class="modal-dialog" aria-labelledby="settings-title">
       <div class="crt-card settings-card">
         <div class="crt-head">
           <div>
@@ -134,21 +286,21 @@
           <div class="setting-row">
             <div class="setting-info">
               <b>Grafik- &amp; Engine-Profil</b>
-              <small id="engine-perf-label">HD Schatten, 60-FPS-Mix oder klassisches Retro-Pixel-CRT</small>
+              <small id="engine-perf-label">HD Horror, 60 FPS oder PS1/VHS-Pixelmodus</small>
             </div>
             <div class="seg-group" role="group" aria-label="Grafik-Stil">
               <button class="btn-crt small seg-btn" type="button" data-setting="graphics" data-value="hd">HD Horror</button>
               <button class="btn-crt small seg-btn" type="button" data-setting="graphics" data-value="balanced">60 FPS</button>
-              <button class="btn-crt small seg-btn" type="button" data-setting="graphics" data-value="retro">Retro CRT</button>
+              <button class="btn-crt small seg-btn" type="button" data-setting="graphics" data-value="retro">Retro PS1</button>
             </div>
           </div>
 
           <div class="setting-row">
             <div class="setting-info">
-              <b>CRT-Scanlines &amp; Rauschen</b>
-              <small>Intensität von Filmkorn und Kamera-Scanlines</small>
+              <b>VHS-Scanlines &amp; Bandrauschen</b>
+              <small>Intensität von Chroma-Bleed, Tracking und Rauschen</small>
             </div>
-            <div class="seg-group" role="group" aria-label="CRT-Effekte">
+            <div class="seg-group" role="group" aria-label="VHS-Effekte">
               <button class="btn-crt small seg-btn" type="button" data-setting="crt" data-value="off">Aus</button>
               <button class="btn-crt small seg-btn" type="button" data-setting="crt" data-value="subtle">Dezent</button>
               <button class="btn-crt small seg-btn" type="button" data-setting="crt" data-value="strong">Stark</button>
@@ -174,39 +326,39 @@
           <div class="setting-row">
             <div class="setting-info">
               <b>Reduzierte Bewegung</b>
-              <small>Dämpft Erdbeben-Kamera-Wackeln und Glitches</small>
+              <small>Dämpft Kamerawackeln, Whip-Pan-Neigung und Stroboskop-Glitches</small>
             </div>
             <button id="set-reduced-motion" class="btn-crt small" type="button" aria-pressed="false">AUS</button>
           </div>
 
           <div class="setting-row">
             <div class="setting-info">
-              <b>Audio-Untertitel (Geräusch-Hilfe)</b>
-              <small>Blendet Richtungs-Hinweise für Schritte &amp; Türen ein (Standard: AUS für echtes FNaF-1-Gefühl)</small>
+              <b>Akustik-Untertitel (Barrierefreiheit)</b>
+              <small>Blendet dezente Richtungshinweise für Schritte &amp; Klopfen ein (Standard: AUS)</small>
             </div>
             <button id="set-audio-subs" class="btn-crt small" type="button" aria-pressed="false">AUS</button>
           </div>
         </div>
       </div>
-    </section>
+    </dialog>
 
-    <!-- CUSTOM NIGHT SCREEN (0-20 AI Sliders + 1-9-8-7 Easter Egg!) -->
-    <section id="custom-screen" class="screen modal-screen" role="dialog" aria-modal="true" aria-labelledby="custom-title" hidden>
+    <!-- CUSTOM NIGHT MODAL (5 Stalker AI Sliders 0-20 + 6 Challenge Presets + 1-9-8-7 Easter Egg) -->
+    <dialog id="custom-screen" class="modal-dialog" aria-labelledby="custom-title">
       <div class="crt-card custom-card">
         <div class="crt-head">
           <div>
-            <p class="title-kicker">NACHT 7 · INDIVIDUELLE KI</p>
+            <p class="title-kicker">NACHT 7 · INDIVIDUELLE BEDROHUNG (5 STALKER)</p>
             <h2 id="custom-title">CUSTOM NIGHT</h2>
           </div>
           <button id="custom-back" class="btn-crt" type="button">Zurück</button>
         </div>
 
-        <div id="custom-grid" class="custom-grid">
+        <div id="custom-grid" class="custom-grid five-cols">
           <div class="ai-card" data-char="torge">
             <div class="ai-badge badge-torge">TORGE</div>
             <img class="ai-portrait" data-portrait="torge" alt="">
             <b>Chef Torge</b>
-            <small>Cam-Stall &amp; Hitze (Ost)</small>
+            <small>Durchreiche &amp; Taschenlampe</small>
             <div class="ai-stepper">
               <button class="step-btn" type="button" data-step="-1" aria-label="Torge KI verringern">◀</button>
               <span class="ai-val" id="ai-torge">5</span>
@@ -217,7 +369,7 @@
             <div class="ai-badge badge-anton">ANTON</div>
             <img class="ai-portrait" data-portrait="anton" alt="">
             <b>Lost Anton</b>
-            <small>Linke Tür &amp; Videoanruf</small>
+            <small>Westtür &amp; Unter-Theke</small>
             <div class="ai-stepper">
               <button class="step-btn" type="button" data-step="-1" aria-label="Anton KI verringern">◀</button>
               <span class="ai-val" id="ai-anton">5</span>
@@ -228,7 +380,7 @@
             <div class="ai-badge badge-tom">TOM</div>
             <img class="ai-portrait" data-portrait="tom" alt="">
             <b>Schnorrer Tom</b>
-            <small>Rechtes Fenster &amp; Küche</small>
+            <small>Ostfenster &amp; Hinterluke</small>
             <div class="ai-stepper">
               <button class="step-btn" type="button" data-step="-1" aria-label="Tom KI verringern">◀</button>
               <span class="ai-val" id="ai-tom">5</span>
@@ -239,53 +391,72 @@
             <div class="ai-badge badge-hauke">HAUKE</div>
             <img class="ai-portrait" data-portrait="hauke" alt="">
             <b>Boss Hauke</b>
-            <small>Erdbeben-Sprint (1C)</small>
+            <small>Sprint &amp; Hauptsicherung</small>
             <div class="ai-stepper">
               <button class="step-btn" type="button" data-step="-1" aria-label="Hauke KI verringern">◀</button>
               <span class="ai-val" id="ai-hauke">5</span>
               <button class="step-btn" type="button" data-step="1" aria-label="Hauke KI erhöhen">▶</button>
             </div>
           </div>
+          <div class="ai-card" data-char="duck">
+            <div class="ai-badge badge-duck">KOSTÜM</div>
+            <img class="ai-portrait" data-portrait="duck" alt="">
+            <b>Enten-Kostüm</b>
+            <small>180°-Anomalie · Kein Licht!</small>
+            <div class="ai-stepper">
+              <button class="step-btn" type="button" data-step="-1" aria-label="Kostüm KI verringern">◀</button>
+              <span class="ai-val" id="ai-duck">3</span>
+              <button class="step-btn" type="button" data-step="1" aria-label="Kostüm KI erhöhen">▶</button>
+            </div>
+          </div>
         </div>
 
         <div class="custom-danger-row">
-          <span id="custom-danger-label">Gefahrenstufe: 20 / 80</span>
+          <span id="custom-danger-label">Gefahrenstufe: 23 / 100</span>
           <div class="danger-track" aria-hidden="true"><div id="custom-danger-fill" class="danger-fill"></div></div>
-          <small class="shift-tip">Tipp: Shift+Klick für ±5</small>
+          <small class="shift-tip">Shift+Klick für ±5</small>
         </div>
 
         <div class="custom-mods-section">
           <div class="mods-head">
-            <b>RISIKO-MODIFIKATOREN (MUTATOREN)</b>
+            <b>SCHICHT-MODIFIKATOREN</b>
             <small id="custom-bonus-label">Bonus: +0 %</small>
           </div>
           <div id="custom-modifiers" class="modifier-grid" role="group" aria-label="Schicht-Modifikatoren"></div>
         </div>
 
-        <div id="custom-presets" class="preset-row"></div>
+        <div id="custom-presets" class="preset-row" role="group" aria-label="Herausforderungs-Szenarien"></div>
         <div class="custom-actions">
           <button id="custom-random" class="btn-crt" type="button">Zufalls-Mix</button>
-          <button id="custom-start" class="btn-crt primary" type="button">SCHICHT STARTEN ▶</button>
+          <button id="custom-start" class="btn-crt primary" type="button">SCHICHT ANTRETEN ▶</button>
         </div>
       </div>
-    </section>
+    </dialog>
 
     <!-- NIGHT INTRO CARD (12:00 AM · NACHT X) -->
     <section id="intro-screen" class="screen intro-screen" aria-live="polite" hidden>
       <div class="intro-box">
         <div class="intro-time">12:00 AM</div>
         <h2 id="intro-night">NACHT 1</h2>
-        <p id="intro-sub">Probewache — Mitternachts-Imbiss</p>
+        <p id="intro-sub">Probeschicht — Hintereingang verriegeln</p>
       </div>
     </section>
 
-    <!-- IN-GAME HUD (Office + CCTV Monitor) -->
-    <section id="hud" class="hud" aria-label="Sicherheitsbüro HUD" hidden>
-      <!-- Top Bar: Pause + Phone Call Mute + Clock & Night -->
+    <!-- IN-GAME HUD (2-Station Booth + Under-Desk + CCTV Monitor) -->
+    <section id="hud" class="hud" aria-label="Wachkabine HUD" hidden>
+      <!-- Top Bar: Pause + Cassette Mute + Mandatory Quota Pill + Clock & Night -->
       <div class="hud-top">
         <div class="hud-top-left">
           <button id="btn-pause" class="btn-crt small" type="button" aria-label="Pause" title="Pause (Esc)">❚❚</button>
-          <button id="btn-mute-call" class="btn-crt small" type="button" hidden>Anruf stumm <span class="kbd-hint">(M)</span></button>
+          <button id="btn-mute-call" class="btn-crt small" type="button" hidden>Band stumm <span class="kbd-hint">(M)</span></button>
+          <div id="quota-pill" class="quota-pill" aria-live="polite">
+            <span class="quota-dot" aria-hidden="true"></span>
+            <span id="quota-label">BONS: 0/3</span>
+          </div>
+          <div id="active-bon-chip" class="active-bon-chip" hidden>
+            <span id="active-bon-text">BON #101 · HINTEN [S]</span>
+            <i id="active-bon-bar" class="bon-timer-bar" aria-hidden="true"></i>
+          </div>
           <div id="cctv-telemetry" class="cctv-telemetry" hidden>
             <span class="rec-dot" aria-hidden="true"></span>
             <span class="rec-label">REC</span>
@@ -301,9 +472,9 @@
         </div>
       </div>
 
-      <!-- Phone Guy Radio Transcript -->
+      <!-- Cassette Transcript & Subtle Hardware / Accessibility Alert -->
       <div id="call-box" class="call-box" hidden aria-live="polite">
-        <span class="call-tag">☎ ANRUFBEANTWORTER</span>
+        <span class="call-tag">📼 KASSETTEN-BAND</span>
         <p id="call-text"></p>
       </div>
       <div id="shift-alert" class="call-box shift-alert" hidden aria-live="polite">
@@ -311,62 +482,125 @@
         <p id="shift-alert-text"></p>
         <span id="shift-alert-timer" class="alert-timer" aria-hidden="true"></span>
       </div>
-      <div id="video-takeover" class="video-takeover" hidden aria-hidden="true">ANTON IST DEM ANRUF BEIGETRETEN</div>
+      <div id="video-takeover" class="video-takeover" hidden aria-hidden="true">SIGNAL ÜBERSCHRIEBEN</div>
 
-      <!-- Office Controls (Hidden when CCTV Monitor is open or Power Outage) -->
+      <!-- Contextual Booth Controls (Hidden when CCTV Monitor is UP or Power Outage) -->
       <div id="office-controls" class="office-controls">
-        <!-- Left Door & Light Steel Panel -->
-        <div class="door-panel left">
-          <button id="btn-left-door" class="steel-btn door-btn" type="button" aria-pressed="false" aria-label="Linke Stahltür" title="Linke Stahltür (Q)">
-            <span class="steel-led" aria-hidden="true"></span>
-            <b>TÜR</b>
-            <kbd>Q</kbd>
-          </button>
-          <button id="btn-left-light" class="steel-btn light-btn" type="button" aria-pressed="false" aria-label="Linkes Flurlicht" title="Linkes Flurlicht (W)">
-            <span class="steel-led" aria-hidden="true"></span>
-            <b>LICHT</b>
-            <kbd>W</kbd>
-          </button>
+
+        <!-- 1. FRONT STATION CONTROLS (Shutters + Flashlight + 180° Turn + Duck Under Desk) -->
+        <div id="front-controls" class="station-layer">
+          <div class="door-panel left">
+            <button id="btn-left-door" class="steel-btn door-btn" type="button" aria-pressed="false" aria-label="Linker Rollladen" title="Linker Rollladen (Q)">
+              <span class="steel-led" aria-hidden="true"></span>
+              <b>TOR</b>
+              <kbd>Q</kbd>
+            </button>
+            <button id="btn-left-light" class="steel-btn light-btn" type="button" aria-pressed="false" aria-label="Linkes Flurlicht" title="Linkes Flurlicht (W)">
+              <span class="steel-led" aria-hidden="true"></span>
+              <b>LICHT</b>
+              <kbd>W</kbd>
+            </button>
+          </div>
+
+          <div class="door-panel right">
+            <button id="btn-right-door" class="steel-btn door-btn" type="button" aria-pressed="false" aria-label="Rechter Rollladen" title="Rechter Rollladen (E)">
+              <span class="steel-led" aria-hidden="true"></span>
+              <b>TOR</b>
+              <kbd>E</kbd>
+            </button>
+            <button id="btn-right-light" class="steel-btn light-btn" type="button" aria-pressed="false" aria-label="Rechtes Flurlicht" title="Rechtes Flurlicht (R)">
+              <span class="steel-led" aria-hidden="true"></span>
+              <b>LICHT</b>
+              <kbd>R</kbd>
+            </button>
+          </div>
+
+          <div id="front-actions" class="desk-actions" aria-label="Vordere Wachkabine">
+            <button id="btn-flashlight" class="desk-pill flash-pill" type="button" aria-pressed="false" title="Taschenlampe in Durchreiche / Flur (F)">
+              <span class="pill-led" aria-hidden="true"></span>
+              <span id="flashlight-label">LAMPE · 100%</span>
+              <kbd>F</kbd>
+            </button>
+            <button id="btn-turn-back" class="desk-pill turn-pill" type="button" title="180° zur Vorbereitungsstation &amp; Sicherung drehen (S)">
+              <span class="pill-led" aria-hidden="true"></span>
+              <span id="turn-back-label">180° UMDREHEN</span>
+              <kbd>S</kbd>
+            </button>
+            <button id="btn-under-desk" class="desk-pill hide-pill" type="button" title="Unter die Edelstahltheke ducken (C)">
+              <span class="pill-led" aria-hidden="true"></span>
+              <span id="under-desk-label">UNTER THEKE</span>
+              <kbd>C</kbd>
+            </button>
+          </div>
+
+          <!-- Subtle Touch Quick-Pan Arrows (Front Station) -->
+          <div class="look-arrows" aria-label="Umschauen">
+            <button id="look-left" class="look-arrow" type="button" aria-label="Nach links schauen">◀</button>
+            <button id="look-right" class="look-arrow" type="button" aria-label="Nach rechts schauen">▶</button>
+          </div>
         </div>
 
-        <!-- Subtle Touch/Quick Pan Buttons -->
-        <div class="look-arrows" aria-label="Im Büro umschauen">
-          <button id="look-left" class="look-arrow" type="button" aria-label="Nach links schauen">◀</button>
-          <button id="look-right" class="look-arrow" type="button" aria-label="Nach rechts schauen">▶</button>
+        <!-- 2. BACK STATION CONTROLS (3-Step Prep + Physical Breaker + Exhaust Valve + Back Hatch Light) -->
+        <div id="back-controls" class="station-layer" hidden>
+          <div id="back-actions" class="desk-actions back-strip" aria-label="Hintere Vorbereitungsstation">
+            <button id="btn-prep-doner" class="desk-pill prep-pill" type="button" title="1. Dönerspieß schneiden (Halten / E)">
+              <span class="pill-led" aria-hidden="true"></span>
+              <span id="prep-doner-label">1. SPIESS</span>
+              <kbd>E</kbd>
+              <i id="prep-doner-bar" class="bon-timer-bar" aria-hidden="true"></i>
+            </button>
+            <button id="btn-prep-fryer" class="desk-pill prep-pill" type="button" title="2. Pommes-Korb senken / heben (E)">
+              <span class="pill-led" aria-hidden="true"></span>
+              <span id="prep-fryer-label">2. FRITTEUSE</span>
+              <kbd>E</kbd>
+            </button>
+            <button id="btn-prep-bag" class="desk-pill prep-pill" type="button" title="3. Spezi zapfen &amp; eintüten (Halten / E)">
+              <span class="pill-led" aria-hidden="true"></span>
+              <span id="prep-bag-label">3. EINPACKEN</span>
+              <kbd>E</kbd>
+              <i id="prep-bag-bar" class="bon-timer-bar" aria-hidden="true"></i>
+            </button>
+            <button id="btn-reset-breaker" class="desk-pill danger-pill" type="button" title="Hauptsicherungs-Hebel hochziehen (R)" hidden>
+              <span class="pill-led active" aria-hidden="true"></span>
+              <span>HAUPTSICHERUNG</span>
+              <kbd>R</kbd>
+            </button>
+            <button id="btn-vent-steam" class="desk-pill vent-pill" type="button" title="Abluft-Ventil öffnen (V)">
+              <span class="pill-led" aria-hidden="true"></span>
+              <span id="vent-btn-label">VENTIL · 41°C</span>
+              <kbd>V</kbd>
+            </button>
+            <button id="btn-back-flashlight" class="desk-pill flash-pill" type="button" aria-pressed="false" title="Hinterluke ableuchten (F)">
+              <span class="pill-led" aria-hidden="true"></span>
+              <span id="back-flash-label">LUKE PRÜFEN</span>
+              <kbd>F</kbd>
+            </button>
+            <button id="btn-turn-front" class="desk-pill turn-pill" type="button" title="180° zurück zur Theke drehen (S)">
+              <span class="pill-led" aria-hidden="true"></span>
+              <span>180° ZUR THEKE</span>
+              <kbd>S</kbd>
+            </button>
+          </div>
         </div>
 
-        <!-- Tactile Desk Hardware Strip (Steam Exhaust Valve + Spezi Koffein-Kick + Nacht-Bon Printer) -->
-        <div id="desk-actions" class="desk-actions" aria-label="Schreibtisch-Geräte">
-          <button id="btn-vent-steam" class="desk-pill vent-pill" type="button" title="Abluft-Ventil öffnen (V)">
-            <span class="pill-led" aria-hidden="true"></span>
-            <span id="vent-btn-label">VENTIL · 41°C</span>
-            <kbd>V</kbd>
-          </button>
-          <button id="btn-spezi-boost" class="desk-pill spezi-pill" type="button" title="Spezi Koffein-Kick trinken (C)">
-            <span class="pill-led" aria-hidden="true"></span>
-            <span id="spezi-btn-label">SPEZI 2/2</span>
-            <kbd>C</kbd>
-          </button>
-          <button id="btn-stamp-bon" class="desk-pill bon-pill" type="button" title="Nacht-Bon abstempeln (T)" hidden>
-            <span class="pill-led active" aria-hidden="true"></span>
-            <span id="bon-btn-label">EXPRESS BON +5%</span>
-            <kbd>T</kbd>
-            <i id="bon-btn-bar" class="bon-timer-bar" aria-hidden="true"></i>
-          </button>
-        </div>
-
-        <!-- Right Door & Light Steel Panel -->
-        <div class="door-panel right">
-          <button id="btn-right-door" class="steel-btn door-btn" type="button" aria-pressed="false" aria-label="Rechte Stahltür" title="Rechte Stahltür (E)">
-            <span class="steel-led" aria-hidden="true"></span>
-            <b>TÜR</b>
-            <kbd>E</kbd>
-          </button>
-          <button id="btn-right-light" class="steel-btn light-btn" type="button" aria-pressed="false" aria-label="Rechtes Flurlicht" title="Rechtes Flurlicht (R)">
-            <span class="steel-led" aria-hidden="true"></span>
-            <b>LICHT</b>
-            <kbd>R</kbd>
-          </button>
+        <!-- 3. UNDER-DESK CONTROLS (Breath Meter + Hold Breath + Stand Up) -->
+        <div id="under-desk-controls" class="station-layer" hidden>
+          <div class="under-desk-vignette" aria-hidden="true"></div>
+          <div class="desk-actions under-strip" aria-label="Unter der Theke">
+            <div class="breath-meter" aria-label="Atemluft">
+              <span id="breath-label">ATEM: 100%</span>
+              <div class="breath-track" aria-hidden="true"><i id="breath-fill"></i></div>
+            </div>
+            <button id="btn-hold-breath" class="desk-pill hold-breath-pill" type="button" aria-pressed="false" title="Atem anhalten (Space gedrückt halten)">
+              <span class="pill-led" aria-hidden="true"></span>
+              <span id="hold-breath-label">ATEM ANHALTEN</span>
+              <kbd>Space</kbd>
+            </button>
+            <button id="btn-stand-up" class="desk-pill" type="button" title="Wieder aufstehen (C / S)">
+              <span>AUFSTEHEN</span>
+              <kbd>C</kbd>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -374,45 +608,40 @@
       <div id="cctv-overlay" class="cctv-overlay" hidden>
         <div class="cctv-frame" aria-hidden="true"></div>
 
-        <!-- Hilarious Lost Anton Incoming Video Call Overlay -->
+        <!-- Deadpan Uncanny Anton Incoming Video Call Hijack -->
         <div id="anton-call-overlay" class="anton-call-overlay" hidden aria-hidden="true">
-          <div class="anton-call-badge">📹 EINGEHENDER VIDEOANRUF</div>
-          <div class="anton-call-caller">LOST ANTON</div>
-          <div class="anton-call-sub">„Bro guck nicht so, ich hab mich verlaufen...“</div>
+          <div class="anton-call-badge">📹 EINGEHENDE ÜBERTRAGUNG</div>
+          <div class="anton-call-caller">ANTON · UNBEKANNTE NR.</div>
+          <div class="anton-call-sub">„Mach kurz die Tür auf… mein Akku stirbt hier draußen.“</div>
           <div class="anton-call-bar"><div id="anton-call-progress" class="anton-call-progress"></div></div>
           <div class="anton-call-action">Kamera wechseln oder Monitor senken!</div>
         </div>
 
         <div id="cctv-audio-only" class="cctv-center-msg" hidden>
-          <b>KÜCHENFUNK</b>
+          <b>CAM 6 · NUR TONÜBERTRAGUNG</b>
           <div id="kitchen-wave" class="kitchen-wave" aria-hidden="true">
             <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
           </div>
-          <em id="kitchen-status" class="kitchen-status">AUDIO: RUHIG</em>
-          <button id="btn-kitchen-bell" class="btn-crt small" type="button" title="Gratis Bestellgong / Spezi-Durchsage (B)">Bestellgong (0 %)</button>
+          <em id="kitchen-status" class="kitchen-status">PEGEL: RUHIG</em>
         </div>
         <div id="cctv-disrupt" class="cctv-center-msg" hidden>
-          <b>SIGNAL UNTERBROCHEN</b>
-          <span>BEWEGUNG IM SEKTOR · IR-BLITZ [X] KLÄRT SOFORT</span>
+          <b>BILDTRÄGER UNTERBROCHEN</b>
+          <span>BEWEGUNG IM SEKTOR · GEGENMASSNAHME [X]</span>
         </div>
 
-        <!-- Tactical CCTV Countermeasure Bar (IR Strobe + Hallway Steam Burst) -->
-        <div id="cctv-tools" class="cctv-tools" aria-label="Kamera-Gegenmaßnahmen">
-          <button id="btn-ir-flash" class="btn-crt small cctv-tool-btn" type="button" title="IR-Stroboskop-Blitz (X)">
-            <span id="ir-flash-label">IR-BLITZ −1%</span> <kbd>X</kbd>
-          </button>
-          <button id="btn-steam-burst" class="btn-crt small cctv-tool-btn steam-btn" type="button" title="Flur-Dampfstoß auf CAM 2B / 4B (G)" hidden>
-            <span id="steam-burst-label">DAMPFSTOSS</span> <kbd>G</kbd>
+        <!-- Single Unified Context-Sensitive CCTV Countermeasure Button ([X]) -->
+        <div id="cctv-tools" class="cctv-tools" aria-label="Kamera-Gegenmaßnahme">
+          <button id="btn-cam-counter" class="btn-crt small cctv-tool-btn" type="button" title="Kontext-Gegenmaßnahme auslösen (X)">
+            <span id="cam-counter-label">IR-STROBOSKOP −1%</span> <kbd>X</kbd>
           </button>
         </div>
 
         <div class="cctv-map-wrap">
           <div class="cctv-heading">
-            <div id="cctv-room-label" class="cctv-room-label">CAM 1A — Döner-Bühne</div>
+            <div id="cctv-room-label" class="cctv-room-label">CAM 1A — Verkaufsraum Nord</div>
             <button id="btn-map" class="btn-crt small" type="button" aria-controls="cctv-map" aria-expanded="false">Grundriss</button>
           </div>
           <div id="cctv-map" class="cctv-map" aria-label="Überwachungskamera-Grundriss">
-            <!-- Architectural FNAF 1 Imbiss Floorplan SVG -->
             <svg class="map-svg" viewBox="0 0 100 100" aria-hidden="true">
               <rect x="28" y="4" width="28" height="14" />
               <rect x="20" y="18" width="46" height="34" />
@@ -426,48 +655,50 @@
               <line x1="38" y1="84" x2="38" y2="88" />
               <line x1="50" y1="84" x2="50" y2="88" />
             </svg>
-            <div class="map-you">DU</div>
+            <div class="map-you">KABINE</div>
             <div id="cam-buttons" class="cam-buttons"></div>
           </div>
         </div>
       </div>
 
-      <!-- Bottom Bar: Battery & Usage + Seismograph + Classic FNAF Monitor Flip Bar -->
+      <!-- Bottom Bar: Telemetry Box + CCTV Monitor Flip Bar -->
       <div class="hud-bottom">
         <div id="power-box" class="power-box">
           <div class="power-row">Strom: <strong id="power-pct">100%</strong></div>
           <div class="usage-row">
-            <span>Verbrauch:</span>
+            <span>Last:</span>
             <div id="usage-bars" class="usage-bars" aria-label="Stromverbrauch">
               <i></i><i></i><i></i><i></i><i></i>
             </div>
           </div>
-          <div id="seismic-row" class="seismic-row" aria-label="Seismograph West-Flur">
-            <span>Seismo:</span>
+          <div id="seismic-row" class="seismic-row" aria-label="Erschütterung West-Flur">
+            <span>Beben:</span>
             <div id="seismic-bars" class="seismic-bars" aria-hidden="true">
               <i></i><i></i><i></i><i></i><i></i>
             </div>
           </div>
-          <div id="thermal-row" class="thermal-row" aria-label="Fritteusen-Dampf und Temperatur">
-            <span>Dampf:</span>
+          <div id="thermal-row" class="thermal-row" aria-label="Fritteusen-Hitze">
+            <span>Hitze:</span>
             <strong id="thermal-label" class="thermal-val">41°C</strong>
             <div class="thermal-track" aria-hidden="true"><i id="thermal-fill"></i></div>
           </div>
         </div>
 
-        <button id="btn-monitor" class="monitor-bar" type="button" aria-pressed="false" title="Überwachungskameras (Space)">
+        <button id="btn-monitor" class="monitor-bar" type="button" aria-pressed="false" title="CCTV-Überwachungsmonitor (Space)">
           <span class="mon-chev" aria-hidden="true">▲</span>
-          <span id="monitor-label">KAMERAS</span>
+          <span id="monitor-label">CCTV MONITOR</span>
           <span class="mon-chev" aria-hidden="true">▲</span>
         </button>
-        <button id="btn-fuse" class="monitor-bar fuse-bar" type="button" title="Kamerasicherung umlegen (F)" hidden>SICHERUNG −3 %</button>
+        <button id="btn-breaker-warn" class="monitor-bar fuse-bar" type="button" title="180° umdrehen zur Hauptsicherung (S)" hidden>
+          ⚡ HAUPTSICHERUNG HINTEN [S]
+        </button>
       </div>
     </section>
 
-    <!-- PAUSE OVERLAY -->
-    <section id="pause-screen" class="screen modal-screen" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
+    <!-- PAUSE MODAL -->
+    <dialog id="pause-screen" class="modal-dialog" aria-labelledby="pause-title">
       <div class="crt-card small-card">
-        <p class="title-kicker">SCHICHT PAUSIERT</p>
+        <p class="title-kicker">SCHICHT UNTERBROCHEN</p>
         <h2 id="pause-title">PAUSE</h2>
         <p id="pause-meta" class="modal-copy">Nacht 1 · 12 AM · Strom 100%</p>
         <div class="modal-actions">
@@ -478,9 +709,9 @@
           <button id="pause-menu" class="btn-crt" type="button">Hauptmenü</button>
         </div>
       </div>
-    </section>
+    </dialog>
 
-    <!-- 6:00 AM WIN SCREEN (Paycheck & Rank Stamp) -->
+    <!-- 6:00 AM WIN SCREEN -->
     <section id="win-screen" class="screen win-screen" aria-labelledby="win-clock" hidden>
       <div class="win-box">
         <div id="win-clock" class="win-clock">6:00 AM</div>
@@ -488,14 +719,14 @@
           <span id="win-rank-grade" class="rank-grade">A</span>
           <div class="rank-meta">
             <strong id="win-rank-label">STAMMKRAFT</strong>
-            <span id="win-rank-wage">120,50 € + Gratis-Spezi</span>
+            <span id="win-rank-wage">120,50 € Tarif</span>
           </div>
-          <span id="win-record-pill" class="record-pill" hidden>NEUER REKORD!</span>
+          <span id="win-record-pill" class="record-pill" hidden>NEUER REKORD</span>
         </div>
-        <p id="win-sub" class="win-sub">SCHICHT ÜBERLEBT!</p>
+        <p id="win-sub" class="win-sub">SCHICHT ABGESCHLOSSEN</p>
         <p id="win-stats" class="win-stats"></p>
         <div class="modal-actions">
-          <button id="win-next" class="btn-crt primary" type="button">Nächste Nacht ▶</button>
+          <button id="win-next" class="btn-crt primary" type="button">Weiter ▶</button>
           <button id="win-menu" class="btn-crt" type="button">Hauptmenü</button>
         </div>
       </div>
@@ -505,13 +736,13 @@
     <section id="gameover-screen" class="screen gameover-screen" aria-labelledby="gameover-title" hidden>
       <div class="gameover-static" aria-hidden="true"></div>
       <div class="crt-card small-card">
-        <p id="gameover-kicker" class="title-kicker red">VERBINDUNG ABGEBROCHEN</p>
-        <h2 id="gameover-title">GAME OVER</h2>
+        <p id="gameover-kicker" class="title-kicker red">AUFNAHME ABGEBROCHEN</p>
+        <h2 id="gameover-title">SCHICHT ENDE</h2>
         <p id="gameover-line" class="modal-copy"></p>
         <p id="gameover-hint" class="gameover-hint"></p>
         <p id="gameover-meta" class="gameover-meta"></p>
         <div class="modal-actions">
-          <button id="gameover-retry" class="btn-crt primary" type="button">Nochmal versuchen</button>
+          <button id="gameover-retry" class="btn-crt primary" type="button">Schicht wiederholen</button>
           <button id="gameover-menu" class="btn-crt" type="button">Hauptmenü</button>
         </div>
       </div>

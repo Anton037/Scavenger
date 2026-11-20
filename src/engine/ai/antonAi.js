@@ -1,13 +1,11 @@
 import { VIDEO_WARNING_SECONDS } from '../../config/constants.js';
 import { ANTON_GRAPH } from '../../config/facility.js';
-import { MEME_LINES } from '../../config/nights.js';
 import {
   emit,
   endAntonVideo,
   feedIsInterrupted,
+  grantAchievement,
   noteRoomTransition,
-  notify,
-  pickLine,
   triggerJumpscare,
 } from '../runtime.js';
 
@@ -43,13 +41,53 @@ export function stepAntonVideo(run, dt) {
 
 export function stepAnton(run, dt) {
   const a = run.animatronics.anton;
+
+  // Office Breach -> Sweeping Phone Flashlight Under-Desk Inspection!
   if (a.room === 'office') {
-    a.officeTimer += dt;
-    if (a.officeTimer >= 6.8) {
-      triggerJumpscare(run, 'anton');
+    a.officeTimer = (a.officeTimer || 0) + dt;
+    a.sweepPhase = (a.sweepPhase || 0) + dt * 1.55;
+    a.stepSoundTimer = (a.stepSoundTimer ?? 0.45) - dt;
+    if (a.stepSoundTimer <= 0) {
+      a.stepSoundTimer = 1.05;
+      emit(run, 'anton_sweep_step', { pan: Math.sin(a.sweepPhase) * 0.55 });
+    }
+
+    const grace = a.graceTimer ?? 2.2;
+    if (grace > 0) {
+      a.graceTimer = Math.max(0, grace - dt);
+    } else {
+      // Caught standing, on monitor too long, shining flashlight, or gasping out of breath!
+      if (run.viewState !== 'under_desk' || run.flashlightOn || run.justGasped) {
+        triggerJumpscare(run, 'anton', run.viewState === 'under_desk' ? 'under_desk' : 'office');
+        return;
+      }
+
+      if (!run.holdingBreath) {
+        a.unheldTimer = (a.unheldTimer || 0) + dt;
+        if (a.unheldTimer >= 0.95) {
+          triggerJumpscare(run, 'anton', 'under_desk');
+          return;
+        }
+      } else {
+        a.unheldTimer = Math.max(0, (a.unheldTimer || 0) - dt);
+      }
+    }
+
+    a.inspectionTimer = (a.inspectionTimer ?? 5.4) - dt;
+    if (a.inspectionTimer <= 0) {
+      a.room = '1B';
+      a.timer = 6.2;
+      a.officeTimer = 0;
+      a.sighted = false;
+      run.leftJammed = false;
+      run.stats.underDeskSurvived = (run.stats.underDeskSurvived || 0) + 1;
+      grantAchievement(run, 'under_desk_ghost');
+      noteRoomTransition(run, 'left_door', '1B', 'anton', false);
+      emit(run, 'footstep', { side: 'left', who: 'anton', receding: true });
     }
     return;
   }
+
   if ((a.stunUntil ?? 0) > run.time) return;
   if (run.antonVideo.deadline) return;
 
@@ -60,7 +98,6 @@ export function stepAnton(run, dt) {
       a.room = '2B';
       a.subPose = 1;
       noteRoomTransition(run, prev, a.room, 'anton');
-      notify(run, 'PROBESCHICHT · Geräusch in der West-Ecke. Prüf CAM 2B.', 8);
       emit(run, 'footstep', { side: 'left', who: 'anton', loud: true });
     } else if (run.training === 'camera' && run.time >= 32) {
       run.training = 'door';
@@ -68,15 +105,14 @@ export function stepAnton(run, dt) {
       a.timer = 9;
       a.sighted = false;
       noteRoomTransition(run, '2B', a.room, 'anton');
-      notify(run, 'PROBEALARM · Monitor runter, Licht links (W) prüfen, linke Tür (Q) schließen!', 9);
-      emit(run, 'door_approach', { side: 'left' });
+      emit(run, 'door_approach', { side: 'left', who: 'anton' });
     }
     return;
   }
 
   a.timer -= dt;
   if (a.timer > 0) return;
-  a.timer = 4.97;
+  a.timer = 4.95;
 
   if (a.room === 'left_door') {
     if (run.training === 'door') {
@@ -85,40 +121,30 @@ export function stepAnton(run, dt) {
       else run.stats.antonBlocked += 1;
       a.room = '1B';
       noteRoomTransition(run, 'left_door', a.room, 'anton');
-      notify(run, run.leftDoor
-        ? 'ANTON · „Zutritt verweigert? Dann gibts nur ein Sternchen.“'
-        : 'ANTON · „Nur kurz reingucken.“ Probealarm vorbei. −3 % Strom.', 6);
       emit(run, 'training_knock', { side: 'left' });
       return;
     }
+
     if (run.leftDoor) {
       a.room = '1B';
       a.sighted = false;
       run.stats.antonBlocked += 1;
-      notify(run, pickLine(MEME_LINES.antonBlock, run.stats.antonBlocked - 1), 4.2, { audioCue: true });
       noteRoomTransition(run, 'left_door', '1B', 'anton');
       emit(run, 'footstep', { side: 'left', who: 'anton', receding: true });
-    } else if (run.monitorOpen) {
-      // Classic FNaF 1 Bonnie: slips inside while you are distracted on cameras & jams the door!
+    } else {
+      // Slips into the booth -> Flicker lights & begin Under-Desk Inspection window!
       a.room = 'office';
       a.officeTimer = 0;
+      a.graceTimer = run.monitorOpen ? 2.8 : 2.3;
+      a.inspectionTimer = 5.4;
+      a.unheldTimer = 0;
+      a.sweepPhase = 0;
+      a.stepSoundTimer = 0.35;
       run.leftJammed = true;
       run.leftLight = false;
-      notify(run, 'SCHRITTE IM BÜRO · Anton ist durch die linke Tür!', 6, { audioCue: true });
+      run.lightFlicker = 0.22;
+      emit(run, 'office_breach', { side: 'left', who: 'anton' });
       emit(run, 'sneak_in', { side: 'left', who: 'anton' });
-    } else {
-      // If player leaves left door open too long in the office without reacting, Anton lunges!
-      a.doorWait = (a.doorWait || 0) + 1;
-      if (a.doorWait >= 2) {
-        a.doorWait = 0;
-        triggerJumpscare(run, 'anton', 'office');
-      } else {
-        a.room = 'office';
-        a.officeTimer = 0;
-        run.leftJammed = true;
-        run.leftLight = false;
-        emit(run, 'sneak_in', { side: 'left', who: 'anton' });
-      }
     }
     return;
   }
@@ -128,7 +154,6 @@ export function stepAnton(run, dt) {
   const next = choices[Math.floor(run.rng() * choices.length)];
   const prev = a.room;
   a.room = next;
-  a.doorWait = 0;
   a.subPose = run.rng() < 0.45 ? 1 : 0;
   if (next === 'left_door') {
     a.sighted = false;

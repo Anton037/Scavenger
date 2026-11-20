@@ -6,6 +6,7 @@ export {
   BON_REWARD_POWER,
   BON_RUSTY_REWARD_POWER,
   BON_WINDOW_SECONDS,
+  BREATH_MAX,
   DEFAULT_SETTINGS,
   EXTRA_BAR_DRAIN,
   FUSE_RESET_COST,
@@ -15,6 +16,9 @@ export {
   KITCHEN_BELL_COOLDOWN,
   KITCHEN_BELL_COST,
   NIGHT_HOURS,
+  PREP_BAG_SECONDS,
+  PREP_DONER_SECONDS,
+  PREP_FRYER_SECONDS,
   SAVE_KEYS,
   SPEZI_BOOST_SECONDS,
   SPEZI_CHARGES,
@@ -23,6 +27,13 @@ export {
   STEP,
   TOTAL_NIGHT_SECONDS,
 } from './config/constants.js';
+
+export {
+  COSMETIC_ITEMS,
+  COSMETIC_MAP,
+  VHS_TAPE_MAP,
+  VHS_TAPES,
+} from './config/cosmetics.js';
 
 export {
   ANTON_GRAPH,
@@ -51,13 +62,23 @@ export {
 } from './config/nights.js';
 
 export {
+  addWalletTips,
   computeShiftRank,
   loadAchievements,
+  loadCompletedPresets,
+  loadCosmeticState,
   loadProgress,
   loadRecords,
   loadSettings,
+  loadTapeProgress,
+  loadWallet,
+  markPresetCompleted,
+  markTapeAttempted,
+  markTapeCompleted,
+  purchaseCosmetic,
   saveProgress,
   saveSettings,
   saveShiftRecord,
+  toggleCosmetic,
   unlockAchievement,
 } from './storage/saveSystem.js';

@@ -1,5 +1,11 @@
 import { TORGE_PATH } from '../../config/facility.js';
-import { emit, feedIsInterrupted, noteRoomTransition, notify, triggerJumpscare } from '../runtime.js';
+import {
+  emit,
+  feedIsInterrupted,
+  grantAchievement,
+  noteRoomTransition,
+  triggerJumpscare,
+} from '../runtime.js';
 
 export function getTorgeCamStallSeconds(aiLevel) {
   return Math.max(0.85, 8.5 - (aiLevel || 0) * 0.35);
@@ -8,16 +14,52 @@ export function getTorgeCamStallSeconds(aiLevel) {
 export function stepTorge(run, dt) {
   const f = run.animatronics.torge;
   if (f.room === 'office') {
-    // Authentic FNaF 1 Freddy: once inside office, waits for monitor down or brief ambush delay in dark corner!
-    const rate = run.monitorOpen ? 0.45 : 1.35;
+    const rate = run.monitorOpen ? 0.65 : 1.35;
     f.officeTimer -= dt * rate;
     if (f.officeTimer <= 0) {
-      triggerJumpscare(run, 'torge');
+      triggerJumpscare(run, 'torge', 'center');
     }
     return;
   }
 
-  // Authentic FNaF 1 Freddy camera-look lock: watching his feed stalls him + leaves a post-look countdown!
+  // Center Pass-Through Flashlight Repel (shutters CANNOT block the open service corridor!)
+  const inCenterCorridor = f.room === 'center_far' || f.room === 'center_mid' || f.room === 'center_near';
+  const centerBeamActive = inCenterCorridor
+    && run.viewState === 'front'
+    && !run.monitorOpen
+    && !run.powerOutage
+    && Boolean(run.flashlightOn)
+    && Math.abs(run.lookX) <= 0.56;
+
+  if (centerBeamActive) {
+    if (!f.sighted && (f.room === 'center_mid' || f.room === 'center_near')) {
+      f.sighted = true;
+      run.stingFlash = Math.max(run.stingFlash || 0, 0.48);
+      emit(run, 'danger_stinger', { who: 'torge', side: 'center' });
+    }
+    f.flashExposure = (f.flashExposure || 0) + dt;
+    const needed = f.room === 'center_far' ? 0.9 : 0.72;
+    if (f.flashExposure >= needed) {
+      const retreatIdx = f.room === 'center_near' ? 3 : 2; // 'center_far' or '6'
+      const prev = f.room;
+      f.pathIdx = retreatIdx;
+      f.room = TORGE_PATH[retreatIdx];
+      f.flashExposure = 0;
+      f.sighted = false;
+      f.timer = 4.5;
+      run.stats.torgeRepelled = (run.stats.torgeRepelled || 0) + 1;
+      if ((run.stats.camFlashHits || 0) + run.stats.torgeRepelled >= 3) {
+        grantAchievement(run, 'paparazzi_flash');
+      }
+      noteRoomTransition(run, prev, f.room, 'torge', false);
+      emit(run, 'torge_repelled');
+      return;
+    }
+    return;
+  }
+  f.flashExposure = Math.max(0, (f.flashExposure || 0) - dt * 0.6);
+
+  // Camera-look stall on CCTV feeds (1A, 1B, or legacy 4B)
   if (run.monitorOpen && run.activeCam === f.room && !feedIsInterrupted(run, f.room)) {
     f.stallTimer = Math.max(f.stallTimer ?? 0, getTorgeCamStallSeconds(run.ai.torge));
     f.timer = Math.max(f.timer, 1.2);
@@ -30,23 +72,27 @@ export function stepTorge(run, dt) {
     return;
   }
 
-  // Chef Torge gets agitated ("Küchen-Fieber") when office/fryer heat exceeds 70%!
-  const heatSpeed = (run.thermal?.heat ?? 0) >= 70 ? 1.52 : 1.0;
-  f.timer -= dt * heatSpeed;
+  // Agitation when fryer heat >= 70%, order quota lags behind hourly pace, or in 6:00 AM Overtime!
+  const expectedDone = Math.floor(((run.hour || 0) / 6) * (run.orders?.quota ?? 0));
+  const quotaLag = (run.orders?.completed ?? 0) < expectedDone;
+  let speedMult = 1.0;
+  if ((run.thermal?.heat ?? 0) >= 70) speedMult *= 1.48;
+  if (quotaLag) speedMult *= 1.32;
+  if (run.overtime) speedMult *= 1.55;
+
+  f.timer -= dt * speedMult;
   if (f.timer > 0) return;
-  f.timer = 3.02;
+  f.timer = 3.08;
   if (run.ai.torge <= 0) return;
 
-  // Torge stays on Show Stage until Anton and Tom have left
-  if (f.room === '1A' && (run.animatronics.anton.room === '1A' || run.animatronics.tom.room === '1A')) {
+  // Torge waits in 1A until Anton or Tom has started moving
+  if (f.room === '1A' && run.animatronics.anton.room === '1A' && run.animatronics.tom.room === '1A') {
     return;
   }
 
   if (Math.ceil(run.rng() * 20) > run.ai.torge) return;
 
-  // Authentic FNaF 1 CAM 4B East-Corner Ambush:
-  // - If Right Door is CLOSED: Torge stays lurking at 4B (knocks/laughs in the dark, keeping pressure high!)
-  // - If Right Door is OPEN: Torge ONLY slips into the Office when the player opens the Monitor on a camera OTHER than 4B!
+  // Legacy 4B support if explicitly placed in 4B
   if (f.room === '4B') {
     if (run.rightDoor) {
       run.stats.torgeBlocked = (run.stats.torgeBlocked || 0) + 1;
@@ -54,18 +100,26 @@ export function stepTorge(run, dt) {
       emit(run, 'torge_laugh', { close: true, distance: 0 });
     } else if (run.monitorOpen && run.activeCam !== '4B') {
       f.room = 'office';
-      f.officeTimer = 2.6 + run.rng() * 3.8;
+      f.officeTimer = 2.0 + run.rng() * 1.8;
       noteRoomTransition(run, '4B', 'office', 'torge');
-      notify(run, 'TIEFES LACHEN IM BÜRO · Chef Torge ist unbemerkt reingeschlüpft!', 5, { audioCue: true });
       emit(run, 'torge_laugh', { close: true, distance: 0 });
     }
+    return;
+  }
+
+  // Unblockable Center Pass-Through breach from center_near!
+  if (f.room === 'center_near') {
+    f.room = 'office';
+    f.officeTimer = 1.35 + run.rng() * 1.1;
+    emit(run, 'torge_laugh', { close: true, distance: 0 });
     return;
   }
 
   const prev = f.room;
   f.pathIdx = Math.min(TORGE_PATH.length - 1, f.pathIdx + 1);
   f.room = TORGE_PATH[f.pathIdx];
+  f.sighted = false;
   noteRoomTransition(run, prev, f.room, 'torge');
   const dist = Math.max(0, (TORGE_PATH.length - 1) - f.pathIdx);
-  emit(run, 'torge_laugh', { close: f.room === '4B' || f.room === '4A', distance: dist });
+  emit(run, 'torge_laugh', { close: dist <= 1, distance: dist });
 }

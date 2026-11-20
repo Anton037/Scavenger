@@ -6,28 +6,25 @@ import {
   VENT_STEAM_DURATION,
   VENT_STEAM_MIN_HEAT,
 } from '../../config/constants.js';
-import { MEME_LINES } from '../../config/nights.js';
 import {
   clamp,
   emit,
   endAntonVideo,
   grantAchievement,
   noteRoomTransition,
-  notify,
-  pickLine,
 } from '../runtime.js';
 
 export function createThermalState(cfg, modifiers = []) {
   const hasGreaseFire = modifiers.includes('grease_fire');
   const hasFog = modifiers.includes('midnight_fog');
   return {
-    heat: hasFog ? 26 : 16, // 0..100 (% pressure)
+    heat: hasFog ? 26 : 16,
     baseRate: (cfg.heatRate ?? 1.0) * (hasGreaseFire ? 1.8 : 1.0),
     ventingUntil: 0,
     burstCooldownUntil: 0,
     valveSpin: 0,
     steamFog: hasFog ? 0.24 : 0,
-    burstVisual: null, // { cam, timer }
+    burstVisual: null,
   };
 }
 
@@ -41,14 +38,13 @@ export function isVentingSteam(run) {
 }
 
 export function ventOfficeSteam(run) {
-  if (!run || run.state !== 'playing' || run.powerOutage || run.monitorOpen) return false;
+  if (!run || run.state !== 'playing' || run.powerOutage || run.monitorOpen || run.viewState === 'under_desk') return false;
   const th = run.thermal;
   if (!th || th.ventingUntil > run.time || th.heat < VENT_STEAM_MIN_HEAT) return false;
 
   th.ventingUntil = run.time + VENT_STEAM_DURATION;
   run.stats.steamVents += 1;
-  notify(run, pickLine(MEME_LINES.steamVent, run.stats.steamVents - 1), 3.6);
-  emit(run, 'steam_vent_start');
+  emit(run, 'steam_vent_start', { rear: run.viewState !== 'back' });
   return true;
 }
 
@@ -89,11 +85,11 @@ export function triggerSteamBurst(run) {
       noteRoomTransition(run, prev, '1B', 'tom', false);
       hit = true;
     }
-    if (torge.room === '4B') {
-      torge.room = '4A';
-      torge.pathIdx = 3;
+    if (torge.room === '4B' || torge.room === 'center_far') {
+      torge.room = '6';
+      torge.pathIdx = 2;
       torge.timer = 4.8;
-      noteRoomTransition(run, '4B', '4A', 'torge', false);
+      noteRoomTransition(run, '4B', '6', 'torge', false);
       hit = true;
     }
   }
@@ -101,9 +97,6 @@ export function triggerSteamBurst(run) {
   if (hit) {
     run.stats.steamHits += 1;
     if (run.stats.steamHits >= 2) grantAchievement(run, 'steam_master');
-    notify(run, pickLine(MEME_LINES.steamBurstHit, run.stats.steamHits - 1), 4.2);
-  } else {
-    notify(run, MEME_LINES.steamBurstMiss[0], 3.4);
   }
 
   emit(run, 'steam_burst', { cam, hit, side: cam === '2B' ? 'left' : 'right' });
@@ -130,7 +123,8 @@ export function stepThermalSystem(run, dt) {
   let doorHeat = 0;
   if (run.leftDoor) doorHeat += 0.85;
   if (run.rightDoor) doorHeat += 0.85;
-  const fanRelief = (!run.leftDoor && !run.rightDoor) ? -0.18 : 0;
+  if (run.orders?.active?.fryerState === 'frying') doorHeat += 0.55;
+  const fanRelief = (!run.leftDoor && !run.rightDoor && !run.breakerTripped) ? -0.18 : 0;
   const netRate = Math.max(0.18, th.baseRate + doorHeat + fanRelief);
 
   th.heat = clamp(th.heat + netRate * dt, 8, 100);
@@ -138,7 +132,6 @@ export function stepThermalSystem(run, dt) {
   th.steamFog += (targetFog - th.steamFog) * Math.min(1, dt * 2.4);
 
   if (th.heat >= 100) {
-    // Thermal Safety Purge: fogs feed, speeds up Chef Torge, drops pressure back to 58%
     th.heat = 58;
     th.steamFog = 0.95;
     run.stats.overheats += 1;
@@ -148,7 +141,6 @@ export function stepThermalSystem(run, dt) {
     if (run.ai.torge > 0 && run.animatronics.torge.room !== 'office') {
       run.animatronics.torge.timer = Math.min(run.animatronics.torge.timer, 0.35);
     }
-    notify(run, MEME_LINES.overheat[0], 4.8);
     emit(run, 'overheat_alarm');
   }
 }

@@ -1,12 +1,9 @@
-import { MEME_LINES } from '../../config/nights.js';
 import {
   emit,
   endAntonVideo,
   feedIsInterrupted,
   grantAchievement,
   noteRoomTransition,
-  notify,
-  pickLine,
   triggerJumpscare,
 } from '../runtime.js';
 
@@ -14,7 +11,6 @@ export function pulseHaukeCameraCheck(run, camId = run?.activeCam) {
   if (!run?.animatronics?.hauke) return;
   const h = run.animatronics.hauke;
   if (h.sprint.active) return;
-  // Authentic FNaF 1 Foxy rule: any camera monitor activity briefly calms Pirate/Buffet Cove!
   const bonus = camId === '1C' ? 3.6 : (1.55 + run.rng() * 1.45);
   h.lockTimer = Math.max(h.lockTimer, bonus);
 }
@@ -59,7 +55,7 @@ export function stepHauke(run, dt) {
       sprint.triggered = false;
       sprint.progress = 0;
       if (run.leftDoor) {
-        const drain = 1 + h.hits * 5;
+        const drain = 1 + h.hits * 4;
         h.hits += 1;
         run.power = Math.max(0, run.power - drain);
         run.quake = 1.45;
@@ -70,12 +66,18 @@ export function stepHauke(run, dt) {
         h.stage = run.rng() < 0.5 ? 0 : 1;
         h.lockTimer = 3.2;
         noteRoomTransition(run, '2A', '1C', 'hauke');
-        notify(run, pickLine(MEME_LINES.haukeBlock, run.stats.haukeBlocked - 1), 4.5);
-        emit(run, 'hauke_door_slam', { drain, hits: h.hits });
+        emit(run, 'hauke_door_slam', { drain, hits: h.hits, side: 'left' });
+
+        // Trips the Physical Main Breaker on the Back Wall!
         run.monitorOpen = false;
         run.monitorAnim = 0;
+        run.leftLight = false;
+        run.rightLight = false;
+        run.flashlightOn = false;
         endAntonVideo(run, false);
+        run.breakerTripped = true;
         run.cameraFuseUntil = run.time + 9;
+        emit(run, 'breaker_trip', { rear: true });
         emit(run, 'fuse_trip');
       } else {
         triggerJumpscare(run, 'hauke', 'rush');

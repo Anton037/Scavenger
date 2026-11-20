@@ -3,14 +3,11 @@ import {
   IR_FLASH_COST,
   IR_STUN_SECONDS,
 } from '../../config/constants.js';
-import { MEME_LINES } from '../../config/nights.js';
 import {
   emit,
   endAntonVideo,
   feedIsInterrupted,
   grantAchievement,
-  notify,
-  pickLine,
 } from '../runtime.js';
 
 export function triggerCamFlash(run) {
@@ -50,7 +47,6 @@ export function triggerCamFlash(run) {
   if (effective) {
     run.stats.camFlashHits += 1;
     if (run.stats.camFlashHits >= 3) grantAchievement(run, 'paparazzi_flash');
-    notify(run, pickLine(MEME_LINES.irFlashHit, run.stats.camFlashHits - 1), 3.6);
   }
 
   emit(run, 'ir_flash', { cam, effective });

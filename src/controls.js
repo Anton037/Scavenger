@@ -18,12 +18,15 @@ export class Controls {
     this.enabled = false;
     this.keys = new Set();
     this.touch = false;
-    this.edgePan = 0; // -1..+1 from mouse cursor edge hover on desktop
+    this.edgePan = 0;
     this.dragId = null;
     this.dragLastX = 0;
+    this.dragStartY = 0;
     this.dragDelta = 0;
     this.dragMoved = false;
-    this.lookHold = 0; // -1 left / +1 right from optional hold arrows
+    this.swipedVertical = false;
+    this.lookHold = 0;
+    this.prepHold = null;
     this.mouseSens = 1.0;
 
     const isCoarse = Boolean(
@@ -50,11 +53,16 @@ export class Controls {
       this.dragId = null;
       this.dragDelta = 0;
       this.lookHold = 0;
+      this.prepHold = null;
     }
   }
 
   setLookHold(dir) {
     this.lookHold = dir;
+  }
+
+  setPrepHold(station) {
+    this.prepHold = station || null;
   }
 
   setMouseSensitivity(val) {
@@ -68,7 +76,6 @@ export class Controls {
 
   bindViewportLocks() {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
-    // CSS handles double-tap zoom so repeated touches still reach the buttons.
     window.addEventListener('wheel', (event) => {
       if (event.ctrlKey || event.metaKey) event.preventDefault();
     }, { passive: false });
@@ -94,7 +101,10 @@ export class Controls {
         event.preventDefault();
         return;
       }
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      // Allow ControlLeft for Duck Under Desk if no letter key combo is pressed
+      const isBareCtrl = event.code === 'ControlLeft' || event.code === 'ControlRight';
+      if (((event.ctrlKey && !isBareCtrl) || event.metaKey || event.altKey)) return;
+
       if (event.code === 'Escape' || event.code === 'KeyP') {
         if (!event.repeat && this.actions.pause?.()) event.preventDefault();
         return;
@@ -105,9 +115,34 @@ export class Controls {
       this.keys.add(event.code);
       if (event.repeat) return;
 
-      if (event.code === 'Space' || event.code === 'KeyS' || event.code === 'ArrowDown') {
+      if (event.code === 'Space') {
         event.preventDefault();
-        this.actions.monitor?.();
+        if (this.actions.isUnderDesk?.()) {
+          this.actions.holdBreath?.(true);
+        } else {
+          this.actions.monitor?.();
+        }
+      } else if (event.code === 'KeyS' || event.code === 'Tab' || event.code === 'ArrowDown') {
+        event.preventDefault();
+        if (this.actions.turnAround) {
+          this.actions.turnAround();
+        } else {
+          this.actions.monitor?.();
+        }
+      } else if (event.code === 'KeyC' || isBareCtrl) {
+        event.preventDefault();
+        if (this.actions.underDesk) {
+          this.actions.underDesk();
+        } else {
+          this.actions.spezi?.();
+        }
+      } else if (event.code === 'KeyF') {
+        event.preventDefault();
+        if (this.actions.flashlight) {
+          this.actions.flashlight();
+        } else {
+          this.actions.fuse?.();
+        }
       } else if (event.code === 'KeyQ') {
         event.preventDefault();
         this.actions.leftDoor?.();
@@ -116,34 +151,41 @@ export class Controls {
         this.actions.leftLight?.();
       } else if (event.code === 'KeyE') {
         event.preventDefault();
-        this.actions.rightDoor?.();
+        if (this.actions.isBackView?.() && this.actions.prepInteract) {
+          this.prepHold = 'auto';
+          this.actions.prepInteract('auto');
+        } else {
+          this.actions.rightDoor?.();
+        }
       } else if (event.code === 'KeyR') {
         event.preventDefault();
-        this.actions.rightLight?.();
-      } else if (event.code === 'KeyM') {
+        if (this.actions.isBackView?.() && this.actions.resetBreaker) {
+          this.actions.resetBreaker();
+        } else {
+          this.actions.rightLight?.();
+        }
+      } else if (event.code === 'KeyX') {
         event.preventDefault();
-        this.actions.mute?.();
-      } else if (event.code === 'KeyF') {
-        event.preventDefault();
-        this.actions.fuse?.();
-      } else if (event.code === 'KeyB') {
-        event.preventDefault();
-        this.actions.bell?.();
+        if (this.actions.camCounter) {
+          this.actions.camCounter();
+        } else {
+          this.actions.camFlash?.();
+        }
       } else if (event.code === 'KeyV') {
         event.preventDefault();
         this.actions.vent?.();
-      } else if (event.code === 'KeyT') {
-        event.preventDefault();
-        this.actions.stampBon?.();
-      } else if (event.code === 'KeyX') {
-        event.preventDefault();
-        this.actions.camFlash?.();
       } else if (event.code === 'KeyG') {
         event.preventDefault();
         this.actions.steamBurst?.();
-      } else if (event.code === 'KeyC') {
+      } else if (event.code === 'KeyB') {
         event.preventDefault();
-        this.actions.spezi?.();
+        this.actions.bell?.();
+      } else if (event.code === 'KeyT') {
+        event.preventDefault();
+        this.actions.stampBon?.();
+      } else if (event.code === 'KeyM') {
+        event.preventDefault();
+        this.actions.mute?.();
       } else if (event.code === 'KeyH') {
         event.preventDefault();
         this.actions.honk?.();
@@ -155,6 +197,12 @@ export class Controls {
 
     window.addEventListener('keyup', (event) => {
       this.keys.delete(event.code);
+      if (event.code === 'Space') {
+        this.actions.holdBreath?.(false);
+      }
+      if (event.code === 'KeyE' && this.prepHold === 'auto') {
+        this.prepHold = null;
+      }
     });
 
     window.addEventListener('blur', () => {
@@ -163,16 +211,17 @@ export class Controls {
       this.dragId = null;
       this.dragDelta = 0;
       this.lookHold = 0;
+      this.prepHold = null;
+      this.actions.holdBreath?.(false);
     });
   }
 
   bindPointer() {
     if (!this.canvas || typeof window === 'undefined') return;
-    // Desktop mouse edge-panning (classic FNAF 1 feel!)
     window.addEventListener('mousemove', (event) => {
       if (this.touch || !this.enabled) return;
       const w = Math.max(1, window.innerWidth);
-      const nx = (event.clientX / w) * 2 - 1; // -1 left .. +1 right
+      const nx = (event.clientX / w) * 2 - 1;
       const dead = 0.24;
       if (Math.abs(nx) <= dead) this.edgePan = 0;
       else this.edgePan = Math.sign(nx) * ((Math.abs(nx) - dead) / (1 - dead));
@@ -183,16 +232,36 @@ export class Controls {
       if (!this.enabled || this.dragId !== null || event.button !== 0) return;
       this.dragId = event.pointerId;
       this.dragLastX = event.clientX;
+      this.dragStartY = event.clientY ?? 0;
       this.dragMoved = false;
+      this.swipedVertical = false;
       this.canvas.setPointerCapture?.(event.pointerId);
+      const rect = this.canvas.getBoundingClientRect();
+      const rx = (event.clientX - rect.left) / Math.max(1, rect.width);
+      const ry = ((event.clientY ?? 0) - rect.top) / Math.max(1, rect.height);
+      this.actions.canvasPointerDown?.(rx, ry);
     });
 
     this.canvas.addEventListener('pointermove', (event) => {
       if (this.dragId !== event.pointerId || !this.enabled) return;
       const dx = event.clientX - this.dragLastX;
+      const dy = (event.clientY ?? this.dragStartY) - this.dragStartY;
       this.dragLastX = event.clientX;
-      if (Math.abs(dx) > 2) this.dragMoved = true;
-      // Swiping left turns view right (natural panorama feel)
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 6) this.dragMoved = true;
+
+      // Swipe Down on Touch -> Duck Under Desk! Swipe Up while Under Desk -> Stand Up!
+      if (!this.swipedVertical && Math.abs(dy) > 48 && Math.abs(dy) > Math.abs(dx) * 1.4) {
+        this.swipedVertical = true;
+        if (dy > 0 && !this.actions.isUnderDesk?.()) {
+          this.actions.underDesk?.(true);
+          return;
+        }
+        if (dy < 0 && this.actions.isUnderDesk?.()) {
+          this.actions.underDesk?.(false);
+          return;
+        }
+      }
+
       const sensitivity = this.touch ? 3.2 : 2.2;
       this.dragDelta -= (dx / Math.max(320, window.innerWidth)) * sensitivity;
     });
@@ -200,18 +269,20 @@ export class Controls {
     this.canvas.addEventListener('pointerup', (event) => {
       if (this.dragId !== event.pointerId) return;
       this.dragId = null;
+      this.actions.canvasPointerUp?.();
       if (!this.dragMoved && this.enabled) {
-        // Check if player tapped/clicked the Chef Torge poster in the center-left of Office!
         const rect = this.canvas.getBoundingClientRect();
         const rx = (event.clientX - rect.left) / Math.max(1, rect.width);
         const ry = (event.clientY - rect.top) / Math.max(1, rect.height);
         this.actions.canvasTap?.(rx, ry);
       }
     });
+
     const cancelDrag = (event) => {
       if (this.dragId !== event.pointerId) return;
       this.dragId = null;
       this.dragDelta = 0;
+      this.actions.canvasPointerUp?.();
     };
     this.canvas.addEventListener('pointercancel', cancelDrag);
     this.canvas.addEventListener('lostpointercapture', cancelDrag);
@@ -227,6 +298,6 @@ export class Controls {
       lookDelta += this.dragDelta * 60;
       this.dragDelta = 0;
     }
-    return { lookDelta };
+    return { lookDelta, prepHold: this.prepHold };
   }
 }
