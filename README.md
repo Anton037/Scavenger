@@ -1,4 +1,4 @@
-# FIVE NIGHTS AT TORGE'S (`v2.2` · 03:00 AM Schließdienst Overhaul)
+# FIVE NIGHTS AT TORGE'S (`v2.2.1` · 03:00 AM Schließdienst Overhaul)
 
 Psychologischer First-Person-Nachtschicht-Horror in **Torges geschlossenem Mitternachts-Imbiss** (*Chilla's Art „The Closing Shift“* trifft *FNaF Plus / FFPS*) — komplett ohne externe Pflicht-Binärdateien in **Three.js `0.187`** + **Vite `8.3`** umgesetzt:
 
@@ -41,6 +41,7 @@ Psychologischer First-Person-Nachtschicht-Horror in **Torges geschlossenem Mitte
 
 ### Smartphone / Tablet (Querformat / Landscape) — 100% Mobile-First
 - **Automatischer Vollbildmodus:** Beim Start der Schicht wird Vollbild + Querformat-Sperre angefordert (Browserleiste aus, keine versehentlichen Systemgesten — wird beim Rückkehr ins Menü automatisch beendet)
+- **Noch besser: Zum Startbildschirm hinzufügen!** Android startet über das Manifest automatisch im Vollbild-Querformat; auf dem iPhone (dort unterstützt Safari kein requestFullscreen) öffnet „Zum Home-Bildschirm“ die Kabine ohne Browserleiste → dauerhaftes Vollbild-Erlebnis
 - **Auto-Leistungsprofil:** Touchgeräte starten im ersten Lauf mit *Balanced*-Rendering für stabile FPS (in **Optionen → Grafik** erhöhbar)
 - **Halte-sichere Buttons:** ARBEITEN & ATEM ANHALTEN behalten den Griff, auch wenn der Finger leicht abrutscht (Pointer-Capture — kein Abbruch mehr mitten im Schneiden/Gasping)
 - **Daumengroße Ziele:** Alle Spielknöpfe ≥ 40–56 px (Stahlgruppen 56 px, LICHT-Chips 44 px, Aktionen/Monitorleiste 44 px, Kamera-/Pauseknöpfe 40 px)
