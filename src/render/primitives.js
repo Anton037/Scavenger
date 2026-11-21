@@ -1,8 +1,8 @@
-import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import * as GL from './webgl/index.js';
+import { mergeGeometries } from './webgl/geometry.js';
 
 export const TAU = Math.PI * 2;
-export const color = (hex) => new THREE.Color(hex);
+export const color = (hex) => new GL.Color(hex);
 
 export const PALETTE = {
   ink: 0x07080d,
@@ -22,7 +22,7 @@ export const PALETTE = {
 };
 
 export const material = (hex, roughness = 0.68, metalness = 0.08, flat = false) => (
-  new THREE.MeshStandardMaterial({
+  new GL.MeshStandardMaterial({
     color: hex,
     roughness,
     metalness,
@@ -31,7 +31,7 @@ export const material = (hex, roughness = 0.68, metalness = 0.08, flat = false) 
 );
 
 export const vinylMaterial = (hex, roughness = 0.62, metalness = 0.04) => (
-  new THREE.MeshStandardMaterial({
+  new GL.MeshStandardMaterial({
     color: hex,
     roughness,
     metalness,
@@ -40,24 +40,24 @@ export const vinylMaterial = (hex, roughness = 0.62, metalness = 0.04) => (
 );
 
 export const brassMaterial = (hex = PALETTE.brass) => (
-  new THREE.MeshStandardMaterial({ color: hex, roughness: 0.46, metalness: 0.72 })
+  new GL.MeshStandardMaterial({ color: hex, roughness: 0.46, metalness: 0.72 })
 );
 
 export const endoMaterial = (hex = PALETTE.endoDark) => (
-  new THREE.MeshStandardMaterial({ color: hex, roughness: 0.44, metalness: 0.68 })
+  new GL.MeshStandardMaterial({ color: hex, roughness: 0.44, metalness: 0.68 })
 );
 
-export const emissive = (hex) => new THREE.MeshBasicMaterial({ color: hex });
+export const emissive = (hex) => new GL.MeshBasicMaterial({ color: hex });
 
-export const solid = new THREE.BoxGeometry(1, 1, 1);
-export const round = new THREE.CylinderGeometry(1, 1, 1, 12);
-export const tapered = new THREE.CylinderGeometry(0.76, 1, 1, 10);
-export const orb = new THREE.IcosahedronGeometry(1, 1);
-export const dome = new THREE.SphereGeometry(1, 10, 7, 0, TAU, 0, Math.PI * 0.55);
-export const capsule = new THREE.CylinderGeometry(0.46, 0.42, 1, 8);
-export const octa = new THREE.OctahedronGeometry(1, 0);
-export const hoop = new THREE.TorusGeometry(1, 0.055, 7, 18);
-export const wedge = new THREE.ConeGeometry(0.5, 1, 3);
+export const solid = new GL.BoxGeometry(1, 1, 1);
+export const round = new GL.CylinderGeometry(1, 1, 1, 12);
+export const tapered = new GL.CylinderGeometry(0.76, 1, 1, 10);
+export const orb = new GL.IcosahedronGeometry(1, 1);
+export const dome = new GL.SphereGeometry(1, 10, 7, 0, TAU, 0, Math.PI * 0.55);
+export const capsule = new GL.CylinderGeometry(0.46, 0.42, 1, 8);
+export const octa = new GL.OctahedronGeometry(1, 0);
+export const hoop = new GL.TorusGeometry(1, 0.055, 7, 18);
+export const wedge = new GL.ConeGeometry(0.5, 1, 3);
 
 const _geoCache = new Map();
 
@@ -73,34 +73,7 @@ export function roundedBox(w = 1, h = 1, d = 1, radius = 0.08, segments = 1) {
   if (_geoCache.has(key)) return _geoCache.get(key);
 
   const r = Math.min(radius, w * 0.38, h * 0.38, d * 0.38);
-  const iw = Math.max(0.01, w - r * 2);
-  const ih = Math.max(0.01, h - r * 2);
-  const id = Math.max(0.01, d - r * 2);
-
-  const shape = new THREE.Shape();
-  const hw = iw * 0.5;
-  const hh = ih * 0.5;
-  shape.moveTo(-hw, -hh - r);
-  shape.lineTo(hw, -hh - r);
-  shape.absarc(hw, -hh, r, -Math.PI * 0.5, 0, false);
-  shape.lineTo(hw + r, hh);
-  shape.absarc(hw, hh, r, 0, Math.PI * 0.5, false);
-  shape.lineTo(-hw, hh + r);
-  shape.absarc(-hw, hh, r, Math.PI * 0.5, Math.PI, false);
-  shape.lineTo(-hw - r, -hh);
-  shape.absarc(-hw, -hh, r, Math.PI, Math.PI * 1.5, false);
-
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: id,
-    bevelEnabled: true,
-    bevelSegments: segments,
-    steps: 1,
-    bevelSize: r * 0.65,
-    bevelThickness: r,
-    curveSegments: Math.max(3, segments * 2),
-  });
-  geo.center();
-  geo.computeVertexNormals();
+  const geo = new GL.RoundedBoxGeometry(w, h, d, r, Math.max(3, segments * 2));
   _geoCache.set(key, geo);
   return geo;
 }
@@ -200,12 +173,11 @@ export function sculptedHeadGeometry({
     indices.push(lastRingStart + s, lastRingStart + s + 1, topCenterIdx);
   }
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  const geo = new GL.BufferGeometry();
+  geo.setAttribute('position', new GL.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new GL.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   const nonIdx = geo.toNonIndexed();
-  geo.dispose();
   nonIdx.computeVertexNormals();
   _geoCache.set(key, nonIdx);
   return nonIdx;
@@ -218,7 +190,7 @@ export function sculptedJawGeometry({ width = 0.17, height = 0.085, depth = 0.17
   const key = `jaw|${width}|${height}|${depth}`;
   if (_geoCache.has(key)) return _geoCache.get(key);
 
-  const geo = new THREE.CylinderGeometry(width * 0.52, width * 0.36, height, 7, 1);
+  const geo = new GL.CylinderGeometry(width * 0.52, width * 0.36, height, 7, 1);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const y = pos.getY(i);
@@ -227,7 +199,6 @@ export function sculptedJawGeometry({ width = 0.17, height = 0.085, depth = 0.17
     pos.setZ(i, z);
   }
   const nonIdx = geo.toNonIndexed();
-  geo.dispose();
   nonIdx.computeVertexNormals();
   _geoCache.set(key, nonIdx);
   return nonIdx;
@@ -288,12 +259,11 @@ export function sculptedTorsoGeometry({
     }
   }
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  const geo = new GL.BufferGeometry();
+  geo.setAttribute('position', new GL.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new GL.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   const nonIdx = geo.toNonIndexed();
-  geo.dispose();
   nonIdx.computeVertexNormals();
   _geoCache.set(key, nonIdx);
   return nonIdx;
@@ -342,12 +312,11 @@ export function sculptedLimbGeometry({ topR = 0.068, midR = 0.062, botR = 0.050,
     }
   }
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  const geo = new GL.BufferGeometry();
+  geo.setAttribute('position', new GL.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new GL.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   const nonIdx = geo.toNonIndexed();
-  geo.dispose();
   nonIdx.computeVertexNormals();
   _geoCache.set(key, nonIdx);
   return nonIdx;
@@ -357,9 +326,9 @@ export function sculptedLimbGeometry({ topR = 0.068, midR = 0.062, botR = 0.050,
  * Faceted Low-Poly Human Hand with Palm, Opposable Thumb, and 4 Articulated Faceted Fingers.
  */
 export function buildSculptedHand(parent, skinMat, side = 1, scale = 1) {
-  const hand = new THREE.Group();
+  const hand = new GL.Group();
   const palmGeo = sculptedLimbGeometry({ topR: 0.038 * scale, midR: 0.044 * scale, botR: 0.040 * scale, length: 0.085 * scale, crease: 0.002 });
-  const palm = new THREE.Mesh(palmGeo, skinMat);
+  const palm = new GL.Mesh(palmGeo, skinMat);
   palm.scale.set(1.15, 1, 0.58);
   palm.castShadow = true;
   hand.add(palm);
@@ -368,14 +337,14 @@ export function buildSculptedHand(parent, skinMat, side = 1, scale = 1) {
   const offsets = [-0.028, -0.009, 0.010, 0.027];
   const lengths = [0.95, 1.05, 0.98, 0.82];
   for (let i = 0; i < 4; i++) {
-    const f = new THREE.Mesh(fingerGeo, skinMat);
+    const f = new GL.Mesh(fingerGeo, skinMat);
     f.position.set(offsets[i] * scale, -0.078 * scale, 0.006 * scale);
     f.scale.set(1, lengths[i], 1);
     f.rotation.x = -0.26 - i * 0.05; // slightly curled tense fingers
     hand.add(f);
   }
 
-  const thumb = new THREE.Mesh(fingerGeo, skinMat);
+  const thumb = new GL.Mesh(fingerGeo, skinMat);
   thumb.position.set(-side * 0.038 * scale, -0.032 * scale, 0.014 * scale);
   thumb.scale.set(1.15, 0.82, 1.15);
   thumb.rotation.z = side * 0.52;
@@ -390,7 +359,7 @@ export function buildSculptedHand(parent, skinMat, side = 1, scale = 1) {
  * Adds a scaled mesh with selective shadow discipline.
  */
 export function piece(parent, geometry, finish, x, y, z, sx = 1, sy = 1, sz = 1, opts = {}) {
-  const object = new THREE.Mesh(geometry, finish);
+  const object = new GL.Mesh(geometry, finish);
   object.position.set(x, y, z);
   object.scale.set(sx, sy, sz);
   const canShadow = !finish.isMeshBasicMaterial && !finish.transparent;
@@ -421,7 +390,7 @@ export function uncannyEyeRig(parent, x, y, z, {
   bagHex = 0x261a24,
   lidDrop = 0.25,
 } = {}) {
-  const group = new THREE.Group();
+  const group = new GL.Group();
   group.position.set(x, y, z);
 
   const socketMat = material(0x060508, 0.96, 0.0);
@@ -429,27 +398,27 @@ export function uncannyEyeRig(parent, x, y, z, {
   const irisMat = material(irisHex, 0.22, 0.05);
   const pupilMat = material(0x030305, 0.15, 0.05);
   const bagMat = material(bagHex, 0.85, 0.02, true);
-  const irPinMat = new THREE.MeshBasicMaterial({ color: 0xf4faff, transparent: true, opacity: 0.0 });
+  const irPinMat = new GL.MeshBasicMaterial({ color: 0xf4faff, transparent: true, opacity: 0.0 });
 
   // Deep recessed shadow socket & dark under-eye bag
   piece(group, orb, socketMat, 0, 0, -radius * 0.35, radius * 1.45, radius * 1.25, radius * 0.8, { shadow: false });
   piece(group, orb, bagMat, 0, -radius * 0.72, radius * 0.18, radius * 1.32, radius * 0.45, radius * 0.45, { shadow: false });
 
   // Pale bloodshot sclera + tiny dark human iris (NOT glowing!)
-  const normalEye = new THREE.Group();
+  const normalEye = new GL.Group();
   piece(normalEye, orb, scleraMat, 0, 0, 0, radius, radius * 0.86, radius * 0.72, { shadow: false });
   piece(normalEye, round, irisMat, 0, 0, radius * 0.66, radius * 0.38, 0.004, radius * 0.38, { shadow: false }).rotation.x = Math.PI / 2;
   piece(normalEye, round, pupilMat, 0, 0, radius * 0.70, radius * 0.18, 0.005, radius * 0.18, { shadow: false }).rotation.x = Math.PI / 2;
   group.add(normalEye);
 
   // Retroreflective white IR eye-shine pinpoint (glints in CCTV night-vision & Flashlight beams!)
-  const endoEye = new THREE.Group();
+  const endoEye = new GL.Group();
   endoEye.visible = false;
   const irPin = piece(endoEye, octa, irPinMat, 0, radius * 0.06, radius * 0.78, radius * 0.24, radius * 0.24, 0.006, { shadow: false });
   group.add(endoEye);
 
   // Heavy sleepless upper eyelid crease
-  const eyelid = new THREE.Group();
+  const eyelid = new GL.Group();
   eyelid.rotation.x = -0.28 + lidDrop * 0.65;
   const lidCap = piece(eyelid, dome, bagMat, 0, 0, 0, radius * 1.12, radius * 1.05, radius * 0.82, { shadow: false });
   lidCap.rotation.x = -Math.PI * 0.36;
@@ -498,16 +467,13 @@ export function batchStaticGroup(targetParent, stagingGroup, { castShadow = fals
     bySig.get(sig).push(baseGeo);
   });
 
-  const mergedGroup = new THREE.Group();
+  const mergedGroup = new GL.Group();
   for (const [style, bySig] of buckets.entries()) {
     for (const parts of bySig.values()) {
-      const merged = parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
-      if (parts.length > 1) {
-        for (const p of parts) p.dispose();
-      }
+      const merged = parts.length === 1 ? parts[0] : mergeGeometries(parts);
       if (!merged) continue;
       const canShadow = !style.isMeshBasicMaterial && !style.transparent;
-      const mesh = new THREE.Mesh(merged, style);
+      const mesh = new GL.Mesh(merged, style);
       mesh.castShadow = Boolean(castShadow && canShadow);
       mesh.receiveShadow = Boolean(receiveShadow && canShadow);
       mergedGroup.add(mesh);

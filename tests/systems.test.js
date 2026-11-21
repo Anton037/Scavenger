@@ -199,7 +199,7 @@ test('All 5 sculpted PS1 stalker rigs expose full 17-joint articulated anatomy, 
 
   // Verify Anton has real smartphone uplight PointLight
   const anton = models[1];
-  assert.ok(anton.phoneLight?.isPointLight, 'Lost Anton must carry an uplight PointLight on his smartphone');
+  assert.equal(anton.phoneLight?.kind, 'point', 'Lost Anton must carry an uplight PointLight on his smartphone');
 
   const godRun = newNight({
     night: 7,
@@ -209,4 +209,21 @@ test('All 5 sculpted PS1 stalker rigs expose full 17-joint articulated anatomy, 
   });
   godRun.power = 38;
   assert.equal(computeShiftRank(godRun).grade, 'S++');
+});
+
+test('Only the first ticket of night 1 gets training time and completion shows the credited reward', () => {
+  const firstNight = newNight({ night: 1, seed: 101 });
+  const otherNight = newNight({ night: 2, seed: 101 });
+  simulate(firstNight, 15.1);
+  simulate(otherNight, 15.1);
+  assert.equal(firstNight.orders.active.training, true);
+  assert.equal(otherNight.orders.active.training, false);
+  assert.equal(firstNight.orders.active.duration - otherNight.orders.active.duration, 12);
+  firstNight.power = 60;
+  assert.equal(stampOrderBon(firstNight), true);
+  assert.equal(firstNight.orders.lastReceipt.power, Math.round(firstNight.power - 60));
+  assert.equal(firstNight.orders.lastReceipt.tip, firstNight.stats.tipsEarned);
+  firstNight.orders.nextAt = firstNight.time;
+  advance(firstNight, {}, STEP);
+  assert.equal(firstNight.orders.active.training, false);
 });

@@ -188,7 +188,7 @@ function pulseHaptic(event) {
             ? [30, 25, 30]
             : event.kind === 'window_sting'
               ? [36, 20, 48]
-              : event.kind === 'hatch_clink' || event.kind === 'duck_rustle'
+              : event.kind === 'hatch_clink' || event.kind === 'duck_rustle' || event.kind === 'prep_fryer_ready'
                 ? 26
                 : event.kind === 'hauke_stomp'
                   ? 34
@@ -292,8 +292,15 @@ function applyLookArrowsSetting() {
 }
 applyLookArrowsSetting();
 
+function startPrepHold() {
+  const step = run?.orders?.active?.step;
+  controls.setPrepHold(step === 'doner' || step === 'bag' ? step : null);
+  gameActions.prepInteract();
+}
+
 const controls = new Controls(canvas, {
   ...gameActions,
+  startPrepHold,
   isUnderDesk: () => run?.viewState === 'under_desk',
   isBackView: () => run?.viewState === 'back',
   pause: () => handleEscapeOrPause(),
@@ -822,6 +829,7 @@ function togglePause() {
     return true;
   }
   if (stage === 'pause') {
+    if (view?.isContextLost()) return false;
     closeDialog(pauseScreen);
     if (hudScreen) hudScreen.inert = false;
     pausedFocus?.focus({ preventScroll: true });
@@ -1142,15 +1150,14 @@ for (const [id, action] of [
 // Hold-Interaction Buttons (unified Bon work step, and Under-Desk Hold Breath)
 // Pointer capture keeps the hold alive when the finger slides slightly off the button;
 // a touch pointerleave only cancels when capture is NOT active (legacy fallback).
-function bindHoldPrepBtn(id, station) {
+function bindHoldPrepBtn(id) {
   const btn = get(id);
   if (!btn) return;
   const start = (e) => {
     if (e.pointerType === 'touch') controls.noteTouch();
     e.preventDefault();
     try { btn.setPointerCapture(e.pointerId); } catch { /* legacy: no capture */ }
-    controls.setPrepHold(station);
-    gameActions.prepInteract(station);
+    startPrepHold();
   };
   const stop = () => controls.setPrepHold(null);
   const stopIfReleased = (e) => {
@@ -1159,13 +1166,13 @@ function bindHoldPrepBtn(id, station) {
   btn.addEventListener('pointerdown', start);
   btn.addEventListener('pointerup', stop);
   btn.addEventListener('pointercancel', stop);
+  btn.addEventListener('lostpointercapture', stop);
   btn.addEventListener('pointerleave', stopIfReleased);
   btn.addEventListener('click', (e) => {
-    if (e.detail === 0) gameActions.prepInteract(station);
+    if (e.detail === 0) gameActions.prepInteract();
   });
 }
-// 'auto' advances through the current bon step (Döner → Fritteuse → Tüte) exactly like the E key
-bindHoldPrepBtn('btn-prep-work', 'auto');
+bindHoldPrepBtn('btn-prep-work');
 
 const holdBreathBtn = get('btn-hold-breath');
 if (holdBreathBtn) {
@@ -1393,6 +1400,11 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) pauseForBackground();
 });
 window.addEventListener('pagehide', pauseForBackground);
+canvas.addEventListener('webglcontextlost', () => {
+  if (stage === 'intro') enterOffice(true);
+  else if (stage === 'play' && run?.state === 'playing') togglePause();
+});
+canvas.addEventListener('webglcontextrestored', () => requestAnimationFrame(handleResize));
 
 paintAudioButtons();
 syncSettingsUi();

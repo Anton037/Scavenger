@@ -207,3 +207,23 @@ test('Releasing a look arrow preserves the other finger and pause clears held ar
   controls.enable(true);
   assert.equal(controls.read().lookDelta, 0);
 });
+
+test('Holding E works on one kitchen step and releasing E clears that hold', () => {
+  const { win, canvas } = createFakeDom();
+  let presses = 0;
+  const controls = new Controls(canvas, {
+    isBackView: () => true,
+    startPrepHold: () => {
+      presses += 1;
+      controls.setPrepHold('doner');
+    },
+  });
+  controls.enable(true);
+  const preventDefault = () => {};
+  win.dispatch('keydown', { code: 'KeyE', preventDefault });
+  win.dispatch('keydown', { code: 'KeyE', repeat: true, preventDefault });
+  assert.equal(presses, 1);
+  assert.equal(controls.read().prepHold, 'doner');
+  win.dispatch('keyup', { code: 'KeyE' });
+  assert.equal(controls.read().prepHold, null);
+});

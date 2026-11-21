@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as GL from './webgl/index.js';
 import { randomFrom, TAU } from './primitives.js';
 
 function hasDomCanvas() {
@@ -7,7 +7,7 @@ function hasDomCanvas() {
 
 export function makeCanvasTexture(w, h, drawFn, { repeat = false, nearest = false, srgb = true } = {}) {
   if (!hasDomCanvas()) {
-    return new THREE.Texture();
+    return new GL.Texture();
   }
   const canvas = document.createElement('canvas');
   canvas.width = w;
@@ -15,20 +15,20 @@ export function makeCanvasTexture(w, h, drawFn, { repeat = false, nearest = fals
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = !nearest;
   drawFn(ctx, w, h);
-  const texture = new THREE.CanvasTexture(canvas);
-  if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
+  const texture = new GL.CanvasTexture(canvas);
+  if (srgb) texture.colorSpace = GL.SRGBColorSpace;
   if (nearest) {
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = GL.NearestFilter;
+    texture.minFilter = GL.NearestFilter;
     texture.generateMipmaps = false;
   } else {
-    texture.magFilter = THREE.LinearFilter;
-    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = GL.LinearFilter;
+    texture.minFilter = GL.LinearMipmapLinearFilter;
     texture.anisotropy = 8;
   }
   if (repeat) {
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
+    texture.wrapS = GL.RepeatWrapping;
+    texture.wrapT = GL.RepeatWrapping;
   }
   return texture;
 }
@@ -39,7 +39,7 @@ export function makeCanvasTexture(w, h, drawFn, { repeat = false, nearest = fals
  */
 export function makePbrSurfaceSet(w, h, paintFn, { repeat = true, normalStrength = 2.2 } = {}) {
   if (!hasDomCanvas()) {
-    const dummy = new THREE.Texture();
+    const dummy = new GL.Texture();
     return { map: dummy, normalMap: dummy, roughnessMap: dummy };
   }
 
@@ -107,20 +107,20 @@ export function makePbrSurfaceSet(w, h, paintFn, { repeat = true, normalStrength
   nCtx.putImageData(nImg, 0, 0);
 
   const wrapCfg = (tex, isColor = false) => {
-    if (isColor) tex.colorSpace = THREE.SRGBColorSpace;
-    tex.magFilter = THREE.LinearFilter;
-    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    if (isColor) tex.colorSpace = GL.SRGBColorSpace;
+    tex.magFilter = GL.LinearFilter;
+    tex.minFilter = GL.LinearMipmapLinearFilter;
     if (repeat) {
-      tex.wrapS = THREE.RepeatWrapping;
-      tex.wrapT = THREE.RepeatWrapping;
+      tex.wrapS = GL.RepeatWrapping;
+      tex.wrapT = GL.RepeatWrapping;
     }
     return tex;
   };
 
   return {
-    map: wrapCfg(new THREE.CanvasTexture(albedoCanvas), true),
-    normalMap: wrapCfg(new THREE.CanvasTexture(normalCanvas), false),
-    roughnessMap: wrapCfg(new THREE.CanvasTexture(roughCanvas), false),
+    map: wrapCfg(new GL.CanvasTexture(albedoCanvas), true),
+    normalMap: wrapCfg(new GL.CanvasTexture(normalCanvas), false),
+    roughnessMap: wrapCfg(new GL.CanvasTexture(roughCanvas), false),
   };
 }
 
@@ -613,23 +613,23 @@ export function receiptPaperTexture() {
 export class LiveDeskDisplays {
   constructor() {
     if (!hasDomCanvas()) {
-      this.sysTexture = new THREE.Texture();
-      this.waveTexture = new THREE.Texture();
+      this.sysTexture = new GL.Texture();
+      this.waveTexture = new GL.Texture();
       return;
     }
     this.sysCanvas = document.createElement('canvas');
     this.sysCanvas.width = 160;
     this.sysCanvas.height = 112;
     this.sysCtx = this.sysCanvas.getContext('2d');
-    this.sysTexture = new THREE.CanvasTexture(this.sysCanvas);
-    this.sysTexture.colorSpace = THREE.SRGBColorSpace;
+    this.sysTexture = new GL.CanvasTexture(this.sysCanvas);
+    this.sysTexture.colorSpace = GL.SRGBColorSpace;
 
     this.waveCanvas = document.createElement('canvas');
     this.waveCanvas.width = 144;
     this.waveCanvas.height = 96;
     this.waveCtx = this.waveCanvas.getContext('2d');
-    this.waveTexture = new THREE.CanvasTexture(this.waveCanvas);
-    this.waveTexture.colorSpace = THREE.SRGBColorSpace;
+    this.waveTexture = new GL.CanvasTexture(this.waveCanvas);
+    this.waveTexture.colorSpace = GL.SRGBColorSpace;
 
     this.lastPaintAt = -1;
   }

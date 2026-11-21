@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as GL from './webgl/index.js';
 import {
   antonOutfitTexture,
   antonPhoneGlowTexture,
@@ -57,8 +57,8 @@ function getCharTextures() {
 
 export function speziCanMesh() {
   const tex = getCharTextures();
-  const g = new THREE.Group();
-  const wrapMat = new THREE.MeshStandardMaterial({
+  const g = new GL.Group();
+  const wrapMat = new GL.MeshStandardMaterial({
     map: tex.spezi,
     roughness: 0.36,
     metalness: 0.42,
@@ -76,8 +76,8 @@ export function speziCanMesh() {
  * Crooked, tarnished brass crown (no glowing toy gems!).
  */
 export function crownMesh(scale = 1) {
-  const crown = new THREE.Group();
-  const tarnishedBrass = new THREE.MeshStandardMaterial({
+  const crown = new GL.Group();
+  const tarnishedBrass = new GL.MeshStandardMaterial({
     color: 0x947032,
     roughness: 0.52,
     metalness: 0.76,
@@ -141,12 +141,12 @@ function buildHumanRig({
   shoeMat,
   soleMat,
 }) {
-  const root = new THREE.Group();
-  const core = new THREE.Group();
+  const root = new GL.Group();
+  const core = new GL.Group();
   core.scale.setScalar(totalScale);
   root.add(core);
 
-  const pelvis = new THREE.Group();
+  const pelvis = new GL.Group();
   pelvis.position.set(0, pelvisY, 0);
   core.add(pelvis);
 
@@ -158,21 +158,21 @@ function buildHumanRig({
   const shoeGeo = roundedBox(calfR * 2.15, 0.085, 0.26, 0.025, 1);
 
   const buildLeg = (side) => {
-    const thigh = new THREE.Group();
+    const thigh = new GL.Group();
     thigh.position.set(side * hipSpacing, -0.04, 0);
-    const tm = new THREE.Mesh(thighGeo, pantsMat);
+    const tm = new GL.Mesh(thighGeo, pantsMat);
     tm.castShadow = true;
     tm.receiveShadow = true;
     thigh.add(tm);
 
-    const calf = new THREE.Group();
+    const calf = new GL.Group();
     calf.position.set(0, -thighLen, 0);
-    const cm = new THREE.Mesh(calfGeo, pantsMat);
+    const cm = new GL.Mesh(calfGeo, pantsMat);
     cm.castShadow = true;
     cm.receiveShadow = true;
     calf.add(cm);
 
-    const foot = new THREE.Group();
+    const foot = new GL.Group();
     foot.position.set(0, -calfLen, 0);
     piece(foot, shoeGeo, shoeMat, 0, -0.035, 0.048, 1, 1, 1, { shadow: true });
     if (soleMat) {
@@ -188,18 +188,18 @@ function buildHumanRig({
   const rightLeg = buildLeg(1);
 
   // Torso & Chest
-  const torso = new THREE.Group();
+  const torso = new GL.Group();
   torso.position.set(0, 0.05, 0);
   pelvis.add(torso);
 
   const tHeight = torsoCfg.height || 0.54;
   const torsoGeo = sculptedTorsoGeometry(torsoCfg);
-  const torsoMesh = new THREE.Mesh(torsoGeo, torsoMat);
+  const torsoMesh = new GL.Mesh(torsoGeo, torsoMat);
   torsoMesh.castShadow = true;
   torsoMesh.receiveShadow = true;
   torso.add(torsoMesh);
 
-  const chest = new THREE.Group();
+  const chest = new GL.Group();
   chest.position.set(0, shoulderY, torsoCfg.hunch || 0);
   torso.add(chest);
 
@@ -207,15 +207,15 @@ function buildHumanRig({
   const forearmGeo = sculptedLimbGeometry({ topR: armR * 0.76, midR: armR * 0.68, botR: armR * 0.56, length: forearmLen, crease: 0.003 });
 
   const buildArm = (side) => {
-    const upperArm = new THREE.Group();
+    const upperArm = new GL.Group();
     upperArm.position.set(side * shoulderX, 0, 0);
-    const uMesh = new THREE.Mesh(upperArmGeo, sleeveMat || torsoMat);
+    const uMesh = new GL.Mesh(upperArmGeo, sleeveMat || torsoMat);
     uMesh.castShadow = true;
     upperArm.add(uMesh);
 
-    const forearm = new THREE.Group();
+    const forearm = new GL.Group();
     forearm.position.set(0, -upperArmLen, 0);
-    const fMesh = new THREE.Mesh(forearmGeo, forearmMat || skinMat);
+    const fMesh = new GL.Mesh(forearmGeo, forearmMat || skinMat);
     fMesh.castShadow = true;
     forearm.add(fMesh);
 
@@ -231,20 +231,20 @@ function buildHumanRig({
   const rightArm = buildArm(1);
 
   // Neck -> Head -> Hinged Jaw & Uncanny Recessed Eyes
-  const neck = new THREE.Group();
+  const neck = new GL.Group();
   neck.position.set(0, tHeight - shoulderY + 0.02, 0.01);
   const neckGeo = sculptedLimbGeometry({ topR: 0.054, midR: 0.058, botR: 0.064, length: neckLen, crease: 0 });
-  const neckMesh = new THREE.Mesh(neckGeo, skinMat);
+  const neckMesh = new GL.Mesh(neckGeo, skinMat);
   neckMesh.position.y = neckLen;
   neck.add(neckMesh);
   chest.add(neck);
 
-  const head = new THREE.Group();
+  const head = new GL.Group();
   head.position.set(0, neckLen + (headCfg.height || 0.25) * 0.42, 0.01);
   neck.add(head);
 
   const headGeo = sculptedHeadGeometry(headCfg);
-  const headMesh = new THREE.Mesh(headGeo, faceMat);
+  const headMesh = new GL.Mesh(headGeo, faceMat);
   headMesh.castShadow = true;
   headMesh.receiveShadow = true;
   head.add(headMesh);
@@ -264,10 +264,10 @@ function buildHumanRig({
   }
 
   // Hinged Lower Jaw
-  const jaw = new THREE.Group();
+  const jaw = new GL.Group();
   jaw.position.set(0, -(headCfg.height || 0.25) * 0.34, 0.0);
   const jawGeo = sculptedJawGeometry(jawCfg);
-  const jawMesh = new THREE.Mesh(jawGeo, faceMat);
+  const jawMesh = new GL.Mesh(jawGeo, faceMat);
   jawMesh.position.set(0, -(jawCfg.height || 0.08) * 0.32, 0.015);
   jawMesh.castShadow = true;
   jaw.add(jawMesh);
@@ -277,7 +277,7 @@ function buildHumanRig({
   head.add(jaw);
 
   // Recessed Uncanny Eyes + IR Pinpoints
-  const eyes = new THREE.Group();
+  const eyes = new GL.Group();
   head.add(eyes);
   const eyeX = (headCfg.width || 0.22) * 0.22;
   const eyeY = (headCfg.height || 0.25) * 0.11;
@@ -322,9 +322,9 @@ function buildHumanRig({
  */
 export function chefTorgeModel() {
   const tex = getCharTextures();
-  const faceMat = new THREE.MeshStandardMaterial({ map: tex.faceTorge, roughness: 0.72, metalness: 0.04, flatShading: true });
+  const faceMat = new GL.MeshStandardMaterial({ map: tex.faceTorge, roughness: 0.72, metalness: 0.04, flatShading: true });
   const skinMat = vinylMaterial(0xb58b6f, 0.74, 0.03);
-  const jacketMat = new THREE.MeshStandardMaterial({ map: tex.torgeJacket, roughness: 0.76, metalness: 0.05, flatShading: true });
+  const jacketMat = new GL.MeshStandardMaterial({ map: tex.torgeJacket, roughness: 0.76, metalness: 0.05, flatShading: true });
   const pantsMat = vinylMaterial(0x161922, 0.82, 0.04);
   const shoeMat = vinylMaterial(0x141418, 0.65, 0.08);
   const darkHair = vinylMaterial(0x171215, 0.88, 0.02);
@@ -366,7 +366,7 @@ export function chefTorgeModel() {
   rig.head.add(crown);
 
   // Heavy seasoned cast-iron frying pan held low at his right side
-  const pan = new THREE.Group();
+  const pan = new GL.Group();
   pan.position.set(0, -0.06, 0.03);
   piece(pan, round, castIron, 0, 0, 0.12, 0.016, 0.24, 0.016, { shadow: false }).rotation.x = Math.PI / 2;
   piece(pan, round, castIron, 0, -0.01, 0.34, 0.145, 0.038, 0.145, { shadow: true });
@@ -384,15 +384,15 @@ export function chefTorgeModel() {
  */
 export function lostAntonModel() {
   const tex = getCharTextures();
-  const faceMat = new THREE.MeshStandardMaterial({ map: tex.faceAnton, roughness: 0.70, metalness: 0.03, flatShading: true });
+  const faceMat = new GL.MeshStandardMaterial({ map: tex.faceAnton, roughness: 0.70, metalness: 0.03, flatShading: true });
   const skinMat = vinylMaterial(0xb49682, 0.74, 0.02);
-  const shirtMat = new THREE.MeshStandardMaterial({ map: tex.antonOutfit, roughness: 0.82, metalness: 0.02, flatShading: true });
+  const shirtMat = new GL.MeshStandardMaterial({ map: tex.antonOutfit, roughness: 0.82, metalness: 0.02, flatShading: true });
   const jeansMat = vinylMaterial(0x1c202a, 0.84, 0.04);
   const sneakerMat = vinylMaterial(0x22262e, 0.72, 0.05);
   const wetSoleMat = vinylMaterial(0xb8c0b4, 0.38, 0.08);
   const hairMat = vinylMaterial(0x2e2118, 0.86, 0.02);
   const phoneBody = endoMaterial(0x10141c);
-  const phoneScreenMat = new THREE.MeshBasicMaterial({ map: tex.antonPhone });
+  const phoneScreenMat = new GL.MeshBasicMaterial({ map: tex.antonPhone });
 
   const rig = buildHumanRig({
     totalScale: 1.07,
@@ -432,14 +432,14 @@ export function lostAntonModel() {
   piece(rig.head, solid, hairMat, -0.04, 0.095, 0.11, 0.09, 0.05, 0.03, { shadow: false }).rotation.z = 0.22;
 
   // Smartphone in right hand + cold cyan-green PointLight casting eerie uplight onto chin & brow!
-  const phone = new THREE.Group();
+  const phone = new GL.Group();
   phone.position.set(-0.02, -0.055, 0.045);
   phone.rotation.x = -0.55;
   phone.rotation.y = -0.25;
   piece(phone, roundedBox(0.075, 0.145, 0.014, 0.008, 1), phoneBody, 0, 0, 0, 1, 1, 1, { shadow: false });
   const phoneScreen = piece(phone, solid, phoneScreenMat, 0, 0, 0.009, 0.066, 0.132, 0.004, { shadow: false });
 
-  const phoneLight = new THREE.PointLight(0x4de8d2, 1.35, 1.65, 1.8);
+  const phoneLight = new GL.PointLight(0x4de8d2, 1.35, 1.65, 1.8);
   phoneLight.position.set(0, 0.04, 0.08);
   phone.add(phoneLight);
   rig.rightHand.add(phone);
@@ -458,9 +458,9 @@ export function lostAntonModel() {
  */
 export function schnorrerTomModel() {
   const tex = getCharTextures();
-  const faceMat = new THREE.MeshStandardMaterial({ map: tex.faceTom, roughness: 0.72, metalness: 0.03, flatShading: true });
+  const faceMat = new GL.MeshStandardMaterial({ map: tex.faceTom, roughness: 0.72, metalness: 0.03, flatShading: true });
   const skinMat = vinylMaterial(0xba9276, 0.74, 0.02);
-  const surfMat = new THREE.MeshStandardMaterial({ map: tex.tomShirt, roughness: 0.80, metalness: 0.02, flatShading: true });
+  const surfMat = new GL.MeshStandardMaterial({ map: tex.tomShirt, roughness: 0.80, metalness: 0.02, flatShading: true });
   const pantsMat = vinylMaterial(0x1c212c, 0.82, 0.04);
   const shoeMat = vinylMaterial(0x1f5c58, 0.72, 0.05);
   const soleMat = vinylMaterial(0xc8c2b4, 0.6, 0.04);
@@ -505,7 +505,7 @@ export function schnorrerTomModel() {
   piece(rig.head, orb, vinylMaterial(0x281b14, 0.88), 0, 0.092, 0.122, 0.032, 0.024, 0.022, { shadow: false });
 
   // Bulging worn canvas backpack stuffed with crushed Pfand & Spezi cans sticking out!
-  const pack = new THREE.Group();
+  const pack = new GL.Group();
   pack.position.set(0, 0.28, -0.17);
   piece(pack, roundedBox(0.34, 0.42, 0.22, 0.06, 1), bagMat, 0, 0, 0, 1, 1, 1, { shadow: true });
   piece(pack, solid, strapMat, -0.10, 0.04, 0.12, 0.032, 0.38, 0.04, { shadow: false });
@@ -523,7 +523,7 @@ export function schnorrerTomModel() {
   can2.scale.set(0.75, 0.72, 0.60);
   pack.add(can2);
 
-  const bottle = new THREE.Group();
+  const bottle = new GL.Group();
   bottle.position.set(-0.09, 0.20, 0.02);
   bottle.rotation.z = 0.28;
   piece(bottle, round, bottleMat, 0, 0, 0, 0.032, 0.13, 0.032, { shadow: false });
@@ -540,9 +540,9 @@ export function schnorrerTomModel() {
  */
 export function bossHaukeModel() {
   const tex = getCharTextures();
-  const faceMat = new THREE.MeshStandardMaterial({ map: tex.faceHauke, roughness: 0.72, metalness: 0.04, flatShading: true });
+  const faceMat = new GL.MeshStandardMaterial({ map: tex.faceHauke, roughness: 0.72, metalness: 0.04, flatShading: true });
   const skinMat = vinylMaterial(0xb0866a, 0.72, 0.03);
-  const shirtMat = new THREE.MeshStandardMaterial({ map: tex.haukeShirt, roughness: 0.80, metalness: 0.02, flatShading: true });
+  const shirtMat = new GL.MeshStandardMaterial({ map: tex.haukeShirt, roughness: 0.80, metalness: 0.02, flatShading: true });
   const joggersMat = vinylMaterial(0x4c525e, 0.84, 0.03);
   const bootMat = vinylMaterial(0x181b22, 0.68, 0.12);
   const hairMat = vinylMaterial(0x2b1c14, 0.86, 0.02);
@@ -592,8 +592,8 @@ export function bossHaukeModel() {
  */
 export function filthyDuckSuitModel() {
   const tex = getCharTextures();
-  const suitMat = new THREE.MeshStandardMaterial({ map: tex.duckSuit, roughness: 0.90, metalness: 0.02, flatShading: true });
-  const headSuitMat = new THREE.MeshStandardMaterial({ map: tex.faceDuck, roughness: 0.88, metalness: 0.02, flatShading: true });
+  const suitMat = new GL.MeshStandardMaterial({ map: tex.duckSuit, roughness: 0.90, metalness: 0.02, flatShading: true });
+  const headSuitMat = new GL.MeshStandardMaterial({ map: tex.faceDuck, roughness: 0.88, metalness: 0.02, flatShading: true });
   const dirtyBeakMat = vinylMaterial(0x9c4216, 0.72, 0.04);
   const voidMeshMat = material(0x030305, 0.98, 0.0);
   const bootMat = vinylMaterial(0x161412, 0.82, 0.06);
@@ -658,20 +658,20 @@ export const goldenDuckModel = filthyDuckSuitModel;
  */
 export function spareMascotHeadMesh(variant = 0) {
   const tex = getCharTextures();
-  const g = new THREE.Group();
+  const g = new GL.Group();
   const mat = variant === 1
-    ? new THREE.MeshStandardMaterial({ map: tex.faceDuck, roughness: 0.88, flatShading: true })
+    ? new GL.MeshStandardMaterial({ map: tex.faceDuck, roughness: 0.88, flatShading: true })
     : vinylMaterial(variant === 0 ? 0x8a7c6e : 0x303642, 0.78, 0.15);
   const voidMat = material(0x030306, 0.96, 0);
-  const pinMat = new THREE.MeshBasicMaterial({ color: 0xeef6ff });
+  const pinMat = new GL.MeshBasicMaterial({ color: 0xeef6ff });
 
   const hGeo = sculptedHeadGeometry({ width: 0.24, height: 0.25, depth: 0.24 });
-  const m = new THREE.Mesh(hGeo, mat);
+  const m = new GL.Mesh(hGeo, mat);
   m.position.y = 0.13;
   m.castShadow = true;
   g.add(m);
 
-  const pins = new THREE.Group();
+  const pins = new GL.Group();
   pins.visible = false;
   for (const side of [-1, 1]) {
     piece(g, orb, voidMat, side * 0.055, 0.15, 0.105, 0.028, 0.028, 0.018, { shadow: false });

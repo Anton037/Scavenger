@@ -1,6 +1,6 @@
-# FIVE NIGHTS AT TORGE'S (`v2.3` · 03:00 AM Schließdienst Overhaul)
+# FIVE NIGHTS AT TORGE'S (`v2.4` · 03:00 AM Schließdienst)
 
-Psychologischer First-Person-Nachtschicht-Horror in **Torges geschlossenem Mitternachts-Imbiss** (*Chilla's Art „The Closing Shift“* trifft *FNaF Plus / FFPS*) — komplett ohne externe Pflicht-Binärdateien in **Three.js `0.187`** + **Vite `8.3`** umgesetzt:
+Psychologischer First-Person-Nachtschicht-Horror in **Torges geschlossenem Mitternachts-Imbiss** (*Chilla's Art „The Closing Shift“* trifft *FNaF Plus / FFPS*) — komplett ohne externe Pflicht-Binärdateien in eigenem **WebGL2-Renderer** + **Vite `8.3`** umgesetzt:
 
 - **Facettiert modellierte PS1/VHS-Stalker (17-Gelenk-Rigs):** Maßgeschneiderte Low-Poly-Anatomie (`BufferGeometry`), prozedurale Bayer-geditherte `256×256`-UV-Gesichts- und Stofftexturen, tief beschattete Augenhöhlen, blutunterlaufene Skleren und **retroreflektierende weiße IR-Eye-Shine-Reflexe** im Taschenlampen- und Nachtsichtlicht.
 - **2-Stationen-Wachkabine (`180°`) + Unter-Theke-Versteck:** Vorne sicherst du linke & rechte Stahlrollläden und leuchtest die **türlose Mittel-Durchreiche** ab; um `180°` gedreht bedienst du **Dönerspieß, Fritteuse, Spezi-Tütenstation, Abluftventil, Hinterluke** und den **physischen Hauptsicherungs-Hebel**; unter der Edelstahltheke beobachtest du nasse Sneaker und Antons suchenden Smartphone-Lichtkegel durch den Bodenspalt und hältst den Atem an.
@@ -23,11 +23,11 @@ Psychologischer First-Person-Nachtschicht-Horror in **Torges geschlossenem Mitte
 
 ---
 
-[Im Browser spielen](https://anton037.github.io/Torges-Pizza/)
+[Im Browser spielen](https://anton037.github.io/Torges-Pizza/) · [Spiel- und Technik-Checkup](./docs/CHECKUP.md)
 
 ## Steuerung (PC & Mobile Landscape)
 
-Auf dem Handy im Querformat zeigt die kompakte Kameraauswahl die Raumnamen an. Wenn du während des Schichtstarts die App wechselst, wartet die Nacht im Pausenmenü.
+Auf dem Handy im Querformat zeigt die kompakte Kameraauswahl die Raumnamen an. Wenn du während des Schichtstarts die App wechselst, wartet die Nacht im Pausenmenü. Der erste Bon in Nacht 1 gibt dir 12 Sekunden mehr Zeit und erklärt jeden Arbeitsschritt direkt an der Taste. Während der Korb unten ist, kannst du die Kameras prüfen. Ein Signal meldet den fertigen Korb, und nach dem Packen siehst du Strombonus und Trinkgeld.
 
 ### PC (Maus + Tastatur)
 - `Mausränder` / `A`, `D` / `◀`, `▶` — Innerhalb der aktuellen Station umschauen
@@ -46,7 +46,7 @@ Auf dem Handy im Querformat zeigt die kompakte Kameraauswahl die Raumnamen an. W
 ### Smartphone / Tablet (Querformat / Landscape) — 100% Mobile-First
 - **Automatischer Vollbildmodus:** Beim Start der Schicht wird Vollbild + Querformat-Sperre angefordert (Browserleiste aus, keine versehentlichen Systemgesten — wird beim Rückkehr ins Menü automatisch beendet)
 - **Noch besser: Zum Startbildschirm hinzufügen!** Android startet über das Manifest automatisch im Vollbild-Querformat; auf dem iPhone (dort unterstützt Safari kein requestFullscreen) öffnet „Zum Home-Bildschirm“ die Kabine ohne Browserleiste → dauerhaftes Vollbild-Erlebnis
-- **Eine Grafik für alle Geräte (v2.3):** Der neue einheitliche **PSX+/VHS-Stil** rendert intern auf feste 400p mit **4×MSAA** und weichem Linear-Upscale — die HD×Retro-Mischung: klare PS1-Pixel-Dichte ohne Flimmern. Konstante ~0,29-MP-Fragmentlast = stabile 60 FPS auf Handys (die HD/Balanced/Retro-Umschaltung entfällt; die VHS-Post-Intensität bleibt in den **Optionen** wählbar)
+- **Grafik (v2.4).** Der eigene WebGL2-Renderer kombiniert gerichtetes Licht, dynamische Schatten, Normalmaps und VHS-Effekte. Er passt die interne Auflösung an die Bildrate an und hält UI-Text dabei scharf. WebGL2 muss im Browser verfügbar sein.
 - **Halte-sichere Buttons:** ARBEITEN & ATEM ANHALTEN behalten den Griff, auch wenn der Finger leicht abrutscht (Pointer-Capture — kein Abbruch mehr mitten im Schneiden/Gasping)
 - **Daumengroße Ziele:** Alle Spielknöpfe ≥ 40–56 px (Stahlgruppen 56 px, LICHT-Chips 44 px, Aktionen/Monitorleiste 44 px, Kamera-/Pauseknöpfe 40 px)
 - **Vibration als Warnton:** Jumpscare, Sicherungsausfall, Anton-Videoanruf, Tom-Luke, Enten-Rascheln, Hauke-Anlauf & Türknall vibrieren (falls vom Gerät unterstützt)

@@ -144,9 +144,8 @@ export class Controls {
         this.actions.leftLight?.();
       } else if (event.code === 'KeyE') {
         event.preventDefault();
-        if (this.actions.isBackView?.() && this.actions.prepInteract) {
-          this.prepHold = 'auto';
-          this.actions.prepInteract('auto');
+        if (this.actions.isBackView?.() && this.actions.startPrepHold) {
+          this.actions.startPrepHold();
         } else {
           this.actions.rightDoor?.();
         }
@@ -184,7 +183,7 @@ export class Controls {
       if (event.code === 'Space') {
         this.actions.holdBreath?.(false);
       }
-      if (event.code === 'KeyE' && this.prepHold === 'auto') {
+      if (event.code === 'KeyE') {
         this.prepHold = null;
       }
     });

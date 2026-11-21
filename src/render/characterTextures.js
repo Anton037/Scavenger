@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as GL from './webgl/index.js';
 import { getFaceOverrideImage } from './overrides.js';
 import { randomFrom, TAU } from './primitives.js';
 
@@ -33,7 +33,7 @@ function quantizePsxCanvas(ctx, w, h, levels = 26, ditherStrength = 9) {
 
 export function makePsxTexture(w, h, drawFn, { quantize = true, nearest = true } = {}) {
   if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
-    return new THREE.Texture();
+    return new GL.Texture();
   }
   const canvas = document.createElement('canvas');
   canvas.width = w;
@@ -42,10 +42,10 @@ export function makePsxTexture(w, h, drawFn, { quantize = true, nearest = true }
   drawFn(ctx, w, h);
   if (quantize) quantizePsxCanvas(ctx, w, h);
 
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.magFilter = nearest ? THREE.NearestFilter : THREE.LinearFilter;
-  tex.minFilter = nearest ? THREE.NearestFilter : THREE.LinearMipmapLinearFilter;
+  const tex = new GL.CanvasTexture(canvas);
+  tex.colorSpace = GL.SRGBColorSpace;
+  tex.magFilter = nearest ? GL.NearestFilter : GL.LinearFilter;
+  tex.minFilter = nearest ? GL.NearestFilter : GL.LinearMipmapLinearFilter;
   tex.generateMipmaps = !nearest;
   return tex;
 }

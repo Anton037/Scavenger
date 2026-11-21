@@ -39,7 +39,6 @@ import {
   grantAchievement,
   hasMotionBlip,
   noteRoomTransition,
-  notify,
   randomFrom,
   triggerJumpscare,
 } from './runtime.js';
@@ -81,13 +80,6 @@ export {
   triggerSteamBurst,
   ventOfficeSteam,
 };
-
-const NIGHT1_HINTS = [
-  { at: 1.0, text: 'Umsehen: ziehen bzw. Mausrand · Rollläden & Flurlicht an den Seiten-Tasten' },
-  { at: 12.0, text: 'CCTV-Monitor unten hochklappen (bzw. Space) und die Kameras prüfen' },
-  { at: 26.0, text: 'Bon da? 180° umdrehen (S) und hinten den Arbeitsschritt gedrückt halten' },
-  { at: 40.0, text: 'Ist jemand im Raum: unter die Theke (C) und Atem anhalten!' },
-];
 
 export function isSpeziBoosted(run) {
   return Boolean(run && (run.speziBoostUntil ?? 0) > (run.time ?? 0));
@@ -272,7 +264,6 @@ export function newNight(options = {}) {
     hallucination: null,
     kitchenAudioTimer: 2.2,
     kitchenNoisePulse: 0,
-    hintIdx: 0, // night-1 onboarding hint cursor
     officeBreathTimer: 2.8,
     haukeHumTimer: 11.0,
     ambienceTimer: 9.0,
@@ -941,15 +932,6 @@ export function advance(run, input = {}, dt = STEP) {
   }
 
   stepPhoneCall(run);
-
-  // Night-1 onboarding hints: fire once each, plain notices that never override safety alerts
-  if (run.night === 1 && run.state === 'playing' && run.hintIdx < NIGHT1_HINTS.length) {
-    while (run.hintIdx < NIGHT1_HINTS.length && run.time >= NIGHT1_HINTS[run.hintIdx].at) {
-      const hint = NIGHT1_HINTS[run.hintIdx];
-      if (!run.notice || run.notice.until <= run.time) notify(run, hint.text, 6.5);
-      run.hintIdx += 1;
-    }
-  }
 
   if (run.powerOutage) {
     stepPowerOutage(run, dt);

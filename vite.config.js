@@ -19,21 +19,6 @@ export default defineConfig(({ command }) => {
   const label = buildVersion(command);
   return {
     base: './',
-    build: {
-      chunkSizeWarningLimit: 700,
-      rolldownOptions: {
-        output: {
-          codeSplitting: {
-            groups: [
-              {
-                name: 'three-vendor',
-                test: /node_modules[\\/]three/,
-              },
-            ],
-          },
-        },
-      },
-    },
     plugins: [{
       name: 'scavenger-build-version',
       transformIndexHtml: (html) => html.replace('%SCAVENGER_BUILD_VERSION%', label),

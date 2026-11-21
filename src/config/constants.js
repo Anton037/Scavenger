@@ -45,6 +45,7 @@ export const BON_EXPRESS_RUSTY_POWER = 7;
 export const BON_REWARD_POWER = 3;
 export const BON_RUSTY_REWARD_POWER = 5;
 export const BON_WINDOW_SECONDS = 42;
+export const FIRST_BON_GRACE_SECONDS = 12;
 
 export const SPEZI_CHARGES = 2;
 export const SPEZI_BOOST_SECONDS = 8.0;

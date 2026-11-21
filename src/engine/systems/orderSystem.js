@@ -5,6 +5,7 @@ import {
   BON_REWARD_POWER,
   BON_RUSTY_REWARD_POWER,
   BON_WINDOW_SECONDS,
+  FIRST_BON_GRACE_SECONDS,
   PREP_BAG_SECONDS,
   PREP_DONER_SECONDS,
   PREP_FRYER_SECONDS,
@@ -23,6 +24,7 @@ export function createOrderState(cfg, modifiers = [], rng = Math.random) {
     seq: 100,
     active: null,
     stampBounce: 0,
+    lastReceipt: null,
     prepNoise: 0,
     lastSliceSoundAt: -1,
     lastPourSoundAt: -1,
@@ -47,13 +49,16 @@ export function spawnNewOrderTicket(run) {
   const ord = run.orders;
   ord.seq += 1;
   const item = ORDER_ITEMS[Math.floor(run.rng() * ORDER_ITEMS.length)];
-  const windowSec = run.modifiers?.includes('rush_hour') ? BON_WINDOW_SECONDS * 0.85 : BON_WINDOW_SECONDS;
+  const training = run.night === 1 && ord.seq === 101;
+  const baseWindow = run.modifiers?.includes('rush_hour') ? BON_WINDOW_SECONDS * 0.85 : BON_WINDOW_SECONDS;
+  const windowSec = baseWindow + (training ? FIRST_BON_GRACE_SECONDS : 0);
   ord.active = {
     id: ord.seq,
     label: item.label,
     tip: item.tip,
     createdAt: run.time,
     duration: windowSec,
+    training,
     deadline: run.time + windowSec,
     step: 'doner', // 'doner' -> 'fryer' -> 'bag'
     donerProgress: 0,
@@ -81,9 +86,11 @@ function finalizeCompletedOrder(run, ticket) {
   const powerBoost = express
     ? (isRusty ? BON_EXPRESS_RUSTY_POWER : BON_EXPRESS_POWER)
     : (isRusty ? BON_RUSTY_REWARD_POWER : BON_REWARD_POWER);
-  const tipEarned = express ? ticket.tip * 1.5 : ticket.tip;
+  const tipEarned = Math.round(ticket.tip * (express ? 150 : 100)) / 100;
 
-  run.power = clamp(run.power + powerBoost, 0, 100);
+  const before = run.power;
+  run.power = clamp(before + powerBoost, 0, 100);
+  ord.lastReceipt = { until: run.time + 3, power: Math.round(run.power - before), tip: tipEarned, express };
   run.stats.bonsStamped += 1;
   if (express) run.stats.expressBons = (run.stats.expressBons || 0) + 1;
   run.stats.tipsEarned = Math.round((run.stats.tipsEarned + tipEarned) * 100) / 100;

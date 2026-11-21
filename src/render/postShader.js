@@ -1,41 +1,34 @@
-import * as THREE from 'three';
-
 /**
  * Upgraded PS1/VHS Psychological Horror Post-Processing Shader:
  * - VHS horizontal chroma bleed & tape tracking micro-jitter
  * - Realistic Flashlight radial cone highlight & edge falloff
  * - 4 Selectable Cosmetic VHS Shader Themes (0 Standard, 1 Camcorder '98 Green, 2 Bleach Bypass, 3 PSX 4x4 Dither)
  */
-export function createPostShaderMaterial(diffuseTexture) {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      tDiffuse: { value: diffuseTexture },
-      uPixelH: { value: 400.0 },
-      uTime: { value: 0 },
-      uCctv: { value: 0 },
-      uStatic: { value: 0 },
-      uBlackout: { value: 0 },
-      uShock: { value: 0 },
-      uQuake: { value: 0 },
-      uFlicker: { value: 1 },
-      uCrtStrength: { value: 0.55 },
-      uMonitorFlash: { value: 0 },
-      uRetro: { value: 1.0 },
-      uHeat: { value: 0 },
-      uSteam: { value: 0 },
-      uIrFlash: { value: 0 },
-      uLowPower: { value: 0 },
-      uFlashlight: { value: 0 },
-      uVhsTheme: { value: 0 },
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = vec4(position.xy, 0.0, 1.0);
-      }
-    `,
-    fragmentShader: `
+export function createPostEffects() {
+  return {
+    uPixelH: { value: 400.0 },
+    uTime: { value: 0 },
+    uCctv: { value: 0 },
+    uStatic: { value: 0 },
+    uBlackout: { value: 0 },
+    uShock: { value: 0 },
+    uQuake: { value: 0 },
+    uFlicker: { value: 1 },
+    uCrtStrength: { value: 0.55 },
+    uMonitorFlash: { value: 0 },
+    uRetro: { value: 1.0 },
+    uHeat: { value: 0 },
+    uSteam: { value: 0 },
+    uIrFlash: { value: 0 },
+    uLowPower: { value: 0 },
+    uFlashlight: { value: 0 },
+    uVhsTheme: { value: 0 },
+  };
+}
+
+export const postFragment = `#version 300 es
+      precision highp float;
+      out vec4 result;
       uniform sampler2D tDiffuse;
       uniform float uPixelH;
       uniform float uTime;
@@ -54,7 +47,7 @@ export function createPostShaderMaterial(diffuseTexture) {
       uniform float uLowPower;
       uniform float uFlashlight;
       uniform float uVhsTheme;
-      varying vec2 vUv;
+      in vec2 vUv;
 
       float hash(vec2 p) {
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -86,21 +79,21 @@ export function createPostShaderMaterial(diffuseTexture) {
         // Kept gentle at the 400p internal resolution: a UV offset of ~1px fringes every
         // 1px-period texture line (tile grout, shutter corrugation) into rainbow noise.
         float ca = 0.0005 + uShock * 0.009 + uCctv * 0.0022;
-        vec3 centerSample = texture2D(tDiffuse, clamp(uv, 0.001, 0.999)).rgb;
+        vec3 centerSample = texture(tDiffuse, clamp(uv, 0.001, 0.999)).rgb;
         float rBleed = (
-          texture2D(tDiffuse, clamp(uv + vec2(ca, 0.0), 0.001, 0.999)).r +
-          texture2D(tDiffuse, clamp(uv + vec2(ca * 2.1, 0.0), 0.001, 0.999)).r
+          texture(tDiffuse, clamp(uv + vec2(ca, 0.0), 0.001, 0.999)).r +
+          texture(tDiffuse, clamp(uv + vec2(ca * 2.1, 0.0), 0.001, 0.999)).r
         ) * 0.5;
         float bBleed = (
-          texture2D(tDiffuse, clamp(uv - vec2(ca, 0.0), 0.001, 0.999)).b +
-          texture2D(tDiffuse, clamp(uv - vec2(ca * 2.1, 0.0), 0.001, 0.999)).b
+          texture(tDiffuse, clamp(uv - vec2(ca, 0.0), 0.001, 0.999)).b +
+          texture(tDiffuse, clamp(uv - vec2(ca * 2.1, 0.0), 0.001, 0.999)).b
         ) * 0.5;
         vec3 col = vec3(mix(centerSample.r, rBleed, 0.5), centerSample.g, mix(centerSample.b, bBleed, 0.5));
 
         // Soft highlight bloom on IR eye-shine, CRTs, and emergency LEDs
         vec3 bloomSample = (
-          texture2D(tDiffuse, clamp(uv + vec2(0.004, 0.003), 0.001, 0.999)).rgb +
-          texture2D(tDiffuse, clamp(uv + vec2(-0.004, -0.003), 0.001, 0.999)).rgb
+          texture(tDiffuse, clamp(uv + vec2(0.004, 0.003), 0.001, 0.999)).rgb +
+          texture(tDiffuse, clamp(uv + vec2(-0.004, -0.003), 0.001, 0.999)).rgb
         ) * 0.5;
         vec3 bright = max(bloomSample - vec3(0.70), vec3(0.0));
         col += bright * (0.34 + uCctv * 0.18 + uIrFlash * 0.30);
@@ -190,8 +183,6 @@ export function createPostShaderMaterial(diffuseTexture) {
         float vig = smoothstep(0.96, 0.26, length(d * vec2(1.20, 1.14)));
         col *= mix(0.24, 1.0, vig);
 
-        gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+        result = vec4(clamp(col, 0.0, 1.0), 1.0);
       }
-    `,
-  });
-}
+`;

@@ -132,7 +132,7 @@ export class Hud {
       btn.textContent = `CAM ${cam.short}`;
       const room = document.createElement('span');
       room.className = 'cam-room';
-      room.textContent = cam.name.split(' (')[0];
+      room.textContent = cam.compactName ?? cam.name;
       btn.appendChild(room);
       btn.title = `CAM ${cam.id} — ${cam.name}`;
       btn.setAttribute('aria-label', `Kamera ${cam.id}, ${cam.name}`);
@@ -488,24 +488,26 @@ export class Hud {
 
     const activeBon = ord?.active;
     if (ui['active-bon-chip']) {
-      const showChip = Boolean(activeBon && !out && !inJumpscare);
+      const receipt = !activeBon && ord?.lastReceipt?.until > run.time ? ord.lastReceipt : null;
+      const showChip = Boolean((activeBon || receipt) && !out && !inJumpscare);
       ui['active-bon-chip'].hidden = !showChip;
-      if (showChip) {
+      if (showChip && activeBon) {
         const leftSec = Math.max(0, activeBon.deadline - run.time);
         const pctBon = run.overtime ? 100 : Math.max(0, Math.min(100, (leftSec / activeBon.duration) * 100));
-        const stepLabel = activeBon.step === 'doner'
-          ? '1/3 SPIESS'
-          : activeBon.step === 'fryer'
-            ? (activeBon.fryerState === 'ready' ? '2/3 KORB HEBEN!' : activeBon.fryerState === 'frying' ? '2/3 FRITTIERT' : '2/3 FRITTEUSE')
-            : '3/3 EINPACKEN';
-        ui['active-bon-chip'].classList.toggle('urgent', !run.overtime && leftSec < 6.0);
-        write(
-          ui['active-bon-text'],
-          run.viewState === 'back' && !run.monitorOpen
-            ? `BON #${activeBon.id} · ${stepLabel}`
-            : `BON #${activeBon.id} · ${stepLabel} [S]`,
-        );
+        const frying = activeBon.fryerState === 'frying';
+        const ready = activeBon.fryerState === 'ready';
+        const atKitchen = run.viewState === 'back' && !run.monitorOpen;
+        const stepLabel = activeBon.step === 'doner' ? 'SPIESS' : activeBon.step === 'bag' ? 'EINPACKEN' : 'FRITTEUSE';
+        const message = frying
+          ? `KORB FERTIG IN ${Math.ceil(activeBon.fryerTimer)} S`
+          : ready ? 'KORB HEBEN!' : atKitchen ? stepLabel : `ZUR KÜCHE · ${stepLabel}`;
+        ui['active-bon-chip'].classList.toggle('urgent', ready || (!run.overtime && leftSec < 6));
+        write(ui['active-bon-text'], `BON #${activeBon.id} · ${message}`);
         if (ui['active-bon-bar']) ui['active-bon-bar'].style.width = `${pctBon.toFixed(1)}%`;
+      } else if (showChip) {
+        ui['active-bon-chip'].classList.remove('urgent');
+        write(ui['active-bon-text'], `${receipt.express ? 'EXPRESS' : 'BON FERTIG'} · +${formatEuros(receipt.tip)}${receipt.power ? ` · +${receipt.power}% STROM` : ''}`);
+        if (ui['active-bon-bar']) ui['active-bon-bar'].style.width = '0%';
       }
     }
 
@@ -592,6 +594,7 @@ export class Hud {
         const prepBtn = ui['btn-prep-work'];
         if (prepBtn) {
           const step = activeBon?.step;
+          const training = activeBon?.training;
           prepBtn.disabled = !activeBon;
           prepBtn.classList.toggle('step-active', Boolean(activeBon));
           prepBtn.classList.toggle('urgent', Boolean(activeBon && step === 'fryer' && activeBon.fryerState === 'ready'));
@@ -602,7 +605,7 @@ export class Hud {
             if (bar) bar.style.width = '0%';
           } else if (step === 'doner') {
             const pctD = Math.round(((activeBon.donerProgress || 0) / PREP_DONER_SECONDS) * 100);
-            write(label, `1. SPIESS SCHNEIDEN (${pctD}%)`);
+            write(label, (training && pctD === 0) ? 'SPIESS SCHNEIDEN · HALTEN' : `1. SPIESS SCHNEIDEN (${pctD}%)`);
             if (bar) bar.style.width = `${pctD}%`;
           } else if (step === 'fryer') {
             const fState = activeBon.fryerState || 'idle';
@@ -611,13 +614,13 @@ export class Hud {
               fState === 'idle'
                 ? '2. KORB SENKEN'
                 : fState === 'frying'
-                  ? `2. FRITTIERT (${Math.ceil(activeBon.fryerTimer)}s)`
+                  ? training ? `ZEIT FÜR CCTV (${Math.ceil(activeBon.fryerTimer)}s)` : `2. FRITTIERT (${Math.ceil(activeBon.fryerTimer)}s)`
                   : '2. KORB HEBEN!',
             );
             if (bar) bar.style.width = fState === 'frying' ? `${Math.max(4, 100 - (activeBon.fryerTimer / PREP_FRYER_SECONDS) * 100).toFixed(1)}%` : '0%';
           } else {
             const pctB = Math.round(((activeBon.bagProgress || 0) / PREP_BAG_SECONDS) * 100);
-            write(label, `3. EINPACKEN (${pctB}%)`);
+            write(label, (training && pctB === 0) ? 'EINPACKEN · HALTEN' : `3. EINPACKEN (${pctB}%)`);
             if (bar) bar.style.width = `${pctB}%`;
           }
         }

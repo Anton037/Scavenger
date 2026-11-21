@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as GL from './webgl/index.js';
 import { COSMETIC_MAP } from '../config/cosmetics.js';
 import { feedIsInterrupted } from '../engine/simulation.js';
 import {
@@ -14,7 +14,7 @@ import {
 } from './characters3d.js';
 import { onOverridesLoaded } from './overrides.js';
 import { invalidatePortraitCache } from './portraits.js';
-import { createPostShaderMaterial } from './postShader.js';
+import { createPostEffects, postFragment } from './postShader.js';
 import {
   batchStaticGroup,
   brassMaterial,
@@ -62,6 +62,15 @@ import {
   stainlessSteelPbrSet,
 } from './textures.js';
 
+const CAMERA_FILL_COLORS = {
+  '1A': 0xe0a15d, // warm service counter
+  '1C': 0xb15764, // curtain and exit glow
+  '2A': 0x8ca6c5,
+  '2B': 0x94afd4,
+  '4A': 0xcab16b,
+  '4B': 0xa5bd9a,
+};
+
 const SCARE_SHOTS = {
   anton: { headY: 1.72, fromX: -0.65, stopZ: -0.44, speed: 14, shake: 0.44 },
   tom: { headY: 1.58, fromX: 0.65, stopZ: -0.46, speed: 13, shake: 0.38 },
@@ -84,29 +93,19 @@ export class SceneView {
     };
 
     this.canvas = canvas;
-    // Unified PSX+ pipeline: one fixed internal pixel resolution (see resize()) with
-    // 4x MSAA, linear upscale and VHS post — identical look & load on every device.
-    this.renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: false,
-      powerPreference: 'high-performance',
-    });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.12;
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
-
-    this.scene = new THREE.Scene();
+    this.renderer = new GL.Renderer(canvas, postFragment);
+    this.mobileGraphics = window.matchMedia('(pointer: coarse)').matches;
+    this.renderHeight = this.mobileGraphics ? 360 : 440;
+    this.qualityHoldUntil = performance.now() + 2200;
+    this.scene = new GL.Scene();
     this.scene.background = color(0x040507);
-    this.scene.fog = new THREE.FogExp2(0x050609, 0.068);
+    this.scene.fog = new GL.FogExp2(0x050609, 0.068);
 
-    this.camera = new THREE.PerspectiveCamera(56, 16 / 9, 0.08, 38);
+    this.camera = new GL.PerspectiveCamera(56, 16 / 9, 0.08, 38);
     this.camera.rotation.order = 'YXZ';
-    this.raycaster = new THREE.Raycaster();
-    this._ndc = new THREE.Vector2();
-    this._camDir = new THREE.Vector3();
+    this.raycaster = new GL.Raycaster();
+    this._ndc = new GL.Vector2();
+    this._camDir = new GL.Vector3();
     this.clickables = [];
 
     // Performance telemetry
@@ -116,16 +115,7 @@ export class SceneView {
     this.currentFps = 60;
     this.lastDrawCalls = 0;
 
-    this.pixelTarget = new THREE.WebGLRenderTarget(712, 400, {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
-      generateMipmaps: false,
-      samples: 4,
-    });
-    this.postScene = new THREE.Scene();
-    this.postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    this.postMat = createPostShaderMaterial(this.pixelTarget.texture);
-    this.postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.postMat));
+    this.postEffects = createPostEffects();
 
     // Shared Procedural PBR Surface Sets (Albedo + Sobel Normal + Roughness)
     this.floorPbr = quarryFloorPbrSet();
@@ -151,12 +141,12 @@ export class SceneView {
     this.liveDisplays = new LiveDeskDisplays();
 
     // Scene roots
-    this.titleRoot = new THREE.Group();
-    this.officeRoot = new THREE.Group();
-    this.cctvRoot = new THREE.Group();
-    this.vhsRoot = new THREE.Group();
-    this.archiveRoot = new THREE.Group();
-    this.jumpscareRoot = new THREE.Group();
+    this.titleRoot = new GL.Group();
+    this.officeRoot = new GL.Group();
+    this.cctvRoot = new GL.Group();
+    this.vhsRoot = new GL.Group();
+    this.archiveRoot = new GL.Group();
+    this.jumpscareRoot = new GL.Group();
     this.scene.add(
       this.titleRoot,
       this.officeRoot,
@@ -184,7 +174,7 @@ export class SceneView {
   }
 
   makeFloorMaterial() {
-    return new THREE.MeshStandardMaterial({
+    return new GL.MeshStandardMaterial({
       map: this.floorPbr.map,
       normalMap: this.floorPbr.normalMap,
       roughnessMap: this.floorPbr.roughnessMap,
@@ -194,7 +184,7 @@ export class SceneView {
   }
 
   makeWallMaterial() {
-    return new THREE.MeshStandardMaterial({
+    return new GL.MeshStandardMaterial({
       map: this.wallPbr.map,
       normalMap: this.wallPbr.normalMap,
       roughnessMap: this.wallPbr.roughnessMap,
@@ -204,7 +194,7 @@ export class SceneView {
   }
 
   makeSteelMaterial() {
-    return new THREE.MeshStandardMaterial({
+    return new GL.MeshStandardMaterial({
       map: this.steelPbr.map,
       normalMap: this.steelPbr.normalMap,
       roughnessMap: this.steelPbr.roughnessMap,
@@ -232,7 +222,7 @@ export class SceneView {
       activeShader: cosmeticState.activeShader || 'vhs_standard',
     };
     const shaderItem = COSMETIC_MAP[this.cosmetics.activeShader];
-    this.postMat.uniforms.uVhsTheme.value = shaderItem?.shaderCode ?? 0;
+    this.postEffects.uVhsTheme.value = shaderItem?.shaderCode ?? 0;
 
     if (this.deskCosmetics) {
       for (const [id, group] of Object.entries(this.deskCosmetics.items)) {
@@ -255,31 +245,22 @@ export class SceneView {
     if (typeof next.reducedMotion === 'boolean') {
       this.settings.reducedMotion = next.reducedMotion;
     }
-    this.postMat.uniforms.uRetro.value = 1.0;
-    this.postMat.uniforms.uCrtStrength.value = this.settings.crt === 'off' ? 0.0 : this.settings.crt === 'strong' ? 0.95 : 0.55;
+    this.postEffects.uRetro.value = 1.0;
+    this.postEffects.uCrtStrength.value = this.settings.crt === 'off' ? 0.0 : this.settings.crt === 'strong' ? 0.95 : 0.55;
     this.resize();
   }
 
   resize() {
     const w = Math.max(320, Math.floor(window.innerWidth));
     const h = Math.max(240, Math.floor(window.innerHeight));
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    this.renderer.setPixelRatio(dpr);
-    this.renderer.setSize(w, h, false);
+    this.width = w;
+    this.height = h;
     this.camera.aspect = w / h;
-    this.camera.fov = 56;
     this.camera.updateProjectionMatrix();
-
-    // Unified PSX+ internal resolution: fixed 400 rows, width follows the aspect
-    // ratio. Constant ~0.29 MP fragment load on every device (phone-first), while
-    // 4x MSAA + mipmapped textures keep it crisp — the HD×Retro sweet spot.
-    const ph = 400;
-    const pw = Math.max(600, Math.min(960, Math.round((ph * w) / h)));
-    this.postMat.uniforms.uPixelH.value = ph;
-    if (this.pixelTarget.width !== pw || this.pixelTarget.height !== ph) {
-      this.pixelTarget.setSize(pw, ph);
-    }
+    this.renderer.resize(w, h, this.renderHeight);
   }
+
+  isContextLost() { return this.renderer.gl.isContextLost(); }
 
   pickOfficeProp(rx, ry) {
     if (!this.officeRoot.visible || !this.clickables.length) return null;
@@ -309,31 +290,28 @@ export class SceneView {
   // ==================== TITLE SCREEN 3:00 AM IMBISS DIORAMA ====================
   buildTitleStage() {
     const g = this.titleRoot;
-    g.add(new THREE.AmbientLight(0x1e242c, 0.72));
+    g.add(new GL.AmbientLight(0x1a2029, 0.48));
 
-    this.titleSpot = new THREE.SpotLight(0xdce8f0, 26, 14, 0.68, 0.65, 1.3);
+    this.titleSpot = new GL.SpotLight(0xdce8f0, 24, 14, 0.52, 0.72, 1.3);
     this.titleSpot.position.set(1.15, 3.25, 2.35);
     this.titleSpot.target.position.set(0.92, 1.38, -1.35);
     this.titleSpot.castShadow = true;
-    this.titleSpot.shadow.mapSize.set(512, 512);
-    this.titleSpot.shadow.bias = -0.0018;
-    this.titleSpot.shadow.normalBias = 0.02;
     g.add(this.titleSpot, this.titleSpot.target);
 
-    const warmSpitGlow = new THREE.PointLight(0xd85a24, 9, 6.5, 1.7);
+    const warmSpitGlow = new GL.PointLight(0xf17a30, 14, 6.5, 1.7);
     warmSpitGlow.position.set(2.35, 1.35, -2.1);
     g.add(warmSpitGlow);
 
-    const staticStage = new THREE.Group();
+    const staticStage = new GL.Group();
     const wallMat = this.makeWallMaterial();
     const floorMat = this.makeFloorMaterial();
     const steelMat = this.makeSteelMaterial();
-    const neonMat = new THREE.MeshBasicMaterial({ map: this.neonStageTex });
+    const neonMat = new GL.MeshBasicMaterial({ map: this.neonStageTex });
     piece(staticStage, solid, floorMat, 0, -0.05, -1.0, 9.2, 0.1, 6.2);
     piece(staticStage, solid, wallMat, 0, 1.8, -3.2, 9.6, 4.0, 0.2);
     piece(staticStage, solid, steelMat, 1.2, 0.45, -2.35, 4.6, 0.9, 0.75);
     piece(staticStage, solid, neonMat, 0.92, 2.65, -3.06, 2.45, 0.78, 0.06);
-    batchStaticGroup(g, staticStage, { castShadow: false, receiveShadow: true });
+    batchStaticGroup(g, staticStage, { castShadow: true, receiveShadow: true });
 
     this.titleSpit = donerSpitModel();
     this.titleSpit.root.position.set(2.35, 0.90, -2.35);
@@ -376,7 +354,7 @@ export class SceneView {
     const floorMat = this.makeFloorMaterial();
     const wallMat = this.makeWallMaterial();
     const steelMat = this.makeSteelMaterial();
-    const shutterMat = new THREE.MeshStandardMaterial({
+    const shutterMat = new GL.MeshStandardMaterial({
       map: this.shutterPbr.map,
       normalMap: this.shutterPbr.normalMap,
       roughnessMap: this.shutterPbr.roughnessMap,
@@ -385,49 +363,46 @@ export class SceneView {
     });
     const darkMetal = endoMaterial(0x181c26);
     const copperPipe = brassMaterial(PALETTE.copper);
-    const deskTopMat = new THREE.MeshStandardMaterial({ map: this.deskTex, roughness: 0.58, metalness: 0.12 });
+    const deskTopMat = new GL.MeshStandardMaterial({ map: this.deskTex, roughness: 0.58, metalness: 0.12 });
 
-    this.officeAmb = new THREE.AmbientLight(0x232934, 0.78);
+    this.officeAmb = new GL.AmbientLight(0x232934, 0.78);
     g.add(this.officeAmb);
 
     // Cold Overhead Fluorescent Booth Fixture
-    this.officeBulbGroup = new THREE.Group();
+    this.officeBulbGroup = new GL.Group();
     this.officeBulbGroup.position.set(0, 3.25, -0.35);
     piece(this.officeBulbGroup, solid, darkMetal, 0, -0.04, 0, 1.25, 0.08, 0.28, { shadow: false });
     this.officeBulbOrb = piece(this.officeBulbGroup, solid, emissive(0xdcebf2), 0, -0.09, 0, 1.15, 0.03, 0.16);
-    this.officeLight = new THREE.PointLight(0xd6e6f0, 11.5, 10.5, 1.45);
+    this.officeLight = new GL.PointLight(0xd6e6f0, 11.5, 10.5, 1.45);
     this.officeLight.position.set(0, -0.25, 0);
     this.officeLight.castShadow = true;
-    this.officeLight.shadow.mapSize.set(512, 512);
-    this.officeLight.shadow.bias = -0.002;
-    this.officeLight.shadow.normalBias = 0.02;
     this.officeBulbGroup.add(this.officeLight);
     g.add(this.officeBulbGroup);
 
     // Back Prep Warm Hood Light
-    this.prepLight = new THREE.PointLight(0xffb878, 5.2, 5.8, 1.6);
+    this.prepLight = new GL.PointLight(0xffb878, 5.2, 5.8, 1.6);
     this.prepLight.position.set(0.15, 2.45, 2.15);
     g.add(this.prepLight);
 
     // Emergency Red Backup Light (activates when Breaker Tripped, Low Power, or Overtime!)
-    this.emergencyLight = new THREE.PointLight(0xff2238, 0, 8.5, 1.5);
+    this.emergencyLight = new GL.PointLight(0xff2238, 0, 8.5, 1.5);
     this.emergencyLight.position.set(0, 2.95, 0.4);
     g.add(this.emergencyLight);
 
     // Player Tactical Flashlight SpotLight (works Front Center, Doorways, AND Back Hatch!)
-    this.playerFlashlight = new THREE.SpotLight(0xf0f6ff, 0, 14.5, 0.48, 0.62, 1.25);
+    this.playerFlashlight = new GL.SpotLight(0xf0f6ff, 0, 14.5, 0.48, 0.62, 1.25);
     this.playerFlashlight.castShadow = false;
     g.add(this.playerFlashlight, this.playerFlashlight.target);
 
     // Anton's Sweeping Smartphone Flashlight when inspecting the floor outside your Under-Desk gap!
-    this.antonSweepSpot = new THREE.SpotLight(0x7af4e8, 0, 5.5, 0.56, 0.55, 1.4);
+    this.antonSweepSpot = new GL.SpotLight(0x7af4e8, 0, 5.5, 0.56, 0.55, 1.4);
     g.add(this.antonSweepSpot, this.antonSweepSpot.target);
 
     this.officeDust = dustParticlesModel(48);
     g.add(this.officeDust);
 
     // --- Static Batched 2-Station Booth Shell ---
-    const st = new THREE.Group();
+    const st = new GL.Group();
     // Main booth floor & ceiling + deep Center Kitchen Corridor (z = -3.0 .. -7.8) + Back Alley Hatch void
     piece(st, solid, floorMat, 0, -0.05, -0.1, 7.6, 0.1, 6.4);
     piece(st, solid, darkMetal, 0, 3.3, -0.1, 7.6, 0.1, 6.4);
@@ -502,7 +477,7 @@ export class SceneView {
     batchStaticGroup(g, st, { castShadow: true, receiveShadow: true });
 
     // Rain-streaked Window Glass Panes (Left, Right, and Back Pickup Hatch)
-    this.leftWindowGlassMat = new THREE.MeshStandardMaterial({
+    this.leftWindowGlassMat = new GL.MeshStandardMaterial({
       color: 0x8ab0c8,
       map: this.rainTex,
       transparent: true,
@@ -519,18 +494,18 @@ export class SceneView {
     this.clickables.push(hatchGlass);
 
     // Front Wall Cosmetic Poster (Left of Center Pass-Through)
-    this.officePosterMat = new THREE.MeshStandardMaterial({ map: this.posterTextures.poster_default, roughness: 0.62 });
+    this.officePosterMat = new GL.MeshStandardMaterial({ map: this.posterTextures.poster_default, roughness: 0.62 });
     this.officePoster = piece(g, solid, this.officePosterMat, -1.78, 1.88, -2.95, 0.86, 1.14, 0.03, { shadow: false });
     this.officePoster.userData.propKind = 'poster';
     this.clickables.push(this.officePoster);
 
     // Animated Steel Roller Shutters (Left & Right)
-    this.leftShutter = new THREE.Group();
+    this.leftShutter = new GL.Group();
     this.leftShutter.position.set(-3.04, 2.65, -0.95);
     piece(this.leftShutter, solid, shutterMat, 0, 0, 0, 0.14, 2.45, 1.24, { shadow: true });
     g.add(this.leftShutter);
 
-    this.rightShutter = new THREE.Group();
+    this.rightShutter = new GL.Group();
     this.rightShutter.position.set(3.04, 2.65, -0.95);
     piece(this.rightShutter, solid, shutterMat, 0, 0, 0, 0.14, 2.45, 1.24, { shadow: true });
     g.add(this.rightShutter);
@@ -547,20 +522,20 @@ export class SceneView {
     this.clickables.push(this.rightSwitchBox.root);
 
     // Side Hallway Lights
-    this.leftHallLight = new THREE.PointLight(0xcfe4f5, 0, 7.2, 1.35);
+    this.leftHallLight = new GL.PointLight(0xcfe4f5, 0, 7.2, 1.35);
     this.leftHallLight.position.set(-3.72, 2.18, -1.72);
     g.add(this.leftHallLight);
 
-    this.rightHallLight = new THREE.PointLight(0xcfe4f5, 0, 7.2, 1.35);
+    this.rightHallLight = new GL.PointLight(0xcfe4f5, 0, 7.2, 1.35);
     this.rightHallLight.position.set(3.72, 2.18, -1.72);
     g.add(this.rightHallLight);
 
     // Live Front Desk Telemetry CRTs
-    this.deskCrt1Mat = new THREE.MeshBasicMaterial({ map: this.liveDisplays.sysTexture });
+    this.deskCrt1Mat = new GL.MeshBasicMaterial({ map: this.liveDisplays.sysTexture });
     this.deskCrt1 = piece(g, solid, this.deskCrt1Mat, -0.82, 1.14, -2.01, 0.48, 0.34, 0.02);
-    this.deskCrt2Mat = new THREE.MeshBasicMaterial({ map: this.liveDisplays.waveTexture });
+    this.deskCrt2Mat = new GL.MeshBasicMaterial({ map: this.liveDisplays.waveTexture });
     this.deskCrt2 = piece(g, solid, this.deskCrt2Mat, -0.82, 1.50, -2.06, 0.38, 0.22, 0.02);
-    this.deskCrtGlow = new THREE.PointLight(0x48c896, 1.2, 2.2, 2.0);
+    this.deskCrtGlow = new GL.PointLight(0x48c896, 1.2, 2.2, 2.0);
     this.deskCrtGlow.position.set(-0.82, 1.25, -1.78);
     g.add(this.deskCrtGlow);
 
@@ -631,20 +606,20 @@ export class SceneView {
     this.officeDuckSuit.root.visible = false;
     g.add(this.officeDuckSuit.root);
 
-    this.outageEyeLight = new THREE.PointLight(0xdff6ff, 0, 2.2, 2.0);
+    this.outageEyeLight = new GL.PointLight(0xdff6ff, 0, 2.2, 2.0);
     g.add(this.outageEyeLight);
   }
 
   // ==================== DENSE LIVED-IN 3 AM CCTV ROOMS (1A - 5) ====================
   buildCctvRooms() {
     const g = this.cctvRoot;
-    this.cctvAmb = new THREE.AmbientLight(0x28303d, 0.96);
+    this.cctvAmb = new GL.AmbientLight(0x28303d, 0.96);
     g.add(this.cctvAmb);
 
-    this.cctvSpot = new THREE.SpotLight(0xdff2fa, 34, 18, 0.88, 0.58, 1.2);
+    this.cctvSpot = new GL.SpotLight(0xdff2fa, 34, 18, 0.88, 0.58, 1.2);
     g.add(this.cctvSpot, this.cctvSpot.target);
 
-    this.cctvFill = new THREE.PointLight(0xc89852, 4.8, 11, 1.55);
+    this.cctvFill = new GL.PointLight(0xc89852, 4.8, 11, 1.55);
     g.add(this.cctvFill);
 
     const floorMat = this.makeFloorMaterial();
@@ -653,10 +628,10 @@ export class SceneView {
     const darkMat = material(0x141720, 0.78, 0.15);
     const curtainA = material(0x3b2436, 0.78, 0.04);
     const curtainB = material(0x9a9282, 0.78, 0.04);
-    const wood = new THREE.MeshStandardMaterial({ map: this.deskTex, roughness: 0.68 });
-    const menuMat = new THREE.MeshBasicMaterial({ map: this.menuBoardTex });
-    const stageNeonMat = new THREE.MeshBasicMaterial({ map: this.neonStageTex });
-    const hallNeonMat = new THREE.MeshBasicMaterial({ map: this.neonHallTex });
+    const wood = new GL.MeshStandardMaterial({ map: this.deskTex, roughness: 0.68 });
+    const menuMat = new GL.MeshBasicMaterial({ map: this.menuBoardTex });
+    const stageNeonMat = new GL.MeshBasicMaterial({ map: this.neonStageTex });
+    const hallNeonMat = new GL.MeshBasicMaterial({ map: this.neonHallTex });
 
     const addCeilingDucts = (st, w, d, h) => {
       // Overhead galvanized steel HVAC duct + twin fluorescent strip
@@ -665,8 +640,8 @@ export class SceneView {
     };
 
     const makeRoom = (w, d, buildStaticFn, h = 3.5) => {
-      const r = new THREE.Group();
-      const staging = new THREE.Group();
+      const r = new GL.Group();
+      const staging = new GL.Group();
       piece(staging, solid, floorMat, 0, -0.05, 0, w, 0.1, d);
       piece(staging, solid, darkMat, 0, h, 0, w, 0.1, d);
       piece(staging, solid, wallMat, 0, h * 0.5, -d * 0.5, w, h, 0.2);
@@ -720,15 +695,15 @@ export class SceneView {
       mop.position.set(-2.2, 0, 0.8);
       st.add(mop);
 
-      this.coveCurtainL = new THREE.Group();
-      this.coveCurtainR = new THREE.Group();
+      this.coveCurtainL = new GL.Group();
+      this.coveCurtainR = new GL.Group();
       for (let i = 0; i < 4; i++) {
         piece(this.coveCurtainL, solid, i % 2 === 0 ? curtainA : curtainB, -1.45 + i * 0.36, 1.72, -0.52, 0.35, 2.95, 0.12);
         piece(this.coveCurtainR, solid, i % 2 === 0 ? curtainB : curtainA, 0.37 + i * 0.36, 1.72, -0.52, 0.35, 2.95, 0.12);
       }
       r.add(this.coveCurtainL, this.coveCurtainR);
 
-      this.coveSignMat = new THREE.MeshStandardMaterial({ map: this.signNormalTex, roughness: 0.62 });
+      this.coveSignMat = new GL.MeshStandardMaterial({ map: this.signNormalTex, roughness: 0.62 });
       piece(r, solid, this.coveSignMat, 1.68, 1.12, 0.45, 1.24, 0.64, 0.06).rotation.y = -0.35;
     });
 
@@ -753,7 +728,7 @@ export class SceneView {
       }
       piece(st, round, brassMaterial(PALETTE.copper), 1.72, 2.65, -0.6, 0.06, 3.4, 0.06).rotation.x = Math.PI / 2;
 
-      this.cam2bPosterMat = new THREE.MeshStandardMaterial({ map: this.posterTextures.poster_default, roughness: 0.58 });
+      this.cam2bPosterMat = new GL.MeshStandardMaterial({ map: this.posterTextures.poster_default, roughness: 0.58 });
       piece(r, solid, this.cam2bPosterMat, -1.86, 1.72, -0.8, 0.04, 1.32, 0.98);
       this.cam2bSteam = hallSteamCloudModel();
       r.add(this.cam2bSteam.group);
@@ -821,7 +796,7 @@ export class SceneView {
   // ==================== 3 PLAYABLE 3D VHS MINIGAME DIORAMAS ====================
   buildVhsMinigameScenes() {
     const g = this.vhsRoot;
-    this.vhsAmb = new THREE.AmbientLight(0x181c24, 0.25);
+    this.vhsAmb = new GL.AmbientLight(0x181c24, 0.25);
     g.add(this.vhsAmb);
 
     const floorMat = this.makeFloorMaterial();
@@ -830,8 +805,8 @@ export class SceneView {
     const darkMat = material(0x0c0e14, 0.9, 0.1);
 
     // --- TAPE 01: 12-Meter Dark Corridor + Taped White X at z = -2.5 ---
-    this.vhsTape1Group = new THREE.Group();
-    const st1 = new THREE.Group();
+    this.vhsTape1Group = new GL.Group();
+    const st1 = new GL.Group();
     piece(st1, solid, floorMat, 0, -0.05, -6.2, 3.2, 0.1, 13.6);
     piece(st1, solid, darkMat, 0, 3.2, -6.2, 3.2, 0.1, 13.6);
     piece(st1, solid, wallMat, -1.6, 1.6, -6.2, 0.2, 3.3, 13.6);
@@ -843,7 +818,7 @@ export class SceneView {
     piece(st1, solid, tapeMat, 0, 0.008, -2.5, 0.72, 0.01, 0.09).rotation.y = -Math.PI * 0.25;
     batchStaticGroup(this.vhsTape1Group, st1, { castShadow: false, receiveShadow: true });
 
-    this.vhsTape1Light = new THREE.SpotLight(0xf0f7ff, 0, 15.5, 0.44, 0.55, 1.2);
+    this.vhsTape1Light = new GL.SpotLight(0xf0f7ff, 0, 15.5, 0.44, 0.55, 1.2);
     this.vhsTape1Light.position.set(0, 1.56, 0.2);
     this.vhsTape1Light.target.position.set(0, 1.15, -6.0);
     this.vhsTape1Group.add(this.vhsTape1Light, this.vhsTape1Light.target);
@@ -856,8 +831,8 @@ export class SceneView {
     g.add(this.vhsTape1Group);
 
     // --- TAPE 02: Hinterzimmer-Inventur (Table Inspection + Clipboard + Duck Suit) ---
-    this.vhsTape2Group = new THREE.Group();
-    const st2 = new THREE.Group();
+    this.vhsTape2Group = new GL.Group();
+    const st2 = new GL.Group();
     piece(st2, solid, floorMat, 0, -0.05, -1.2, 4.6, 0.1, 4.6);
     piece(st2, solid, wallMat, 0, 1.65, -2.8, 4.6, 3.4, 0.2);
     piece(st2, solid, steelMat, 0, 0.76, -0.92, 1.35, 0.06, 0.86);
@@ -868,11 +843,11 @@ export class SceneView {
     piece(st2, solid, brassMaterial(0xb88c38), 0.36, 0.83, -0.74, 0.18, 0.09, 0.15);
     batchStaticGroup(this.vhsTape2Group, st2, { castShadow: true, receiveShadow: true });
 
-    this.vhsTape2Bulb = new THREE.PointLight(0xffdca8, 8.5, 6.2, 1.5);
+    this.vhsTape2Bulb = new GL.PointLight(0xffdca8, 8.5, 6.2, 1.5);
     this.vhsTape2Bulb.position.set(0, 2.25, -0.95);
     this.vhsTape2Group.add(this.vhsTape2Bulb);
 
-    this.vhsTape2Clipboard = new THREE.Group();
+    this.vhsTape2Clipboard = new GL.Group();
     this.vhsTape2Clipboard.position.set(0, 1.12, -0.38);
     piece(this.vhsTape2Clipboard, solid, material(0x5c3c22, 0.8), 0, 0, 0, 0.28, 0.36, 0.014);
     piece(this.vhsTape2Clipboard, solid, material(0xece4d2, 0.75), 0, -0.01, 0.01, 0.24, 0.31, 0.004);
@@ -885,14 +860,14 @@ export class SceneView {
     g.add(this.vhsTape2Group);
 
     // --- TAPE 03: Kühlhaus-Schlussrunde (-18°C Walk-In Freezer + PVC Strip Curtains) ---
-    this.vhsTape3Group = new THREE.Group();
-    const st3 = new THREE.Group();
+    this.vhsTape3Group = new GL.Group();
+    const st3 = new GL.Group();
     piece(st3, solid, steelMat, 0, -0.05, -1.6, 5.2, 0.1, 5.4);
     piece(st3, solid, steelMat, -2.4, 1.6, -1.6, 0.2, 3.3, 5.4);
     piece(st3, solid, steelMat, 2.4, 1.6, -1.6, 0.2, 3.3, 5.4);
     piece(st3, solid, steelMat, 0, 3.2, -1.6, 5.2, 0.1, 5.4);
     // Translucent frosted PVC strip curtains straight ahead at z = -2.25!
-    const pvcMat = new THREE.MeshStandardMaterial({
+    const pvcMat = new GL.MeshStandardMaterial({
       color: 0xb8dce8,
       transparent: true,
       opacity: 0.42,
@@ -914,7 +889,7 @@ export class SceneView {
       return { led, mat: m };
     });
 
-    this.vhsTape3Light = new THREE.SpotLight(0xd8f2ff, 16, 8.5, 0.65, 0.55, 1.3);
+    this.vhsTape3Light = new GL.SpotLight(0xd8f2ff, 16, 8.5, 0.65, 0.55, 1.3);
     this.vhsTape3Light.position.set(0, 1.62, 0.35);
     this.vhsTape3Light.target.position.set(0, 1.4, -2.2);
     this.vhsTape3Group.add(this.vhsTape3Light, this.vhsTape3Light.target);
@@ -928,21 +903,21 @@ export class SceneView {
   // ==================== INTERACTIVE 3D ARCHIVE TURNTABLE STAGE ====================
   buildArchiveViewerStage() {
     const g = this.archiveRoot;
-    g.add(new THREE.AmbientLight(0x222834, 0.85));
+    g.add(new GL.AmbientLight(0x222834, 0.85));
 
-    this.archiveKeyLight = new THREE.SpotLight(0xedf5ff, 22, 12, 0.62, 0.55, 1.2);
+    this.archiveKeyLight = new GL.SpotLight(0xedf5ff, 22, 12, 0.62, 0.55, 1.2);
     this.archiveKeyLight.position.set(1.2, 2.9, 2.6);
     this.archiveKeyLight.target.position.set(0.55, 1.15, -0.8);
     g.add(this.archiveKeyLight, this.archiveKeyLight.target);
 
-    this.archiveRimLight = new THREE.PointLight(0xd84838, 8, 6, 1.6);
+    this.archiveRimLight = new GL.PointLight(0xd84838, 8, 6, 1.6);
     this.archiveRimLight.position.set(1.8, 1.9, -1.9);
     g.add(this.archiveRimLight);
 
     const pedMat = this.makeSteelMaterial();
     this.archivePedestal = piece(g, round, pedMat, 0.55, 0.06, -0.85, 0.72, 0.12, 0.72, { shadow: true });
 
-    this.archiveTurntable = new THREE.Group();
+    this.archiveTurntable = new GL.Group();
     this.archiveTurntable.position.set(0.55, 0.12, -0.85);
     g.add(this.archiveTurntable);
 
@@ -961,10 +936,10 @@ export class SceneView {
 
   buildJumpscareStage() {
     const g = this.jumpscareRoot;
-    this.jsStrobe = new THREE.PointLight(0xeef6ff, 20, 9, 1.2);
+    this.jsStrobe = new GL.PointLight(0xeef6ff, 20, 9, 1.2);
     this.jsStrobe.position.set(0, 1.68, 0.95);
     g.add(this.jsStrobe);
-    this.jsRed = new THREE.PointLight(0xd82038, 18, 9, 1.2);
+    this.jsRed = new GL.PointLight(0xd82038, 18, 9, 1.2);
     this.jsRed.position.set(0.55, 1.45, 0.55);
     g.add(this.jsRed);
 
@@ -996,7 +971,7 @@ export class SceneView {
     lowPower = 0,
     flashlight = 0,
   }) {
-    const u = this.postMat.uniforms;
+    const u = this.postEffects;
     u.uTime.value = time;
     u.uCctv.value = cctv;
     u.uStatic.value = staticAmt;
@@ -1011,20 +986,31 @@ export class SceneView {
     u.uLowPower.value = lowPower;
     u.uFlashlight.value = flashlight;
 
-    this.renderer.setRenderTarget(this.pixelTarget);
-    this.renderer.render(this.scene, this.camera);
-    this.lastDrawCalls = this.renderer.info.render.calls;
-    this.renderer.setRenderTarget(null);
-    this.renderer.render(this.postScene, this.postCamera);
+    this.renderer.resize(this.width, this.height, this.renderHeight);
+    u.uPixelH.value = this.renderHeight;
+    this.lastDrawCalls = this.renderer.draw(this.scene, this.camera, u);
 
     const now = performance.now();
-    this.fpsFrames += 1;
-    this.fpsAccum += now - this.fpsLastNow;
+    const interval = now - this.fpsLastNow;
     this.fpsLastNow = now;
-    if (this.fpsAccum >= 500) {
+    if (interval > 1000) {
+      this.fpsFrames = this.fpsAccum = 0;
+      return;
+    }
+    this.fpsFrames += 1;
+    this.fpsAccum += interval;
+    if (this.fpsAccum >= 850) {
       this.currentFps = Math.min(120, Math.round((this.fpsFrames * 1000) / this.fpsAccum));
-      this.fpsFrames = 0;
-      this.fpsAccum = 0;
+      this.fpsFrames = this.fpsAccum = 0;
+      if (now > this.qualityHoldUntil) {
+        const direction = this.currentFps < 42 ? -1 : this.currentFps >= 57 ? 1 : 0;
+        const limit = this.mobileGraphics ? 400 : 480;
+        const height = Math.max(240, Math.min(limit, this.renderHeight + direction * 40));
+        if (height !== this.renderHeight) {
+          this.renderHeight = height;
+          this.qualityHoldUntil = now + (direction > 0 ? 3400 : 2200);
+        }
+      }
     }
   }
 
@@ -1403,7 +1389,7 @@ export class SceneView {
     // Stand camera interpolates Front (z=+0.38, yaw=0) <-> Back 180° (z=-0.12, yaw=PI)
     const standX = look * 0.34 * (1 - turn * 2);
     const standY = 1.56 + breathY;
-    const standZ = THREE.MathUtils.lerp(0.38, -0.12, turn);
+    const standZ = GL.lerp(0.38, -0.12, turn);
     const standYaw = turn * Math.PI - look * 0.62;
     const whipRoll = reduced ? 0 : Math.sin(turn * Math.PI) * 0.065;
 
@@ -1414,13 +1400,13 @@ export class SceneView {
     const hideYaw = Math.PI - look * 0.42;
 
     this.camera.position.set(
-      THREE.MathUtils.lerp(standX, hideX, duck) + shakeX,
-      THREE.MathUtils.lerp(standY, hideY, duck) + shakeY,
-      THREE.MathUtils.lerp(standZ, hideZ, duck),
+      GL.lerp(standX, hideX, duck) + shakeX,
+      GL.lerp(standY, hideY, duck) + shakeY,
+      GL.lerp(standZ, hideZ, duck),
     );
     this.camera.rotation.set(
-      THREE.MathUtils.lerp(-0.03, -0.04, duck),
-      THREE.MathUtils.lerp(standYaw, hideYaw, duck),
+      GL.lerp(-0.03, -0.04, duck),
+      GL.lerp(standYaw, hideYaw, duck),
       shakeRoll + whipRoll,
     );
 
@@ -1582,7 +1568,7 @@ export class SceneView {
     const qy = q > 0.02 ? Math.cos(run.quakeTime * 66) * 0.06 * q : 0;
 
     this.cctvSpot.intensity = 19 + (run.irFlash || 0) * 18;
-    this.cctvFill.color.setHex(0xc89852);
+    this.cctvFill.color.setHex(CAMERA_FILL_COLORS[camId] ?? 0xb7a17d);
 
     const burst = run.thermal?.burstVisual;
     const syncSteamCloud = (cloud, targetCam) => {
