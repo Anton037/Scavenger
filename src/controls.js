@@ -25,7 +25,7 @@ export class Controls {
     this.dragDelta = 0;
     this.dragMoved = false;
     this.swipedVertical = false;
-    this.lookHold = 0;
+    this.heldLookDirections = new Map();
     this.prepHold = null;
     this.mouseSens = 1.0;
 
@@ -52,13 +52,14 @@ export class Controls {
       this.edgePan = 0;
       this.dragId = null;
       this.dragDelta = 0;
-      this.lookHold = 0;
+      this.heldLookDirections.clear();
       this.prepHold = null;
     }
   }
 
-  setLookHold(dir) {
-    this.lookHold = dir;
+  setLookHold(pointerId, dir) {
+    if (dir && this.enabled) this.heldLookDirections.set(pointerId, dir);
+    else this.heldLookDirections.delete(pointerId);
   }
 
   setPrepHold(station) {
@@ -193,7 +194,7 @@ export class Controls {
       this.edgePan = 0;
       this.dragId = null;
       this.dragDelta = 0;
-      this.lookHold = 0;
+      this.heldLookDirections.clear();
       this.prepHold = null;
       this.actions.holdBreath?.(false);
     });
@@ -214,6 +215,7 @@ export class Controls {
       if (event.pointerType !== 'mouse') this.noteTouch();
       if (!this.enabled || this.dragId !== null || event.button !== 0) return;
       this.dragId = event.pointerId;
+      this.dragStartX = event.clientX;
       this.dragLastX = event.clientX;
       this.dragStartY = event.clientY ?? 0;
       this.dragMoved = false;
@@ -230,10 +232,10 @@ export class Controls {
       const dx = event.clientX - this.dragLastX;
       const dy = (event.clientY ?? this.dragStartY) - this.dragStartY;
       this.dragLastX = event.clientX;
-      if (Math.abs(dx) > 2 || Math.abs(dy) > 6) this.dragMoved = true;
+      if (Math.hypot(event.clientX - this.dragStartX, dy) > 8) this.dragMoved = true;
 
       // Swipe Down on Touch -> Duck Under Desk! Swipe Up while Under Desk -> Stand Up!
-      if (!this.swipedVertical && Math.abs(dy) > 48 && Math.abs(dy) > Math.abs(dx) * 1.4) {
+      if (!this.swipedVertical && Math.abs(dy) > 48 && Math.abs(dy) > Math.abs(event.clientX - this.dragStartX) * 1.4) {
         this.swipedVertical = true;
         if (dy > 0 && !this.actions.isUnderDesk?.()) {
           this.actions.underDesk?.(true);
@@ -253,7 +255,7 @@ export class Controls {
       if (this.dragId !== event.pointerId) return;
       this.dragId = null;
       this.actions.canvasPointerUp?.();
-      if (!this.dragMoved && this.enabled) {
+      if (!this.dragMoved && this.enabled && Math.hypot(event.clientX - this.dragStartX, (event.clientY ?? this.dragStartY) - this.dragStartY) <= 8) {
         const rect = this.canvas.getBoundingClientRect();
         const rx = (event.clientX - rect.left) / Math.max(1, rect.width);
         const ry = (event.clientY - rect.top) / Math.max(1, rect.height);
@@ -275,7 +277,10 @@ export class Controls {
     let lookDelta = 0;
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) lookDelta -= 2.4;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) lookDelta += 2.4;
-    if (this.lookHold !== 0) lookDelta += this.lookHold * 2.5;
+    // The most recently pressed arrow wins until its finger lifts.
+    let heldDirection = 0;
+    for (const dir of this.heldLookDirections.values()) heldDirection = dir;
+    lookDelta += heldDirection * 2.5;
     if (this.edgePan !== 0) lookDelta += this.edgePan * 2.1 * this.mouseSens;
     if (this.dragDelta !== 0) {
       lookDelta += this.dragDelta * 60;

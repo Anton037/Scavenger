@@ -23,7 +23,11 @@ Psychologischer First-Person-Nachtschicht-Horror in **Torges geschlossenem Mitte
 
 ---
 
+[Im Browser spielen](https://anton037.github.io/Torges-Pizza/)
+
 ## Steuerung (PC & Mobile Landscape)
+
+Auf dem Handy im Querformat zeigt die kompakte Kameraauswahl die Raumnamen an. Wenn du während des Schichtstarts die App wechselst, wartet die Nacht im Pausenmenü.
 
 ### PC (Maus + Tastatur)
 - `Mausränder` / `A`, `D` / `◀`, `▶` — Innerhalb der aktuellen Station umschauen

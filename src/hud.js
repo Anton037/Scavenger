@@ -122,7 +122,7 @@ export class Hud {
     const wrap = this.el['cam-buttons'];
     if (!wrap) return;
     wrap.innerHTML = '';
-    for (const cam of CAMERAS) {
+    for (const cam of [...CAMERAS].sort((a, b) => a.id.localeCompare(b.id))) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'cam-btn';
@@ -130,6 +130,10 @@ export class Hud {
       btn.style.setProperty('--cam-x', `${cam.x}%`);
       btn.style.setProperty('--cam-y', `${cam.y}%`);
       btn.textContent = `CAM ${cam.short}`;
+      const room = document.createElement('span');
+      room.className = 'cam-room';
+      room.textContent = cam.name.split(' (')[0];
+      btn.appendChild(room);
       btn.title = `CAM ${cam.id} — ${cam.name}`;
       btn.setAttribute('aria-label', `Kamera ${cam.id}, ${cam.name}`);
       btn.setAttribute('aria-pressed', 'false');

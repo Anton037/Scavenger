@@ -178,3 +178,32 @@ test('Controls toggles pause once per key press and only treats completed statio
   canvas.dispatch('pointerup', pointer);
   assert.deepEqual(taps, [[0.5, 0.5]]);
 });
+
+test('Slow swipes and vertical drags do not activate the poster', () => {
+  const { canvas } = createFakeDom();
+  let taps = 0;
+  const controls = new Controls(canvas, { canvasTap: () => taps++ });
+  controls.enable(true);
+  const pointer = { pointerId: 1, pointerType: 'touch', button: 0, clientX: 80, clientY: 100 };
+  canvas.dispatch('pointerdown', pointer);
+  for (let x = 81; x <= 100; x++) canvas.dispatch('pointermove', { ...pointer, clientX: x });
+  canvas.dispatch('pointermove', pointer);
+  canvas.dispatch('pointerup', pointer);
+  canvas.dispatch('pointerdown', pointer);
+  canvas.dispatch('pointerup', { ...pointer, clientY: 125 });
+  assert.equal(taps, 0);
+});
+
+test('Releasing a look arrow preserves the other finger and pause clears held arrows', () => {
+  const { canvas } = createFakeDom();
+  const controls = new Controls(canvas);
+  controls.enable(true);
+  controls.setLookHold(10, -1);
+  controls.setLookHold(20, 1);
+  assert.ok(controls.read().lookDelta > 0);
+  controls.setLookHold(20, 0);
+  assert.ok(controls.read().lookDelta < 0);
+  controls.enable(false);
+  controls.enable(true);
+  assert.equal(controls.read().lookDelta, 0);
+});

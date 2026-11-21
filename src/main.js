@@ -98,6 +98,7 @@ let settings = loadSettings();
 sound.setVolume(settings.volume);
 
 let view = null;
+let viewLoading = null;
 let run = null;
 let minigame = null;
 let vhsNextNight = null;
@@ -655,11 +656,15 @@ function renderCustomPresets() {
 
 async function ensureView() {
   if (view) return view;
-  const { SceneView } = await import('./scene.js');
-  view = new SceneView(canvas, settings);
-  view.applyCosmetics(loadCosmeticState());
-  view.resize();
-  return view;
+  if (!viewLoading) {
+    viewLoading = import('./scene.js').then(({ SceneView }) => {
+      view = new SceneView(canvas, settings);
+      view.applyCosmetics(loadCosmeticState());
+      view.resize();
+      return view;
+    }).finally(() => { viewLoading = null; });
+  }
+  return viewLoading;
 }
 
 ensureView().catch((err) => {
@@ -717,19 +722,30 @@ async function startNight(night, customOverride = null, presetId = null) {
   sound.setActivity('pause');
   sound.play({ kind: 'cam_blip' });
 
-  introTimer = setTimeout(() => {
-    introTimer = null;
-    if (stage !== 'intro') return;
-    hideAllScreens();
-    hudScreen.hidden = false;
-    stage = 'play';
-    lastTs = 0;
-    lag = 0;
+  if (document.hidden) {
+    enterOffice(true);
+  } else {
+    introTimer = setTimeout(() => enterOffice(document.hidden), 1850);
+  }
+}
+
+function enterOffice(paused) {
+  if (stage !== 'intro') return;
+  clearTimeout(introTimer);
+  introTimer = null;
+  hideAllScreens();
+  hudScreen.hidden = false;
+  stage = 'play';
+  lastTs = 0;
+  lag = 0;
+  hud.paint(run);
+  view.draw(run);
+  if (paused) {
+    togglePause();
+  } else {
     controls.enable(true);
     sound.setActivity('play');
-    hud.paint(run);
-    view.draw(run);
-  }, 1850);
+  }
 }
 
 // ==================== PLAYABLE 3D VHS POST-SHIFT MINIGAMES ====================
@@ -1314,13 +1330,15 @@ function bindHoldLook(id, dir) {
   if (!el) return;
   const start = (e) => {
     e.preventDefault();
-    controls.setLookHold(dir);
+    if (e.button !== 0 || !controls.enabled) return;
+    el.setPointerCapture(e.pointerId);
+    controls.setLookHold(e.pointerId, dir);
   };
-  const stop = () => controls.setLookHold(0);
+  const stop = (event) => controls.setLookHold(event.pointerId, 0);
   el.addEventListener('pointerdown', start);
   el.addEventListener('pointerup', stop);
   el.addEventListener('pointercancel', stop);
-  el.addEventListener('pointerleave', stop);
+  el.addEventListener('lostpointercapture', stop);
 }
 bindHoldLook('look-left', -1);
 bindHoldLook('look-right', 1);
@@ -1365,13 +1383,16 @@ window.addEventListener('orientationchange', () => {
 });
 window.visualViewport?.addEventListener('resize', handleResize);
 
+function pauseForBackground() {
+  if (stage === 'intro') enterOffice(true);
+  else if (stage === 'play' && run?.state === 'playing') togglePause();
+  sound.suspend();
+}
+
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    sound.suspend();
-    if (stage === 'play' && run?.state === 'playing') togglePause();
-  }
+  if (document.hidden) pauseForBackground();
 });
-window.addEventListener('pagehide', () => sound.suspend());
+window.addEventListener('pagehide', pauseForBackground);
 
 paintAudioButtons();
 syncSettingsUi();
